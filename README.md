@@ -1,16 +1,15 @@
-# mype_finanzas
+# MYPE Finanzas
 
-App financiera para MYP
+Aplicación multiplataforma para la **gestión financiera de microempresas** con **predicción estadística** y **gamificación**.  
+Desarrollada en Flutter para Android (con soporte futuro para Web y Windows).
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+## 🧭 Objetivo del proyecto
 
-A few resources to get you started if this is your first Flutter project:
+Las micro y pequeñas empresas (MYPE) representan una parte fundamental de la economía, pero muchas enfrentan dificultades para llevar un control financiero adecuado.
+Esta app busca brindar **una herramienta simple, gratuita y educativa** para:
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- 📊 Registrar ingresos y egresos.  
+- 📈 Obtener proyecciones estadísticas básicas para anticipar gastos.  
+- 🏆 Fomentar la constancia con elementos de **gamificación** (retos, recompensas, progreso).
