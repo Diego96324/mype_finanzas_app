@@ -26,7 +26,6 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
       ),
-
       // Localización
       locale: const Locale('es', 'PE'),
       supportedLocales: const [
@@ -39,24 +38,12 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-
       home: const MyHomePage(title: 'Registro de transacciones'),
     );
   }
 }
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'MYPE Finanzas',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
-      ),
-      home: const MyHomePage(title: 'Registro de transacciones'),
-    );
-  }
-
+// ✅ helper de fecha (dd/MM/yyyy)
 String formatDate(DateTime date) {
   return DateFormat('dd/MM/yyyy', 'es_PE').format(date);
 }
@@ -73,9 +60,9 @@ class _MyHomePageState extends State<MyHomePage> {
   final _repo = TransactionRepo();
   late Future<List<AppTransaction>> _futureTransactions;
 
-  String _tipoFilter = 'todos';
-  String _order = 'fecha_desc';
-  DateTimeRange? _range;
+  String _tipoFilter = 'todos'; // 'todos' | 'ingreso' | 'egreso'
+  String _order = 'fecha_desc'; // 'fecha_desc' | 'fecha_asc' | 'monto_desc' | 'monto_asc'
+  DateTimeRange? _range;        // rango de fechas opcional
 
   @override
   void initState() {
@@ -103,7 +90,7 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       body: Column(
         children: [
-          // Controles de filtro/orden
+          // --- Controles de filtro/orden ---
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
             child: Row(
@@ -112,7 +99,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 Flexible(
                   flex: 1,
                   child: DropdownButtonFormField<String>(
-                    initialValue: _tipoFilter,
+                    key: ValueKey(_tipoFilter),   // 👈 fuerza rebuild al cambiar
+                    initialValue: _tipoFilter,    // 👈 API recomendada (3.33+)
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Tipo',
@@ -125,8 +113,10 @@ class _MyHomePageState extends State<MyHomePage> {
                       DropdownMenuItem(value: 'egreso',  child: Text('Egresos')),
                     ],
                     onChanged: (v) {
-                      _tipoFilter = v ?? 'todos';
-                      _loadTransactions();
+                      setState(() {
+                        _tipoFilter = v ?? 'todos';
+                        _loadTransactions();
+                      });
                     },
                   ),
                 ),
@@ -136,7 +126,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 Flexible(
                   flex: 1,
                   child: DropdownButtonFormField<String>(
-                    initialValue: _order,
+                    key: ValueKey(_order),       // 👈 fuerza rebuild al cambiar
+                    initialValue: _order,        // 👈 API recomendada (3.33+)
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Orden',
@@ -149,6 +140,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       DropdownMenuItem(value: 'monto_desc', child: Text('Monto mayor')),
                       DropdownMenuItem(value: 'monto_asc',  child: Text('Monto menor')),
                     ],
+                    // Texto compacto cuando está seleccionado
                     selectedItemBuilder: (context) {
                       const compact = {
                         'fecha_desc': 'Recientes',
@@ -165,8 +157,10 @@ class _MyHomePageState extends State<MyHomePage> {
                       }).toList();
                     },
                     onChanged: (v) {
-                      _order = v ?? 'fecha_desc';
-                      _loadTransactions();
+                      setState(() {
+                        _order = v ?? 'fecha_desc';
+                        _loadTransactions();
+                      });
                     },
                   ),
                 ),
@@ -194,8 +188,10 @@ class _MyHomePageState extends State<MyHomePage> {
                       locale: const Locale('es', 'PE'),
                     );
                     if (picked != null) {
-                      _range = picked;
-                      _loadTransactions();
+                      setState(() {
+                        _range = picked;
+                        _loadTransactions();
+                      });
                     }
                   },
                   constraints: const BoxConstraints.tightFor(width: 40, height: 40),
@@ -208,10 +204,12 @@ class _MyHomePageState extends State<MyHomePage> {
                   tooltip: 'Limpiar filtros',
                   icon: const Icon(Icons.filter_alt_off),
                   onPressed: () {
-                    _tipoFilter = 'todos';
-                    _order = 'fecha_desc';
-                    _range = null;
-                    _loadTransactions();
+                    setState(() {
+                      _tipoFilter = 'todos';
+                      _order = 'fecha_desc';
+                      _range = null;
+                      _loadTransactions();
+                    });
                   },
                   constraints: const BoxConstraints.tightFor(width: 40, height: 40),
                   padding: EdgeInsets.zero,
@@ -221,7 +219,7 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ),
 
-          // Lista de transacciones
+          // --- Lista de transacciones ---
           Expanded(
             child: FutureBuilder<List<AppTransaction>>(
               future: _futureTransactions,
@@ -229,19 +227,13 @@ class _MyHomePageState extends State<MyHomePage> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
                 if (snapshot.hasError) {
-                  return Center(
-                    child: Text('❌ Error: ${snapshot.error}'),
-                  );
+                  return Center(child: Text('❌ Error: ${snapshot.error}'));
                 }
 
                 final transactions = snapshot.data ?? [];
-
                 if (transactions.isEmpty) {
-                  return const Center(
-                    child: Text('No hay transacciones con el filtro actual'),
-                  );
+                  return const Center(child: Text('No hay transacciones con el filtro actual'));
                 }
 
                 return ListView.builder(
@@ -276,7 +268,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             _loadTransactions();
                           }
                         },
-                    ),
+                      ),
                     );
                   },
                 );
