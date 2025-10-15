@@ -6,16 +6,23 @@ import 'core/db/app_database.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
 import 'features/transactions/transaction_detail_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final db = await AppDatabase().database;
   debugPrint('📦 Base de datos inicializada: $db');
-  runApp(const MyApp());
+
+  // 👇 carga preferencia de sesión
+  final prefs = await SharedPreferences.getInstance();
+  final stayLogged = prefs.getBool('stay_logged_in') ?? false;
+
+  runApp(MyApp(stayLoggedIn: stayLogged));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final bool stayLoggedIn;
+  const MyApp({super.key, required this.stayLoggedIn});
 
   @override
   Widget build(BuildContext context) {
@@ -38,16 +45,174 @@ class MyApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: const MyHomePage(title: 'Registro de transacciones'),
+      // 👇 Arranque condicional según preferencia
+      home: stayLoggedIn
+          ? const MyHomePage(title: 'Registro de transacciones')
+          : const LoginScreen(),
     );
   }
 }
 
-// ✅ helper de fecha (dd/MM/yyyy)
+/// ✅ helper de fecha (dd/MM/yyyy)
 String formatDate(DateTime date) {
   return DateFormat('dd/MM/yyyy', 'es_PE').format(date);
 }
 
+/// =======================
+///      LOGIN SCREEN
+/// =======================
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _userCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  bool _obscure = true;
+  bool _loading = false;
+  bool _rememberMe = false; // 👈 nueva casilla
+
+  @override
+  void dispose() {
+    _userCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _loading = true);
+    final ctx = context; // 👈 guardar contexto
+
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (!ctx.mounted) return;
+
+    final user = _userCtrl.text.trim();
+    final pass = _passCtrl.text.trim();
+
+    if (user == 'admin' && pass == '1234') {
+      // Guardar preferencia de sesión
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('stay_logged_in', _rememberMe);
+
+      if (!ctx.mounted) return; // 👈 por seguridad después del await
+      Navigator.pushReplacement(
+        ctx,
+        MaterialPageRoute(
+          builder: (_) => const MyHomePage(title: 'Registro de transacciones'),
+        ),
+      );
+    } else {
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        const SnackBar(content: Text('❌ Usuario o contraseña incorrectos')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Card(
+              elevation: 1,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_outline, size: 64, color: cs.primary),
+                      const SizedBox(height: 12),
+                      Text('MYPE Finanzas',
+                          style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _userCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Usuario',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) =>
+                        v == null || v.isEmpty ? 'Ingrese su usuario' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _passCtrl,
+                        obscureText: _obscure,
+                        decoration: InputDecoration(
+                          labelText: 'Contraseña',
+                          border: const OutlineInputBorder(),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                                _obscure ? Icons.visibility_off : Icons.visibility),
+                            onPressed: () => setState(() => _obscure = !_obscure),
+                          ),
+                        ),
+                        validator: (v) =>
+                        v == null || v.isEmpty ? 'Ingrese su contraseña' : null,
+                      ),
+                      const SizedBox(height: 8),
+
+                      // 👇 Casilla "Mantener sesión iniciada"
+                      CheckboxListTile(
+                        value: _rememberMe,
+                        onChanged: (v) =>
+                            setState(() => _rememberMe = v ?? false),
+                        title: const Text('Mantener sesión iniciada'),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                      ),
+
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: _loading ? null : _login,
+                          child: _loading
+                              ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                              : const Text('Iniciar sesión'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Demo: admin / 1234',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// =======================
+///        HOME
+/// =======================
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
   final String title;
@@ -62,7 +227,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   String _tipoFilter = 'todos'; // 'todos' | 'ingreso' | 'egreso'
   String _order = 'fecha_desc'; // 'fecha_desc' | 'fecha_asc' | 'monto_desc' | 'monto_asc'
-  DateTimeRange? _range;        // rango de fechas opcional
+  DateTimeRange? _range; // rango de fechas opcional
 
   @override
   void initState() {
@@ -83,10 +248,34 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        backgroundColor: cs.inversePrimary,
         title: Text(widget.title),
+        actions: [
+          // Logout con limpieza de sesión
+          IconButton(
+            tooltip: 'Cerrar sesión',
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              // Guarda el contexto antes del await
+              final ctx = context;
+
+              final prefs = await SharedPreferences.getInstance();
+              if (!ctx.mounted) return;
+
+              await prefs.remove('stay_logged_in');
+              if (!ctx.mounted) return;
+
+              Navigator.pushAndRemoveUntil(
+                ctx,
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -99,8 +288,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 Flexible(
                   flex: 1,
                   child: DropdownButtonFormField<String>(
-                    key: ValueKey(_tipoFilter),   // 👈 fuerza rebuild al cambiar
-                    initialValue: _tipoFilter,    // 👈 API recomendada (3.33+)
+                    key: ValueKey(_tipoFilter),
+                    initialValue: _tipoFilter,
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Tipo',
@@ -108,9 +297,9 @@ class _MyHomePageState extends State<MyHomePage> {
                       border: OutlineInputBorder(),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'todos',  child: Text('Todos')),
+                      DropdownMenuItem(value: 'todos', child: Text('Todos')),
                       DropdownMenuItem(value: 'ingreso', child: Text('Ingresos')),
-                      DropdownMenuItem(value: 'egreso',  child: Text('Egresos')),
+                      DropdownMenuItem(value: 'egreso', child: Text('Egresos')),
                     ],
                     onChanged: (v) {
                       setState(() {
@@ -126,8 +315,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 Flexible(
                   flex: 1,
                   child: DropdownButtonFormField<String>(
-                    key: ValueKey(_order),       // 👈 fuerza rebuild al cambiar
-                    initialValue: _order,        // 👈 API recomendada (3.33+)
+                    key: ValueKey(_order),
+                    initialValue: _order,
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Orden',
@@ -136,19 +325,18 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                     items: const [
                       DropdownMenuItem(value: 'fecha_desc', child: Text('Más recientes')),
-                      DropdownMenuItem(value: 'fecha_asc',  child: Text('Más antiguos')),
+                      DropdownMenuItem(value: 'fecha_asc', child: Text('Más antiguos')),
                       DropdownMenuItem(value: 'monto_desc', child: Text('Monto mayor')),
-                      DropdownMenuItem(value: 'monto_asc',  child: Text('Monto menor')),
+                      DropdownMenuItem(value: 'monto_asc', child: Text('Monto menor')),
                     ],
-                    // Texto compacto cuando está seleccionado
                     selectedItemBuilder: (context) {
                       const compact = {
                         'fecha_desc': 'Recientes',
-                        'fecha_asc':  'Antiguos',
+                        'fecha_asc': 'Antiguos',
                         'monto_desc': 'Monto ↑',
-                        'monto_asc':  'Monto ↓',
+                        'monto_asc': 'Monto ↓',
                       };
-                      const keys = ['fecha_desc','fecha_asc','monto_desc','monto_asc'];
+                      const keys = ['fecha_desc', 'fecha_asc', 'monto_desc', 'monto_asc'];
                       return keys.map((k) {
                         return Align(
                           alignment: Alignment.centerLeft,
@@ -170,15 +358,16 @@ class _MyHomePageState extends State<MyHomePage> {
                 IconButton(
                   tooltip: _range == null
                       ? 'Filtrar por fecha'
-                      : 'Rango: ${_range!.start.year}-${_range!.start.month.toString().padLeft(2,'0')}-${_range!.start.day.toString().padLeft(2,'0')}'
-                      ' a ${_range!.end.year}-${_range!.end.month.toString().padLeft(2,'0')}-${_range!.end.day.toString().padLeft(2,'0')}',
+                      : 'Rango: ${_range!.start.year}-${_range!.start.month.toString().padLeft(2, '0')}-${_range!.start.day.toString().padLeft(2, '0')}'
+                      ' a ${_range!.end.year}-${_range!.end.month.toString().padLeft(2, '0')}-${_range!.end.day.toString().padLeft(2, '0')}',
                   icon: const Icon(Icons.date_range),
                   onPressed: () async {
                     final now = DateTime.now();
-                    final initial = _range ?? DateTimeRange(
-                      start: DateTime(now.year, now.month, 1),
-                      end: DateTime(now.year, now.month + 1, 0),
-                    );
+                    final initial = _range ??
+                        DateTimeRange(
+                          start: DateTime(now.year, now.month, 1),
+                          end: DateTime(now.year, now.month + 1, 0),
+                        );
                     final picked = await showDateRangePicker(
                       context: context,
                       firstDate: DateTime(2010),
