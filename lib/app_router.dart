@@ -8,7 +8,10 @@ GoRouter buildRouter() {
   return GoRouter(
     initialLocation: '/',
     routes: [
-      GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
+      GoRoute(
+        path: '/',
+        builder: (_, __) => const MyHomePage(title: 'Registro de transacciones'),
+      ),
       GoRoute(path: '/add', builder: (_, __) => const AddTransactionScreen()),
       GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
       GoRoute(path: '/gamification', builder: (_, __) => const GamificationScreen()),
