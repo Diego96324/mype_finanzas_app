@@ -46,7 +46,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'Buscar por etiqueta...',
-                hintStyle: TextStyle(color: Colors.grey[400]), // 30% más claro
+                hintStyle: TextStyle(color: Colors.grey[400]),
                 filled: true,
                 fillColor: Colors.grey[800],
                 border: OutlineInputBorder(
@@ -93,7 +93,6 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                   height: 80,
                   child: ElevatedButton(
                     onPressed: () {
-                      // Si no hay tipos seleccionados, usar "todos"
                       List<String> finalTipos = _tipos.isEmpty ? ['todos'] : _tipos;
 
                       Navigator.pop(context, {
@@ -144,10 +143,8 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
 
                   if (title == 'Tipo de transacción') {
                     if (option == 'todos') {
-                      // Si selecciona "todos", desmarcar todo lo demás
                       newSelection = selected ? ['todos'] : [];
                     } else {
-                      // Si selecciona otro, quitar "todos" si estaba seleccionado
                       if (newSelection.contains('todos')) {
                         newSelection.remove('todos');
                       }
@@ -157,7 +154,6 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                         newSelection.remove(option);
                       }
 
-                      // Si se marcan las 3 opciones específicas, cambiar a "todos"
                       if (newSelection.length == 3 &&
                           newSelection.contains('ingreso') &&
                           newSelection.contains('egreso') &&
@@ -166,15 +162,11 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                       }
                     }
                   } else if (title == 'Orden') {
-                    // Para orden, manejar lógica mutuamente excluyente
                     if (selected) {
-                      // Si selecciona una opción, verificar incompatibilidades
                       if (option == 'fecha_desc' || option == 'fecha_asc') {
-                        // Remover la opción de fecha contraria
                         newSelection.removeWhere((item) => item == 'fecha_desc' || item == 'fecha_asc');
                         newSelection.add(option);
                       } else if (option == 'monto_desc' || option == 'monto_asc') {
-                        // Remover la opción de monto contraria
                         newSelection.removeWhere((item) => item == 'monto_desc' || item == 'monto_asc');
                         newSelection.add(option);
                       }

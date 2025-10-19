@@ -10,7 +10,6 @@ import 'analytics_screen.dart';
 import 'reports_screen.dart';
 import 'search_filter_screen.dart';
 
-/// Contenedor principal con la barra de navegación.
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
   final String title;
@@ -37,11 +36,10 @@ class _MyHomePageState extends State<MyHomePage> {
     ];
   }
 
-  // Widget para construir cada item de la barra de navegación
   Widget _buildNavItem(IconData icon, String label, int index) {
     final isSelected = _pageIndex == index;
     const activeColor = Colors.white;
-    final inactiveColor = Colors.white.withValues(alpha: 0.93); // 93% de opacidad
+    final inactiveColor = Colors.white.withValues(alpha: 0.93);
 
     return Expanded(
       child: InkWell(
@@ -173,7 +171,7 @@ class _MyHomePageState extends State<MyHomePage> {
 }
 
 
-/// Widget para la página de transacciones (el contenido de la antigua home).
+/// Widget para la página de transacciones
 class TransactionsPage extends StatefulWidget {
   const TransactionsPage({super.key});
 
@@ -185,8 +183,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
   final _repo = TransactionRepo();
   late Future<List<AppTransaction>> _futureTransactions;
 
-  List<String> _tipoFilters = ['todos']; // Cambiar a lista para múltiples tipos
-  List<String> _orderFilters = []; // Cambiar a lista para múltiples órdenes
+  List<String> _tipoFilters = ['todos'];
+  List<String> _orderFilters = [];
   DateTimeRange? _range;
   String? _searchTerm;
 
@@ -217,7 +215,6 @@ class _TransactionsPageState extends State<TransactionsPage> {
 
   void updateFilters(Map<String, dynamic> filters) {
     setState(() {
-      // Manejar tanto el formato anterior como el nuevo
       if (filters.containsKey('tipos')) {
         _tipoFilters = List<String>.from(filters['tipos']);
       } else if (filters.containsKey('tipo')) {
@@ -272,7 +269,7 @@ class _TransactionsPageState extends State<TransactionsPage> {
             child: Text(
               _getCurrentDateString(),
               style: const TextStyle(
-                color: Color(0xFFE0E0E0), // Gris claro tirando a blanco
+                color: Color(0xFFE0E0E0),
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
               ),

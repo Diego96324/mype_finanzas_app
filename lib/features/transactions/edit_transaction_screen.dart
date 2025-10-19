@@ -66,7 +66,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> {
       nota: _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
     );
     await _repo.update(updated);
-    if (mounted) Navigator.pop(context, true); // -> true = hubo cambios
+    if (mounted) Navigator.pop(context, true); // devuelve true para refrescar
   }
 
   @override
