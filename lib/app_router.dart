@@ -1,7 +1,7 @@
 import 'package:go_router/go_router.dart';
-import 'features/home/home_screen.dart';
+import 'features/personal_finances/home_screen.dart';
 import 'features/transactions/add_transaction_screen.dart';
-import 'features/analytics/analytics_screen.dart';
+import 'features/personal_finances/analytics_screen.dart';
 import 'features/gamification/gamification_screen.dart';
 
 GoRouter buildRouter() {
