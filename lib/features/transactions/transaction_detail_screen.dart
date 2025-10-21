@@ -13,10 +13,13 @@ class TransactionDetailScreen extends StatefulWidget {
   State<TransactionDetailScreen> createState() => _TransactionDetailScreenState();
 }
 
-class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
+class _TransactionDetailScreenState extends State<TransactionDetailScreen> with SingleTickerProviderStateMixin {
   late AppTransaction _tx;
   final _repo = TransactionRepo();
-  bool _dirty = false; // 👈 hubo cambios (editar/duplicar/eliminar)
+  bool _dirty = false;
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
 
   String _fmtFecha(DateTime d) => DateFormat('dd/MM/yyyy', 'es_PE').format(d);
   String _fmtMoneda(num v) =>
@@ -26,6 +29,31 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
   void initState() {
     super.initState();
     _tx = widget.tx;
+    
+    // Configurar animaciones
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+    
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
+    
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<void> _refreshTx() async {
@@ -35,36 +63,73 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
       setState(() {
         _tx = updated;
       });
+      // Reanimar después de actualizar
+      _animationController.reset();
+      _animationController.forward();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final color = _tx.tipo == 'ingreso' ? Colors.green : Colors.red;
+    // Determinar color e icono según tipo
+    final Color typeColor;
+    final IconData typeIcon;
+    final String typeLabel;
+    
+    switch (_tx.tipo) {
+      case 'ingreso':
+        typeColor = Colors.greenAccent;
+        typeIcon = Icons.arrow_upward_rounded;
+        typeLabel = 'INGRESO';
+        break;
+      case 'egreso':
+        typeColor = Colors.redAccent;
+        typeIcon = Icons.arrow_downward_rounded;
+        typeLabel = 'EGRESO';
+        break;
+      default:
+        typeColor = Colors.blueAccent;
+        typeIcon = Icons.swap_horiz_rounded;
+        typeLabel = 'TRANSFERENCIA';
+    }
 
     return PopScope(
-      canPop: false, // 👈 desactivamos el pop automático
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
           Navigator.pop(context, _dirty);
         }
       },
       child: Scaffold(
+        backgroundColor: Colors.black,
         appBar: AppBar(
-          title: const Text('Detalle de transacción'),
+          backgroundColor: Colors.grey[900],
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            onPressed: () => Navigator.pop(context, _dirty),
+          ),
+          title: const Text(
+            'Detalle de transacción',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          centerTitle: true,
           actions: [
             // Botón EDITAR
             IconButton(
               tooltip: 'Editar',
-              icon: const Icon(Icons.edit_outlined),
+              icon: const Icon(Icons.edit_outlined, color: Colors.white),
               onPressed: () async {
                 final changed = await Navigator.push<bool>(
                   context,
                   MaterialPageRoute(builder: (_) => EditTransactionScreen(tx: _tx)),
                 );
                 if (changed == true) {
-                  _dirty = true;     // 👈 marca que hubo cambios
-                  await _refreshTx(); // 👈 recarga el detalle, permaneciendo en esta pantalla
+                  _dirty = true;
+                  await _refreshTx();
                 }
               },
             ),
@@ -72,7 +137,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             // Botón DUPLICAR
             IconButton(
               tooltip: 'Duplicar',
-              icon: const Icon(Icons.copy_outlined),
+              icon: const Icon(Icons.copy_outlined, color: Colors.white),
               onPressed: () async {
                 final saved = await Navigator.push<bool>(
                   context,
@@ -81,11 +146,10 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                   ),
                 );
                 if (saved == true && context.mounted) {
-                  _dirty = true; // 👈 hubo cambios
+                  _dirty = true;
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('✅ Transacción duplicada correctamente')),
                   );
-                  // Volvemos a la lista para que refresque
                   Navigator.pop(context, true);
                 }
               },
@@ -94,19 +158,29 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
             // Botón ELIMINAR
             IconButton(
               tooltip: 'Eliminar',
-              icon: const Icon(Icons.delete_outline),
+              icon: const Icon(Icons.delete_outline, color: Colors.white),
               onPressed: () async {
                 final ok = await showDialog<bool>(
                   context: context,
                   builder: (_) => AlertDialog(
-                    title: const Text('Eliminar transacción'),
-                    content: const Text('¿Seguro que deseas eliminarla?'),
+                    backgroundColor: const Color(0xFF2A2A2A),
+                    title: const Text(
+                      'Eliminar transacción',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    content: const Text(
+                      '¿Seguro que deseas eliminarla?',
+                      style: TextStyle(color: Colors.white70),
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, false),
                         child: const Text('Cancelar'),
                       ),
                       FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                        ),
                         onPressed: () => Navigator.pop(context, true),
                         child: const Text('Eliminar'),
                       ),
@@ -115,74 +189,210 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> {
                 );
                 if (ok == true && _tx.id != null) {
                   await _repo.delete(_tx.id!);
-                  if (context.mounted) Navigator.pop(context, true); // -> Home refresca
+                  if (context.mounted) Navigator.pop(context, true);
                 }
               },
             ),
           ],
         ),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Card(
-              child: ListTile(
-                leading: Icon(
-                  _tx.tipo == 'ingreso' ? Icons.arrow_upward : Icons.arrow_downward,
-                  color: color,
-                ),
-                title: Text(
-                  _fmtMoneda(_tx.monto),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-                subtitle: Text('Tipo: ${_tx.tipo.toUpperCase()}'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.calendar_today),
-                title: Text(_fmtFecha(_tx.fecha)),
-                subtitle: const Text('Fecha'),
-              ),
-            ),
-            if (_tx.etiqueta != null && _tx.etiqueta!.trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.label_outline),
-                  title: Text(_tx.etiqueta!),
-                  subtitle: const Text('Etiqueta'),
-                ),
-              ),
-            ],
-            if (_tx.nota != null && _tx.nota!.trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Nota', style: TextStyle(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 8),
-                      SelectableText(_tx.nota!),
-                    ],
+        body: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Tarjeta principal con el monto
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          typeColor.withValues(alpha: 0.3),
+                          typeColor.withValues(alpha: 0.1),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: typeColor.withValues(alpha: 0.5),
+                        width: 2,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Icono del tipo
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            color: typeColor.withValues(alpha: 0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            typeIcon,
+                            color: typeColor,
+                            size: 30,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Tipo de transacción
+                        Text(
+                          typeLabel,
+                          style: TextStyle(
+                            color: typeColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        // Monto principal
+                        Text(
+                          _fmtMoneda(_tx.monto),
+                          style: TextStyle(
+                            color: typeColor,
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            height: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+
+                  const SizedBox(height: 24),
+
+                  // Información de la transacción
+                  _buildInfoCard(
+                    icon: Icons.calendar_today_rounded,
+                    title: 'Fecha',
+                    content: _fmtFecha(_tx.fecha),
+                    color: Colors.blueAccent,
+                  ),
+
+                  const SizedBox(height: 12),
+                  _buildInfoCard(
+                    icon: Icons.label_rounded,
+                    title: 'Etiqueta',
+                    content: _tx.etiqueta != null && _tx.etiqueta!.trim().isNotEmpty
+                        ? _tx.etiqueta!
+                        : 'Sin etiqueta',
+                    color: Colors.purpleAccent,
+                  ),
+
+                  const SizedBox(height: 12),
+                  _buildInfoCard(
+                    icon: Icons.note_rounded,
+                    title: 'Nota',
+                    content: _tx.nota != null && _tx.nota!.trim().isNotEmpty
+                        ? _tx.nota!
+                        : 'Sin nota',
+                    color: Colors.orangeAccent,
+                    isExpandable: true,
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // ID de transacción al final
+                  if (_tx.id != null)
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        child: Text(
+                          'ID: ${_tx.id}',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.4),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  const SizedBox(height: 16),
+                ],
               ),
-            ],
-            if (_tx.id != null) ...[
-              const SizedBox(height: 8),
-              Center(
-                child: Text(
-                  'ID: ${_tx.id}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: Colors.grey[600]),
-                ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String title,
+    required String content,
+    required Color color,
+    bool isExpandable = false,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: isExpandable ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+          children: [
+            // Icono
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
               ),
-            ],
+              child: Icon(
+                icon,
+                color: color,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 14),
+            // Contenido
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    content,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: isExpandable ? null : 1,
+                    overflow: isExpandable ? null : TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
