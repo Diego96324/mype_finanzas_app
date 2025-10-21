@@ -264,17 +264,20 @@ class _TransactionsPageState extends State<TransactionsPage> {
       locale: const Locale('es', 'PE'),
       builder: (context, child) {
         return Theme(
-          data: ThemeData.dark().copyWith(
+          data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.dark(
-              primary: Colors.amber, // Color principal amarillo
-              onPrimary: Colors.black, // Texto sobre el color principal
-              surface: Color(0xFF2A2A2A), // Fondo del calendario
-              onSurface: Colors.white, // Texto sobre el fondo
+              primary: Colors.amber,
+              onPrimary: Colors.black,
+              surface: Color(0xFF2A2A2A),
+              onSurface: Colors.white,
+              brightness: Brightness.dark,
             ),
-            dialogBackgroundColor: const Color(0xFF1E1E1E), // Fondo del diálogo
+            dialogTheme: const DialogThemeData(
+              backgroundColor: Color(0xFF1E1E1E),
+            ),
             textButtonTheme: TextButtonThemeData(
               style: TextButton.styleFrom(
-                foregroundColor: Colors.amber, // Botones en amarillo
+                foregroundColor: Colors.amber,
               ),
             ),
             datePickerTheme: DatePickerThemeData(
