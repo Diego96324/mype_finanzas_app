@@ -30,7 +30,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
     super.initState();
     _tx = widget.tx;
     
-    // Configurar animaciones
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 600),
       vsync: this,
@@ -63,7 +62,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
       setState(() {
         _tx = updated;
       });
-      // Reanimar después de actualizar
       _animationController.reset();
       _animationController.forward();
     }
@@ -71,7 +69,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
 
   @override
   Widget build(BuildContext context) {
-    // Determinar color e icono según tipo
     final Color typeColor;
     final IconData typeIcon;
     final String typeLabel;
@@ -118,7 +115,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
           ),
           centerTitle: true,
           actions: [
-            // Botón EDITAR
             IconButton(
               tooltip: 'Editar',
               icon: const Icon(Icons.edit_outlined, color: Colors.white),
@@ -134,7 +130,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
               },
             ),
 
-            // Botón DUPLICAR
             IconButton(
               tooltip: 'Duplicar',
               icon: const Icon(Icons.copy_outlined, color: Colors.white),
@@ -155,7 +150,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
               },
             ),
 
-            // Botón ELIMINAR
             IconButton(
               tooltip: 'Eliminar',
               icon: const Icon(Icons.delete_outline, color: Colors.white),
@@ -204,7 +198,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Tarjeta principal con el monto
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -224,7 +217,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
                     ),
                     child: Column(
                       children: [
-                        // Icono del tipo
                         Container(
                           width: 60,
                           height: 60,
@@ -239,7 +231,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
                           ),
                         ),
                         const SizedBox(height: 12),
-                        // Tipo de transacción
                         Text(
                           typeLabel,
                           style: TextStyle(
@@ -250,7 +241,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
                           ),
                         ),
                         const SizedBox(height: 6),
-                        // Monto principal
                         Text(
                           _fmtMoneda(_tx.monto),
                           style: TextStyle(
@@ -266,7 +256,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
 
                   const SizedBox(height: 24),
 
-                  // Información de la transacción
                   _buildInfoCard(
                     icon: Icons.calendar_today_rounded,
                     title: 'Fecha',
@@ -297,7 +286,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
 
                   const SizedBox(height: 32),
 
-                  // ID de transacción al final
                   if (_tx.id != null)
                     Center(
                       child: Container(
@@ -351,7 +339,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
         child: Row(
           crossAxisAlignment: isExpandable ? CrossAxisAlignment.start : CrossAxisAlignment.center,
           children: [
-            // Icono
             Container(
               width: 48,
               height: 48,
@@ -366,7 +353,6 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
               ),
             ),
             const SizedBox(width: 14),
-            // Contenido
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

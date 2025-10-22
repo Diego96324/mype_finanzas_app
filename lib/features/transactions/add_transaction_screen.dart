@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/models/transaction_model.dart';
 import '../../core/repos/transaction_repo.dart';
+import '../../core/services/auth_service.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final AppTransaction? baseTx;
@@ -89,13 +90,31 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> with Single
 
   Future<void> _guardar() async {
     if (_formKey.currentState?.validate() != true) return;
+
+    final authService = AuthService();
+    final usuarioId = authService.currentUserId;
+
+    if (usuarioId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error: Usuario no autenticado')),
+        );
+      }
+      return;
+    }
+
     final monto = double.tryParse(_montoCtrl.text.replaceAll(',', '.')) ?? 0;
+    final now = DateTime.now();
+
     final t = AppTransaction(
+      usuarioId: usuarioId,
       fecha: _fecha,
       tipo: _tipo,
       monto: monto,
       etiqueta: _etiquetaCtrl.text.trim().isEmpty ? null : _etiquetaCtrl.text.trim(),
       nota: _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
+      createdAt: now,
+      updatedAt: now,
     );
     await _repo.insert(t);
     if (mounted) Navigator.pop(context, true);

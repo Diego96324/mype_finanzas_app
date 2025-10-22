@@ -91,11 +91,21 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
     final monto = double.tryParse(_montoCtrl.text.replaceAll(',', '.')) ?? 0;
     final updated = AppTransaction(
       id: widget.tx.id,
+      usuarioId: widget.tx.usuarioId,
+      categoriaId: widget.tx.categoriaId,
       fecha: _fecha,
       tipo: _tipo,
       monto: monto,
       etiqueta: _etiquetaCtrl.text.trim().isEmpty ? null : _etiquetaCtrl.text.trim(),
       nota: _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
+      descripcion: widget.tx.descripcion,
+      comprobanteUri: widget.tx.comprobanteUri,
+      ubicacion: widget.tx.ubicacion,
+      recurrente: widget.tx.recurrente,
+      frecuenciaRecurrencia: widget.tx.frecuenciaRecurrencia,
+      sincronizado: widget.tx.sincronizado,
+      createdAt: widget.tx.createdAt,
+      updatedAt: DateTime.now(),
     );
     await _repo.update(updated);
     if (mounted) Navigator.pop(context, true);

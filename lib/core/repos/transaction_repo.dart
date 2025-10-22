@@ -4,14 +4,13 @@ import '../models/transaction_model.dart';
 class TransactionRepo {
   final _dbFuture = AppDatabase().database;
 
-  /// Insertar una transacción
   Future<int> insert(AppTransaction t) async {
     final db = await _dbFuture;
-    return db.insert('transaccion', t.toMap());
+    return db.insert('transacciones', t.toMap());
   }
 
-  /// Listar transacciones con filtros opcionales
   Future<List<AppTransaction>> list({
+    int? usuarioId,
     String? tipo,
     DateTime? from,
     DateTime? to,
@@ -23,6 +22,10 @@ class TransactionRepo {
     final where = <String>[];
     final args = <dynamic>[];
 
+    if (usuarioId != null) {
+      where.add('usuario_id = ?');
+      args.add(usuarioId);
+    }
     if (tipo != null) {
       where.add('tipo = ?');
       args.add(tipo);
@@ -53,7 +56,7 @@ class TransactionRepo {
     }
 
     final rows = await db.query(
-      'transaccion',
+      'transacciones',
       where: where.isEmpty ? null : where.join(' AND '),
       whereArgs: args.isEmpty ? null : args,
       orderBy: orderBy,
@@ -61,34 +64,43 @@ class TransactionRepo {
     return rows.map(AppTransaction.fromMap).toList();
   }
 
-
-  /// Obtener total por tipo (ingreso/egreso)
-  Future<double> total(String tipo) async {
+  Future<double> total(String tipo, {int? usuarioId}) async {
     final db = await _dbFuture;
+    final where = <String>['tipo = ?'];
+    final args = <dynamic>[tipo];
+
+    if (usuarioId != null) {
+      where.add('usuario_id = ?');
+      args.add(usuarioId);
+    }
+
     final rows = await db.rawQuery(
-      'SELECT SUM(monto) as total FROM transaccion WHERE tipo = ?',
-      [tipo],
+      'SELECT SUM(monto) as total FROM transacciones WHERE ${where.join(' AND ')}',
+      args,
     );
     final value = rows.first['total'] as num?;
     return (value ?? 0).toDouble();
   }
 
-  /// Listar transacciones con filtros múltiples
   Future<List<AppTransaction>> listMultiple({
+    int? usuarioId,
     List<String>? tipos,
     DateTime? from,
     DateTime? to,
     String order = 'fecha_desc',
     String? searchTerm,
-    List<String>? orders, // Agregar parámetro para múltiples órdenes
+    List<String>? orders,
   }) async {
     final db = await _dbFuture;
 
     final where = <String>[];
     final args = <dynamic>[];
 
+    if (usuarioId != null) {
+      where.add('usuario_id = ?');
+      args.add(usuarioId);
+    }
     if (tipos != null && tipos.isNotEmpty && !tipos.contains('todos')) {
-      // Crear condición OR para múltiples tipos
       final tipoConditions = tipos.map((_) => 'tipo = ?').join(' OR ');
       where.add('($tipoConditions)');
       args.addAll(tipos);
@@ -109,26 +121,22 @@ class TransactionRepo {
       args.add(searchPattern);
     }
 
-    // Manejar múltiples criterios de ordenamiento
     String orderBy;
     if (orders != null && orders.isNotEmpty) {
       List<String> orderCriteria = [];
 
-      // Agregar criterios de fecha si están presentes (usando DATE() para agrupar por día)
       if (orders.contains('fecha_desc')) {
         orderCriteria.add('DATE(fecha) DESC');
       } else if (orders.contains('fecha_asc')) {
         orderCriteria.add('DATE(fecha) ASC');
       }
 
-      // Agregar criterios de monto si están presentes (independientemente de si hay criterios de fecha)
       if (orders.contains('monto_desc')) {
         orderCriteria.add('monto DESC');
       } else if (orders.contains('monto_asc')) {
         orderCriteria.add('monto ASC');
       }
 
-      // Si hay criterios de fecha, agregar también el timestamp como criterio final para consistencia
       if (orders.contains('fecha_desc') || orders.contains('fecha_asc')) {
         if (orders.contains('fecha_desc')) {
           orderCriteria.add('fecha DESC');
@@ -137,14 +145,12 @@ class TransactionRepo {
         }
       }
 
-      // Si no hay criterios específicos, usar fecha DESC como fallback
       if (orderCriteria.isEmpty) {
         orderCriteria.add('fecha DESC');
       }
 
       orderBy = orderCriteria.join(', ');
     } else {
-      // Lógica de ordenamiento simple para compatibilidad
       switch (order) {
         case 'fecha_asc':  orderBy = 'fecha ASC'; break;
         case 'monto_desc': orderBy = 'monto DESC, fecha DESC'; break;
@@ -155,7 +161,7 @@ class TransactionRepo {
     }
 
     final rows = await db.query(
-      'transaccion',
+      'transacciones',
       where: where.isEmpty ? null : where.join(' AND '),
       whereArgs: args.isEmpty ? null : args,
       orderBy: orderBy,
@@ -163,31 +169,40 @@ class TransactionRepo {
     return rows.map(AppTransaction.fromMap).toList();
   }
 
-  // Funcion Delete
   Future<int> delete(int id) async {
     final db = await _dbFuture;
-    return db.delete('transaccion', where: 'id = ?', whereArgs: [id]);
+    return db.delete('transacciones', where: 'id = ?', whereArgs: [id]);
   }
 
-  // Funcion Update
   Future<int> update(AppTransaction t) async {
     if (t.id == null) {
       throw ArgumentError('update() requiere un id');
     }
     final db = await _dbFuture;
     final map = t.toMap()..remove('id');
-    return db.update('transaccion', map, where: 'id = ?', whereArgs: [t.id]);
+    return db.update('transacciones', map, where: 'id = ?', whereArgs: [t.id]);
   }
 
-  // Funcion GetById
   Future<AppTransaction?> getById(int id) async {
     final db = await _dbFuture;
     final res = await db.query(
-      'transaccion',
+      'transacciones',
       where: 'id = ?',
       whereArgs: [id],
     );
     if (res.isEmpty) return null;
     return AppTransaction.fromMap(res.first);
+  }
+
+  Future<Map<String, double>> getStats({int? usuarioId}) async {
+    final ingresos = await total('ingreso', usuarioId: usuarioId);
+    final egresos = await total('egreso', usuarioId: usuarioId);
+    final saldo = ingresos - egresos;
+
+    return {
+      'ingresos': ingresos,
+      'egresos': egresos,
+      'saldo': saldo,
+    };
   }
 }

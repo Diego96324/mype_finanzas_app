@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/transaction_model.dart';
 import '../../core/repos/transaction_repo.dart';
-import '../../core/utils/date_utils.dart';
+import '../../core/services/auth_service.dart';
 import '../profile/profile_screen.dart';
 import '../transactions/add_transaction_screen.dart';
 import '../transactions/transaction_detail_screen.dart';
@@ -49,7 +49,6 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Efecto de luz superior
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               height: 3,
@@ -60,7 +59,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 boxShadow: isSelected
                     ? [
                         BoxShadow(
-                          color: activeColor.withValues(alpha: 0.70), // 70% de opacidad
+                          color: activeColor.withValues(alpha: 0.70),
                           blurRadius: 10,
                           spreadRadius: 3,
                           offset: const Offset(0, -1),
@@ -152,26 +151,53 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
       ),
       floatingActionButton: _pageIndex == 0
-          ? FloatingActionButton(
-              onPressed: () async {
-                final saved = await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
-                );
-                if (saved == true) {
-                  _transactionsPageKey.currentState?._loadTransactions();
-                }
-              },
-              tooltip: 'Nueva transacción',
-              child: const Icon(Icons.add),
+          ? Container(
+              width: 65,
+              height: 65,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Colors.greenAccent, Color(0xFF00C853)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.greenAccent.withValues(alpha: 0.5),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(32.5),
+                  onTap: () async {
+                    final saved = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
+                    );
+                    if (saved == true) {
+                      _transactionsPageKey.currentState?._loadTransactions();
+                    }
+                  },
+                  child: const Center(
+                    child: Icon(
+                      Icons.add_rounded,
+                      color: Colors.black,
+                      size: 32,
+                    ),
+                  ),
+                ),
+              ),
             )
           : null,
     );
   }
 }
 
-
-/// Widget para la página de transacciones
 class TransactionsPage extends StatefulWidget {
   const TransactionsPage({super.key});
 
@@ -179,7 +205,7 @@ class TransactionsPage extends StatefulWidget {
   State<TransactionsPage> createState() => _TransactionsPageState();
 }
 
-class _TransactionsPageState extends State<TransactionsPage> {
+class _TransactionsPageState extends State<TransactionsPage> with WidgetsBindingObserver {
   final _repo = TransactionRepo();
   late Future<List<AppTransaction>> _futureTransactions;
 
@@ -188,11 +214,9 @@ class _TransactionsPageState extends State<TransactionsPage> {
   DateTimeRange? _range;
   String? _searchTerm;
 
-  // Futuros para totales
   late Future<double> _totalIngresos;
   late Future<double> _totalEgresos;
 
-  // Getters públicos para acceder desde el AppBar
   String get tipoFilter => _tipoFilters.contains('todos') ? 'todos' : _tipoFilters.first;
   String get order => _orderFilters.isNotEmpty ? _orderFilters.first : 'fecha_desc';
   DateTimeRange? get range => _range;
@@ -201,30 +225,68 @@ class _TransactionsPageState extends State<TransactionsPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadTransactions();
     _loadTotals();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      setState(() {});
+    }
+  }
+
   void _loadTransactions() {
     if (!mounted) return;
+    final authService = AuthService();
+    final usuarioId = authService.currentUserId;
+
     setState(() {
       _futureTransactions = _repo.listMultiple(
+        usuarioId: usuarioId,
         tipos: _tipoFilters.contains('todos') ? null : _tipoFilters,
         from: _range?.start,
         to: _range?.end,
-        orders: _orderFilters.isNotEmpty ? _orderFilters : ['fecha_desc'], // Pasar lista de órdenes
+        orders: _orderFilters.isNotEmpty ? _orderFilters : ['fecha_desc'],
         searchTerm: _searchTerm,
       );
     });
-    // Actualizar totales cada vez que se recargan las transacciones
-    _loadTotals();
+    _loadTotalsAsync();
   }
 
   void _loadTotals() {
     if (!mounted) return;
+    final authService = AuthService();
+    final usuarioId = authService.currentUserId;
+
     setState(() {
-      _totalIngresos = _repo.total('ingreso');
-      _totalEgresos = _repo.total('egreso');
+      _totalIngresos = _repo.total('ingreso', usuarioId: usuarioId);
+      _totalEgresos = _repo.total('egreso', usuarioId: usuarioId);
+    });
+  }
+
+  Future<void> _loadTotalsAsync() async {
+    if (!mounted) return;
+    final authService = AuthService();
+    final usuarioId = authService.currentUserId;
+
+    final results = await Future.wait([
+      _repo.total('egreso', usuarioId: usuarioId),
+      _repo.total('ingreso', usuarioId: usuarioId),
+    ]);
+
+    if (!mounted) return;
+
+    setState(() {
+      _totalEgresos = Future.value(results[0]);
+      _totalIngresos = Future.value(results[1]);
     });
   }
 
@@ -236,7 +298,6 @@ class _TransactionsPageState extends State<TransactionsPage> {
         _tipoFilters = [filters['tipo']];
       }
 
-      // Manejar órdenes múltiples
       if (filters.containsKey('orders')) {
         _orderFilters = List<String>.from(filters['orders']);
       } else if (filters.containsKey('order')) {
@@ -286,13 +347,13 @@ class _TransactionsPageState extends State<TransactionsPage> {
               headerForegroundColor: Colors.black,
               dayForegroundColor: WidgetStateProperty.resolveWith((states) {
                 if (states.contains(WidgetState.selected)) {
-                  return Colors.black; // Texto de día seleccionado
+                  return Colors.black;
                 }
-                return Colors.white; // Texto de día normal
+                return Colors.white;
               }),
               dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
                 if (states.contains(WidgetState.selected)) {
-                  return Colors.amber; // Fondo de día seleccionado
+                  return Colors.amber;
                 }
                 return null;
               }),
@@ -300,13 +361,13 @@ class _TransactionsPageState extends State<TransactionsPage> {
                 if (states.contains(WidgetState.selected)) {
                   return Colors.amber;
                 }
-                return Colors.amber.withValues(alpha: 0.3); // Día actual con fondo semi-transparente
+                return Colors.amber.withValues(alpha: 0.3);
               }),
               todayForegroundColor: WidgetStateProperty.resolveWith((states) {
                 if (states.contains(WidgetState.selected)) {
                   return Colors.black;
                 }
-                return Colors.amber; // Texto del día actual
+                return Colors.amber;
               }),
               rangePickerBackgroundColor: const Color(0xFF2A2A2A),
               rangePickerHeaderBackgroundColor: Colors.amber,
@@ -330,267 +391,396 @@ class _TransactionsPageState extends State<TransactionsPage> {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
-      child: Column(
-        children: [
-          // Barra de Gastos - Ingresos - Saldo
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            color: Colors.black,
-            child: FutureBuilder<List<double>>(
-              future: Future.wait([_totalEgresos, _totalIngresos]),
-              builder: (context, snapshot) {
-                final egresos = snapshot.data?[0] ?? 0.0;
-                final ingresos = snapshot.data?[1] ?? 0.0;
-                final saldo = ingresos - egresos;
-
-                return Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          const Text(
-                            'Gastos',
-                            style: TextStyle(
-                              color: Color(0xFFE0E0E0),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'S/. ${egresos.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          const Text(
-                            'Ingresos',
-                            style: TextStyle(
-                              color: Color(0xFFE0E0E0),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'S/. ${ingresos.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          const Text(
-                            'Saldo',
-                            style: TextStyle(
-                              color: Color(0xFFE0E0E0),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'S/. ${saldo.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-          // Barra de fecha
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            color: Colors.black,
-            child: Text(
-              _getCurrentDateString(),
-              style: const TextStyle(
-                color: Color(0xFFE0E0E0),
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
+      child: Container(
+        color: const Color(0xFF121212),
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.grey[900],
+                border: Border(
+                  bottom: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    width: 1,
+                  ),
+                ),
               ),
-              textAlign: TextAlign.left,
-            ),
-          ),
-          Expanded(
-            child: FutureBuilder<List<AppTransaction>>(
-              future: _futureTransactions,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Colors.white));
-                }
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      '❌ Error: ${snapshot.error}',
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  );
-                }
+              child: FutureBuilder<List<double>>(
+                future: Future.wait([_totalEgresos, _totalIngresos]),
+                builder: (context, snapshot) {
+                  final egresos = snapshot.data?[0] ?? 0.0;
+                  final ingresos = snapshot.data?[1] ?? 0.0;
+                  final saldo = ingresos - egresos;
 
-                final transactions = snapshot.data ?? [];
-                if (transactions.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'No hay transacciones con el filtro actual',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: _buildCompactStatCard(
+                          'Gastos',
+                          egresos,
+                          Icons.trending_down_rounded,
+                          Colors.redAccent,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildCompactStatCard(
+                          'Ingresos',
+                          ingresos,
+                          Icons.trending_up_rounded,
+                          Colors.greenAccent,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildCompactStatCard(
+                          'Saldo',
+                          saldo,
+                          Icons.account_balance_wallet_rounded,
+                          saldo >= 0 ? Colors.blueAccent : Colors.orangeAccent,
+                        ),
+                      ),
+                    ],
                   );
-                }
+                },
+              ),
+            ),
 
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  itemCount: transactions.length,
-                  itemBuilder: (context, index) {
-                    final t = transactions[index];
-
-                    // Determinar color e icono según tipo
-                    final Color typeColor;
-                    final IconData typeIcon;
-
-                    switch (t.tipo) {
-                      case 'ingreso':
-                        typeColor = Colors.greenAccent;
-                        typeIcon = Icons.arrow_upward_rounded;
-                        break;
-                      case 'egreso':
-                        typeColor = Colors.redAccent;
-                        typeIcon = Icons.arrow_downward_rounded;
-                        break;
-                      default:
-                        typeColor = Colors.blueAccent;
-                        typeIcon = Icons.swap_horiz_rounded;
+            Expanded(
+              child: Container(
+                color: const Color(0xFF121212),
+                child: FutureBuilder<List<AppTransaction>>(
+                  future: _futureTransactions,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: CircularProgressIndicator(
+                                color: Colors.greenAccent,
+                                strokeWidth: 3,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Cargando transacciones...',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
                     }
 
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E1E), // Gris oscuro
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          width: 1,
-                        ),
-                      ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(12),
-                          onTap: () async {
-                            final changed = await Navigator.push<bool>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => TransactionDetailScreen(tx: t),
-                              ),
-                            );
-                            if (changed == true) {
-                              _loadTransactions();
-                            }
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: Row(
-                              children: [
-                                // Icono con círculo de fondo
-                                Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: typeColor.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Icon(
-                                    typeIcon,
-                                    color: typeColor,
-                                    size: 24,
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-                                // Información de la transacción
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        t.etiqueta ?? 'Sin etiqueta',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        formatDate(t.fecha),
-                                        style: TextStyle(
-                                          color: Colors.white.withValues(alpha: 0.6),
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w400,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // Monto
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      'S/. ${t.monto.toStringAsFixed(2)}',
-                                      style: TextStyle(
-                                        color: typeColor,
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Icon(
-                                      Icons.chevron_right_rounded,
-                                      color: Colors.white.withValues(alpha: 0.4),
-                                      size: 20,
-                                    ),
-                                  ],
-                                ),
-                              ],
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline_rounded,
+                              color: Colors.redAccent,
+                              size: 48,
                             ),
-                          ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Error al cargar',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${snapshot.error}',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.6),
+                                fontSize: 13,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
-                      ),
+                      );
+                    }
+
+                    final transactions = snapshot.data ?? [];
+
+                    if (transactions.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                color: Colors.greenAccent.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.receipt_long_rounded,
+                                size: 40,
+                                color: Colors.greenAccent.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No hay transacciones',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Toca el botón + para agregar una',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.6),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
+                    final groupedTransactions = _groupTransactionsByDate(transactions);
+
+                    return ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      itemCount: groupedTransactions.length,
+                      itemBuilder: (context, groupIndex) {
+                        final group = groupedTransactions[groupIndex];
+                        final date = group['date'] as DateTime;
+                        final txList = group['transactions'] as List<AppTransaction>;
+
+                        double dayIngresos = 0;
+                        double dayEgresos = 0;
+                        for (var tx in txList) {
+                          if (tx.tipo == 'ingreso') {
+                            dayIngresos += tx.monto;
+                          } else if (tx.tipo == 'egreso') {
+                            dayEgresos += tx.monto;
+                          }
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildDateSeparator(date, dayEgresos, dayIngresos),
+
+                            ...txList.asMap().entries.map((entry) {
+                              final index = entry.key;
+                              final t = entry.value;
+
+                              final Color typeColor;
+
+                              switch (t.tipo) {
+                                case 'ingreso':
+                                  typeColor = Colors.greenAccent;
+                                  break;
+                                case 'egreso':
+                                  typeColor = Colors.redAccent;
+                                  break;
+                                default:
+                                  typeColor = Colors.blueAccent;
+                              }
+
+                              return TweenAnimationBuilder<double>(
+                                duration: Duration(milliseconds: 200 + (index * 30)),
+                                curve: Curves.easeOutCubic,
+                                tween: Tween(begin: 0.0, end: 1.0),
+                                builder: (context, value, child) {
+                                  return Opacity(
+                                    opacity: value,
+                                    child: Transform.translate(
+                                      offset: Offset(0, 10 * (1 - value)),
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 6),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1E1E1E),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: typeColor.withValues(alpha: 0.2),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(10),
+                                      onTap: () async {
+                                        final changed = await Navigator.push<bool>(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => TransactionDetailScreen(tx: t),
+                                          ),
+                                        );
+                                        if (changed == true) {
+                                          _loadTransactions();
+                                        }
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 32,
+                                              height: 32,
+                                              decoration: BoxDecoration(
+                                                color: typeColor.withValues(alpha: 0.12),
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: typeColor.withValues(alpha: 0.3),
+                                                  width: 1.5,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10),
+
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    t.etiqueta ?? 'Sin etiqueta',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                  if (t.nota != null && t.nota!.isNotEmpty) ...[
+                                                    const SizedBox(height: 2),
+                                                    Text(
+                                                      t.nota!,
+                                                      style: TextStyle(
+                                                        color: Colors.white.withValues(alpha: 0.5),
+                                                        fontSize: 11,
+                                                      ),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                            ),
+
+                                            const SizedBox(width: 8),
+
+                                            Column(
+                                              crossAxisAlignment: CrossAxisAlignment.end,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  'S/. ${t.monto.toStringAsFixed(2)}',
+                                                  style: TextStyle(
+                                                    color: typeColor,
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: typeColor.withValues(alpha: 0.15),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: Text(
+                                                    t.tipo == 'ingreso' ? 'Ingreso' : 'Gasto',
+                                                    style: TextStyle(
+                                                      color: typeColor,
+                                                      fontSize: 9,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Icon(
+                                              Icons.chevron_right_rounded,
+                                              color: Colors.white.withValues(alpha: 0.25),
+                                              size: 18,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ],
+                        );
+                      },
                     );
                   },
-                );
-              },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactStatCard(String label, double amount, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF252525),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            color: color,
+            size: 18,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.7),
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              'S/. ${amount.toStringAsFixed(2)}',
+              style: TextStyle(
+                color: color,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -598,20 +788,111 @@ class _TransactionsPageState extends State<TransactionsPage> {
     );
   }
 
-  String _getCurrentDateString() {
+  List<Map<String, dynamic>> _groupTransactionsByDate(List<AppTransaction> transactions) {
+    final Map<String, List<AppTransaction>> grouped = {};
+
+    for (var tx in transactions) {
+      final dateKey = '${tx.fecha.year}-${tx.fecha.month.toString().padLeft(2, '0')}-${tx.fecha.day.toString().padLeft(2, '0')}';
+      if (!grouped.containsKey(dateKey)) {
+        grouped[dateKey] = [];
+      }
+      grouped[dateKey]!.add(tx);
+    }
+
+    final result = grouped.entries.map((entry) {
+      return {
+        'date': DateTime.parse(entry.key),
+        'transactions': entry.value,
+      };
+    }).toList();
+
+    result.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+
+    return result;
+  }
+
+  Widget _buildDateSeparator(DateTime date, double dayEgresos, double dayIngresos) {
     final now = DateTime.now();
+    final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+    final isYesterday = date.year == now.year && date.month == now.month && date.day == now.day - 1;
+
     final months = [
       'ene', 'feb', 'mar', 'abr', 'may', 'jun',
       'jul', 'ago', 'sep', 'oct', 'nov', 'dic'
     ];
     final weekdays = [
-      'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'
+      'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'
     ];
 
-    final day = now.day;
-    final month = months[now.month - 1];
-    final weekday = weekdays[now.weekday - 1];
+    final dateStr = isToday
+        ? 'Hoy'
+        : isYesterday
+            ? 'Ayer'
+            : '${date.day} ${months[date.month - 1]} • ${weekdays[date.weekday - 1]}';
 
-    return '$day $month    $weekday';
+    return Container(
+      margin: const EdgeInsets.only(top: 8, bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.calendar_today_rounded,
+            color: Colors.greenAccent,
+            size: 14,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            dateStr,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Spacer(),
+          if (dayEgresos > 0) ...[
+            Icon(
+              Icons.arrow_downward_rounded,
+              color: Colors.redAccent,
+              size: 12,
+            ),
+            const SizedBox(width: 2),
+            Text(
+              'S/. ${dayEgresos.toStringAsFixed(2)}',
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          if (dayEgresos > 0 && dayIngresos > 0) const SizedBox(width: 12),
+          if (dayIngresos > 0) ...[
+            Icon(
+              Icons.arrow_upward_rounded,
+              color: Colors.greenAccent,
+              size: 12,
+            ),
+            const SizedBox(width: 2),
+            Text(
+              'S/. ${dayIngresos.toStringAsFixed(2)}',
+              style: const TextStyle(
+                color: Colors.greenAccent,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

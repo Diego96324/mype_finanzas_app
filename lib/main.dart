@@ -1,50 +1,57 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/db/app_database.dart';
+import 'core/services/auth_service.dart';
+import 'core/services/theme_service.dart';
 import 'features/auth/login_screen.dart';
 import 'features/personal_finances/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final db = await AppDatabase().database;
-  debugPrint('📦 Base de datos inicializada: $db');
 
-  final prefs = await SharedPreferences.getInstance();
-  final stayLogged = prefs.getBool('stay_logged_in') ?? false;
+  await Future.wait([
+    AppDatabase().database.then((db) => debugPrint('📦 Base de datos inicializada: $db')),
+    AuthService().init(),
+    ThemeService().init(),
+  ]);
 
-  runApp(MyApp(stayLoggedIn: stayLogged));
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  final bool stayLoggedIn;
-  const MyApp({super.key, required this.stayLoggedIn});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'MYPE Finanzas',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
-      ),
-      // Localización
-      locale: const Locale('es', 'PE'),
-      supportedLocales: const [
-        Locale('es', 'PE'),
-        Locale('es'),
-        Locale('en'),
-      ],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      home: stayLoggedIn
-          ? const MyHomePage(title: 'Registro de transacciones')
-          : const LoginScreen(),
+    return AnimatedBuilder(
+      animation: ThemeService(),
+      builder: (context, _) {
+        final themeService = ThemeService();
+        final authService = AuthService();
+
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'MYPE Finanzas',
+          theme: themeService.lightTheme,
+          darkTheme: themeService.darkTheme,
+          themeMode: themeService.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          locale: const Locale('es', 'PE'),
+          supportedLocales: const [
+            Locale('es', 'PE'),
+            Locale('es'),
+            Locale('en'),
+          ],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: authService.isAuthenticated
+              ? const MyHomePage(title: 'Registro de transacciones')
+              : const LoginScreen(),
+        );
+      },
     );
   }
 }
