@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import '../../core/models/transaction_model.dart';
 import '../../core/repos/transaction_repo.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/utils/date_picker_theme.dart';
 import '../profile/profile_screen.dart';
 import '../transactions/add_transaction_screen.dart';
 import '../transactions/transaction_detail_screen.dart';
-import 'analytics_screen.dart';
-import 'reports_screen.dart';
+import '../analytics/analytics_screen.dart';
+import 'reports_screen.dart' as reports;
 import 'search_filter_screen.dart';
 
 class MyHomePage extends StatefulWidget {
@@ -31,7 +32,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _pages = [
       TransactionsPage(key: _transactionsPageKey),
       const AnalyticsScreen(),
-      const ReportsScreen(),
+      const reports.ReportsScreen(),
       const ProfileScreen(),
     ];
   }
@@ -248,16 +249,16 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
     final authService = AuthService();
     final usuarioId = authService.currentUserId;
 
-    setState(() {
-      _futureTransactions = _repo.listMultiple(
-        usuarioId: usuarioId,
-        tipos: _tipoFilters.contains('todos') ? null : _tipoFilters,
-        from: _range?.start,
-        to: _range?.end,
-        orders: _orderFilters.isNotEmpty ? _orderFilters : ['fecha_desc'],
-        searchTerm: _searchTerm,
-      );
-    });
+    _futureTransactions = _repo.listMultiple(
+      usuarioId: usuarioId,
+      tipos: _tipoFilters.contains('todos') ? null : _tipoFilters,
+      from: _range?.start,
+      to: _range?.end,
+      orders: _orderFilters.isNotEmpty ? _orderFilters : ['fecha_desc'],
+      searchTerm: _searchTerm,
+    );
+
+    if (mounted) setState(() {});
     _loadTotalsAsync();
   }
 
@@ -266,10 +267,10 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
     final authService = AuthService();
     final usuarioId = authService.currentUserId;
 
-    setState(() {
-      _totalIngresos = _repo.total('ingreso', usuarioId: usuarioId);
-      _totalEgresos = _repo.total('egreso', usuarioId: usuarioId);
-    });
+    _totalIngresos = _repo.total('ingreso', usuarioId: usuarioId);
+    _totalEgresos = _repo.total('egreso', usuarioId: usuarioId);
+
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadTotalsAsync() async {
@@ -284,10 +285,10 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
 
     if (!mounted) return;
 
-    setState(() {
-      _totalEgresos = Future.value(results[0]);
-      _totalIngresos = Future.value(results[1]);
-    });
+    _totalEgresos = Future.value(results[0]);
+    _totalIngresos = Future.value(results[1]);
+
+    if (mounted) setState(() {});
   }
 
   void updateFilters(Map<String, dynamic> filters) {
@@ -325,57 +326,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
       locale: const Locale('es', 'PE'),
       builder: (context, child) {
         return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: Colors.amber,
-              onPrimary: Colors.black,
-              surface: Color(0xFF2A2A2A),
-              onSurface: Colors.white,
-              brightness: Brightness.dark,
-            ),
-            dialogTheme: const DialogThemeData(
-              backgroundColor: Color(0xFF1E1E1E),
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.amber,
-              ),
-            ),
-            datePickerTheme: DatePickerThemeData(
-              backgroundColor: const Color(0xFF1E1E1E),
-              headerBackgroundColor: Colors.amber,
-              headerForegroundColor: Colors.black,
-              dayForegroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return Colors.black;
-                }
-                return Colors.white;
-              }),
-              dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return Colors.amber;
-                }
-                return null;
-              }),
-              todayBackgroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return Colors.amber;
-                }
-                return Colors.amber.withValues(alpha: 0.3);
-              }),
-              todayForegroundColor: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return Colors.black;
-                }
-                return Colors.amber;
-              }),
-              rangePickerBackgroundColor: const Color(0xFF2A2A2A),
-              rangePickerHeaderBackgroundColor: Colors.amber,
-              rangePickerHeaderForegroundColor: Colors.black,
-              rangeSelectionBackgroundColor: Colors.amber.withValues(alpha: 0.3),
-              dividerColor: Colors.white.withValues(alpha: 0.1),
-            ),
-          ),
+          data: AppDatePickerTheme.darkDateRangePickerTheme(context),
           child: child!,
         );
       },
@@ -580,10 +531,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                           children: [
                             _buildDateSeparator(date, dayEgresos, dayIngresos),
 
-                            ...txList.asMap().entries.map((entry) {
-                              final index = entry.key;
-                              final t = entry.value;
-
+                            ...txList.map((t) {
                               final Color typeColor;
 
                               switch (t.tipo) {
@@ -597,20 +545,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                                   typeColor = Colors.blueAccent;
                               }
 
-                              return TweenAnimationBuilder<double>(
-                                duration: Duration(milliseconds: 200 + (index * 30)),
-                                curve: Curves.easeOutCubic,
-                                tween: Tween(begin: 0.0, end: 1.0),
-                                builder: (context, value, child) {
-                                  return Opacity(
-                                    opacity: value,
-                                    child: Transform.translate(
-                                      offset: Offset(0, 10 * (1 - value)),
-                                      child: child,
-                                    ),
-                                  );
-                                },
-                                child: Container(
+                              return Container(
                                   margin: const EdgeInsets.only(bottom: 6),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF1E1E1E),
@@ -727,9 +662,8 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                                       ),
                                     ),
                                   ),
-                                ),
-                              );
-                            }).toList(),
+                                );
+                            }),
                           ],
                         );
                       },

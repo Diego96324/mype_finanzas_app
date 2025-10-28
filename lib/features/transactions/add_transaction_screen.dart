@@ -3,10 +3,19 @@ import 'package:flutter/services.dart';
 import '../../core/models/transaction_model.dart';
 import '../../core/repos/transaction_repo.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/utils/date_picker_theme.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final AppTransaction? baseTx;
-  const AddTransactionScreen({super.key, this.baseTx});
+  final DateTime? initialDate;
+  final DateTimeRange? allowedDateRange;
+
+  const AddTransactionScreen({
+    super.key,
+    this.baseTx,
+    this.initialDate,
+    this.allowedDateRange,
+  });
 
   @override
   State<AddTransactionScreen> createState() => _AddTransactionScreenState();
@@ -31,12 +40,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> with Single
     super.initState();
     final base = widget.baseTx;
     _tipo = base?.tipo ?? 'egreso';
-    _fecha = DateTime.now();
+    _fecha = widget.initialDate ?? DateTime.now();
     _montoCtrl.text = base?.monto.toStringAsFixed(2) ?? '';
     _etiquetaCtrl.text = base?.etiqueta ?? '';
     _notaCtrl.text = base?.nota ?? '';
 
-    // Configurar animaciones
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -66,21 +74,21 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> with Single
   }
 
   Future<void> _pickFecha() async {
+    final firstDate = widget.allowedDateRange?.start ?? DateTime(2010);
+    final lastDate = widget.allowedDateRange?.end ?? DateTime(2100);
+
     final picked = await showDatePicker(
       context: context,
       initialDate: _fecha,
-      firstDate: DateTime(2010),
-      lastDate: DateTime(2100),
-      helpText: 'Selecciona la fecha',
+      firstDate: firstDate,
+      lastDate: lastDate,
+      helpText: widget.allowedDateRange != null
+          ? 'Selecciona fecha del período'
+          : 'Selecciona la fecha',
       locale: const Locale('es', 'PE'),
       builder: (context, child) {
         return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: _tipo == 'ingreso' ? Colors.greenAccent : Colors.redAccent,
-              surface: const Color(0xFF2A2A2A),
-            ),
-          ),
+          data: AppDatePickerTheme.darkDatePickerTheme(context),
           child: child!,
         );
       },
@@ -153,7 +161,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> with Single
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Selector de tipo con diseño mejorado
                   Container(
                     decoration: BoxDecoration(
                       color: const Color(0xFF1E1E1E),
@@ -205,7 +212,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> with Single
 
                   const SizedBox(height: 20),
 
-                  // Campo de monto
                   _buildTextField(
                     controller: _montoCtrl,
                     label: 'Monto',
@@ -226,7 +232,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> with Single
 
                   const SizedBox(height: 16),
 
-                  // Campo de etiqueta
                   _buildTextField(
                     controller: _etiquetaCtrl,
                     label: 'Etiqueta (opcional)',
@@ -241,7 +246,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> with Single
 
                   const SizedBox(height: 16),
 
-                  // Campo de nota
                   _buildTextField(
                     controller: _notaCtrl,
                     label: 'Nota (opcional)',
@@ -253,7 +257,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> with Single
 
                   const SizedBox(height: 20),
 
-                  // Selector de fecha
                   InkWell(
                     onTap: _pickFecha,
                     borderRadius: BorderRadius.circular(16),
@@ -318,7 +321,6 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> with Single
 
                   const SizedBox(height: 32),
 
-                  // Botón de guardar
                   Container(
                     height: 56,
                     decoration: BoxDecoration(
@@ -346,10 +348,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> with Single
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.save_rounded, color: Colors.black),
+                              Icon(Icons.add_rounded, color: Colors.black),
                               SizedBox(width: 8),
                               Text(
-                                'Guardar transacción',
+                                'Agregar Transacción',
                                 style: TextStyle(
                                   color: Colors.black,
                                   fontSize: 16,
@@ -490,3 +492,4 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> with Single
     );
   }
 }
+

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/models/transaction_model.dart';
 import '../../core/repos/transaction_repo.dart';
+import '../../core/utils/date_picker_theme.dart';
 
 class EditTransactionScreen extends StatefulWidget {
   final AppTransaction tx;
@@ -34,7 +35,6 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
     _etiquetaCtrl.text = widget.tx.etiqueta ?? '';
     _notaCtrl.text = widget.tx.nota ?? '';
 
-    // Configurar animaciones
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
@@ -73,12 +73,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
       locale: const Locale('es', 'PE'),
       builder: (context, child) {
         return Theme(
-          data: ThemeData.dark().copyWith(
-            colorScheme: ColorScheme.dark(
-              primary: _tipo == 'ingreso' ? Colors.greenAccent : Colors.redAccent,
-              surface: const Color(0xFF2A2A2A),
-            ),
-          ),
+          data: AppDatePickerTheme.darkDatePickerTheme(context),
           child: child!,
         );
       },
@@ -144,7 +139,6 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Selector de tipo con diseño mejorado
                   Container(
                     decoration: BoxDecoration(
                       color: const Color(0xFF1E1E1E),
@@ -196,7 +190,6 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
 
                   const SizedBox(height: 20),
 
-                  // Campo de monto
                   _buildTextField(
                     controller: _montoCtrl,
                     label: 'Monto',
@@ -217,7 +210,6 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
 
                   const SizedBox(height: 16),
 
-                  // Campo de etiqueta
                   _buildTextField(
                     controller: _etiquetaCtrl,
                     label: 'Etiqueta (opcional)',
@@ -232,7 +224,6 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
 
                   const SizedBox(height: 16),
 
-                  // Campo de nota
                   _buildTextField(
                     controller: _notaCtrl,
                     label: 'Nota (opcional)',
@@ -244,7 +235,6 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
 
                   const SizedBox(height: 20),
 
-                  // Selector de fecha
                   InkWell(
                     onTap: _pickFecha,
                     borderRadius: BorderRadius.circular(16),
@@ -309,7 +299,6 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
 
                   const SizedBox(height: 32),
 
-                  // Botón de guardar cambios
                   Container(
                     height: 56,
                     decoration: BoxDecoration(

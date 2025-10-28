@@ -16,7 +16,7 @@ class AppDatabase {
     return _db!;
   }
 
-  // Solo para desarrollo, borra todo
+  // ¡Cuidado! Esto borra todo como si no hubiera mañana 🔥
   Future<void> resetDatabase() async {
     final dir = await getApplicationDocumentsDirectory();
     final path = join(dir.path, 'mype_finanzas.db');
@@ -30,7 +30,7 @@ class AppDatabase {
     final path = join(dir.path, 'mype_finanzas.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -162,7 +162,49 @@ class AppDatabase {
       )
     ''');
 
-    // Indices pa' que las queries vuelen
+    await db.execute('''
+      CREATE TABLE accounts(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        nombre TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        moneda TEXT NOT NULL DEFAULT 'PEN',
+        saldo REAL NOT NULL DEFAULT 0,
+        nota TEXT,
+        fecha_creacion TEXT NOT NULL,
+    await db.execute('CREATE INDEX idx_accounts_usuario ON accounts(usuario_id)');
+    await db.execute('CREATE INDEX idx_budgets_usuario_mes ON budgets(usuario_id, mes, anio)');
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE budgets(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        monto REAL NOT NULL,
+        mes INTEGER NOT NULL,
+        anio INTEGER NOT NULL,
+        fecha_creacion TEXT NOT NULL,
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        UNIQUE(usuario_id, mes, anio)
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE budget_periods(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        monto REAL NOT NULL,
+        periodo TEXT NOT NULL,
+        mes INTEGER NOT NULL,
+        anio INTEGER NOT NULL,
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        UNIQUE(usuario_id, periodo, mes, anio)
+      )
+    ''');
+
+    // Índices pa' que esto vuele como cohete espacial 🚀
     await db.execute('CREATE INDEX idx_usuarios_email ON usuarios(email)');
     await db.execute('CREATE INDEX idx_sesiones_usuario ON sesiones(usuario_id)');
     await db.execute('CREATE INDEX idx_sesiones_token ON sesiones(token)');
@@ -172,9 +214,11 @@ class AppDatabase {
     await db.execute('CREATE INDEX idx_transacciones_tipo ON transacciones(tipo)');
     await db.execute('CREATE INDEX idx_presupuestos_usuario ON presupuestos(usuario_id)');
     await db.execute('CREATE INDEX idx_metas_usuario ON metas_financieras(usuario_id)');
+    await db.execute('CREATE INDEX idx_budget_periods_usuario ON budget_periods(usuario_id, periodo, mes, anio)');
 
     final now = DateTime.now().toIso8601String();
 
+    // Categorías de fábrica (pa' que no empieces de cero, causa)
     final categoriasDefault = [
       {'nombre': 'Salario', 'tipo': 'ingreso', 'icono': 'salary', 'color': '#4CAF50'},
       {'nombre': 'Ventas', 'tipo': 'ingreso', 'icono': 'sales', 'color': '#8BC34A'},
@@ -206,7 +250,7 @@ class AppDatabase {
         'updated_at': now,
       });
     }
-
+    // Usuario de prueba (¡ojo! eliminar cuando subas a producción)
     // Usuario de prueba - eliminar en producción
     await db.insert('usuarios', {
       'email': 'admin@mypefinanzas.com',
@@ -276,13 +320,65 @@ class AppDatabase {
           }
         }
       } catch (e) {
-        print('Error en migración: $e');
+        // En caso de error, recrear la base de datos
         await _onCreate(db, newVersion);
+        rethrow;
       }
+    }
+
+    if (oldVersion < 3) {
+      // Agregar tablas nuevas de accounts y budgets
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS accounts(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          usuario_id INTEGER NOT NULL,
+          nombre TEXT NOT NULL,
+          tipo TEXT NOT NULL,
+          moneda TEXT NOT NULL DEFAULT 'PEN',
+          saldo REAL NOT NULL DEFAULT 0,
+          nota TEXT,
+          fecha_creacion TEXT NOT NULL,
+          FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+        )
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS budgets(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          usuario_id INTEGER NOT NULL,
+          monto REAL NOT NULL,
+          mes INTEGER NOT NULL,
+          anio INTEGER NOT NULL,
+          fecha_creacion TEXT NOT NULL,
+          FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+          UNIQUE(usuario_id, mes, anio)
+        )
+      ''');
+
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_accounts_usuario ON accounts(usuario_id)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_budgets_usuario_mes ON budgets(usuario_id, mes, anio)');
+    }
+
+    if (oldVersion < 4) {
+      // Agregar tabla de presupuestos por período
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS budget_periods(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          usuario_id INTEGER NOT NULL,
+          monto REAL NOT NULL,
+          periodo TEXT NOT NULL,
+          mes INTEGER NOT NULL,
+          anio INTEGER NOT NULL,
+          FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+          UNIQUE(usuario_id, periodo, mes, anio)
+        )
+      ''');
+
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_budget_periods_usuario ON budget_periods(usuario_id, periodo, mes, anio)');
     }
   }
 
-  // TODO: cambiar esto por bcrypt o argon2 en producción
+  // ¡Ojo al toque! Esto es solo pa' testing, usa bcrypt en producción o te hackean al toque
   String _hashPassword(String password) {
     return 'hash_$password';
   }

@@ -1,1 +1,2 @@
-// EN PROGRESO...
+// Sistema de gamificación - próximamente (ahorita nomás 😄)
+
