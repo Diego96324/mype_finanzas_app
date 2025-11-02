@@ -436,6 +436,8 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
             ),
             ElevatedButton(
               onPressed: () async {
+                // Capturar messenger al inicio para usarlo en todo el bloque
+                final messenger = ScaffoldMessenger.of(context);
                 final text = budgetController.text.trim();
                 final monto = double.tryParse(text);
 
@@ -473,7 +475,7 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
                         _loadBudget();
                         widget.onBudgetChanged();
 
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(
                             content: Text(
                               hasExistingBudget
@@ -487,7 +489,7 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
                       }
                     } catch (e) {
                       if (dialogContext.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           const SnackBar(
                             content: Text('Error al guardar el presupuesto'),
                             backgroundColor: Colors.redAccent,
@@ -498,7 +500,7 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
                     }
                   }
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(
                       content: Text('Por favor ingresa un monto válido'),
                       backgroundColor: Colors.redAccent,
@@ -528,6 +530,9 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
   }
 
   void _showDeleteBudgetDialog() async {
+    // Capturar messenger antes de cualquier operación asíncrona
+    final messenger = ScaffoldMessenger.of(context);
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -569,7 +574,7 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
             _loadBudget();
             widget.onBudgetChanged();
 
-            ScaffoldMessenger.of(context).showSnackBar(
+            messenger.showSnackBar(
               const SnackBar(
                 content: Text('Presupuesto eliminado correctamente'),
                 backgroundColor: Color(0xFF13BB67),
@@ -579,7 +584,7 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            messenger.showSnackBar(
               const SnackBar(
                 content: Text('Error al eliminar el presupuesto'),
                 backgroundColor: Colors.redAccent,

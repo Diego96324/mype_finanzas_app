@@ -10,11 +10,11 @@ GoRouter buildRouter() {
     routes: [
       GoRoute(
         path: '/',
-        builder: (_, __) => const MyHomePage(title: 'Registro de transacciones'),
+        builder: (context, state) => const MyHomePage(title: 'Registro de transacciones'),
       ),
-      GoRoute(path: '/add', builder: (_, __) => const AddTransactionScreen()),
-      GoRoute(path: '/analytics', builder: (_, __) => const AnalyticsScreen()),
-      GoRoute(path: '/gamification', builder: (_, __) => const GamificationScreen()),
+      GoRoute(path: '/add', builder: (context, state) => const AddTransactionScreen()),
+      GoRoute(path: '/analytics', builder: (context, state) => const AnalyticsScreen()),
+      GoRoute(path: '/gamification', builder: (context, state) => const GamificationScreen()),
     ],
   );
 }

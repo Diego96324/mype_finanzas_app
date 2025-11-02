@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../core/models/account_model.dart';
 import '../../core/repos/account_repo.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/account_service.dart';
 
 class AccountsTab extends StatefulWidget {
   const AccountsTab({super.key});
@@ -15,7 +16,9 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
   @override
   bool get wantKeepAlive => true;
 
+  final AccountService _accountService = AccountService();
   List<Account> _accounts = [];
+  Map<String, List<Account>> _groupedAccounts = {};
   bool _isLoading = true;
 
   @override
@@ -32,17 +35,25 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
       final userId = authService.currentUserId;
 
       if (userId != null) {
-        final accountRepo = AccountRepo();
-        final accounts = await accountRepo.list(usuarioId: userId);
+        final accounts = await _accountService.listAccounts(userId);
+        final grouped = await _accountService.getGroupedAccounts(userId);
 
         setState(() {
           _accounts = accounts;
+          _groupedAccounts = grouped;
           _isLoading = false;
         });
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      rethrow;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar cuentas: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -206,76 +217,117 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
   }
 
   Widget _buildAssetsLiabilitiesChart() {
-    double activos = 0;
-    double pasivos = 0;
+    final activos = _groupedAccounts['activos'] ?? [];
+    final pasivos = _groupedAccounts['pasivos'] ?? [];
 
-    for (var account in _accounts) {
-      if (account.isPasivo) {
-        pasivos += account.saldo.abs();
-      } else {
-        activos += account.saldo;
-      }
-    }
-
-    final double total = activos + pasivos;
-
-    if (total == 0) {
+    if (activos.isEmpty && pasivos.isEmpty) {
       return _buildEmptyState('No hay datos para mostrar');
     }
 
     return Container(
-      height: 200,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF2D2D2D),
         borderRadius: BorderRadius.circular(16),
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (activos.isNotEmpty) ...[
+            _buildGroupHeader('Activos', const Color(0xFF13BB67), activos),
+            const SizedBox(height: 12),
+            ...activos.map((account) => _buildAccountGroupItem(account, true)),
+            if (pasivos.isNotEmpty) const SizedBox(height: 20),
+          ],
+          if (pasivos.isNotEmpty) ...[
+            _buildGroupHeader('Pasivos', Colors.orangeAccent, pasivos),
+            const SizedBox(height: 12),
+            ...pasivos.map((account) => _buildAccountGroupItem(account, false)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupHeader(String title, Color color, List<Account> accounts) {
+    double total = 0;
+    for (var account in accounts) {
+      total += account.saldo.abs();
+    }
+
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 20,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          'S/ ${total.toStringAsFixed(2)}',
+          style: TextStyle(
+            color: color,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAccountGroupItem(Account account, bool isAsset) {
+    final color = isAsset ? const Color(0xFF13BB67) : Colors.orangeAccent;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 16, bottom: 8),
       child: Row(
         children: [
-          Expanded(
-            flex: 2,
-            child: PieChart(
-              PieChartData(
-                sectionsSpace: 2,
-                centerSpaceRadius: 40,
-                sections: [
-                  PieChartSectionData(
-                    color: const Color(0xFF13BB67),
-                    value: activos,
-                    title: '${((activos / total) * 100).toStringAsFixed(0)}%',
-                    radius: 50,
-                    titleStyle: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  PieChartSectionData(
-                    color: Colors.orangeAccent,
-                    value: pasivos,
-                    title: '${((pasivos / total) * 100).toStringAsFixed(0)}%',
-                    radius: 50,
-                    titleStyle: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          Icon(
+            _getAccountIcon(account.tipo),
+            color: Colors.grey[400],
+            size: 18,
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 12),
           Expanded(
-            flex: 1,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildLegendItem('Activos', const Color(0xFF13BB67)),
-                const SizedBox(height: 8),
-                _buildLegendItem('Pasivos', Colors.orangeAccent),
+                Text(
+                  account.nombre,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+                if (account.institucion != null)
+                  Text(
+                    account.institucion!,
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 11,
+                    ),
+                  ),
               ],
+            ),
+          ),
+          Text(
+            '${account.moneda} ${account.saldo.abs().toStringAsFixed(2)}',
+            style: TextStyle(
+              color: color.withValues(alpha: 0.8),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -370,7 +422,7 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
               ),
             ),
             subtitle: Text(
-              account.tipo.toUpperCase(),
+              account.tipo.toUpperCase().replaceAll('_', ' '),
               style: TextStyle(
                 color: Colors.grey[400],
                 fontSize: 12,
@@ -388,14 +440,13 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                     fontSize: 16,
                   ),
                 ),
-                if (isLiability)
-                  Text(
-                    'Pasivo',
-                    style: TextStyle(
-                      color: Colors.orangeAccent.withValues(alpha: 0.7),
-                      fontSize: 10,
-                    ),
+                Text(
+                  isLiability ? 'PASIVO' : 'ACTIVO',
+                  style: TextStyle(
+                    color: color.withValues(alpha: 0.7),
+                    fontSize: 9,
                   ),
+                ),
               ],
             ),
             onTap: () => _showAccountDetails(account),
@@ -430,68 +481,245 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
   }
 
   void _showAddAccountDialog() {
+    final formKey = GlobalKey<FormState>();
+    final nombreController = TextEditingController();
+    final saldoController = TextEditingController(text: '0');
+    final institucionController = TextEditingController();
+    final notaController = TextEditingController();
+
+    String tipoSeleccionado = 'efectivo';
+    String monedaSeleccionada = 'PEN';
+
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return Theme(
-          data: ThemeData.dark().copyWith(
-            dialogTheme: const DialogThemeData(
-              backgroundColor: Color(0xFF2D2D2D),
-            ),
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF13BB67),
-              surface: Color(0xFF2D2D2D),
-            ),
-          ),
-          child: AlertDialog(
-            title: const Text('Añadir Nueva Cuenta'),
-            content: const SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    decoration: InputDecoration(
-                      labelText: 'Nombre de la cuenta',
-                      border: OutlineInputBorder(),
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Theme(
+              data: ThemeData.dark().copyWith(
+                dialogTheme: const DialogThemeData(
+                  backgroundColor: Color(0xFF2D2D2D),
+                ),
+                colorScheme: const ColorScheme.dark(
+                  primary: Color(0xFF13BB67),
+                  surface: Color(0xFF2D2D2D),
+                ),
+              ),
+              child: AlertDialog(
+                title: const Text('Añadir Nueva Cuenta'),
+                content: SingleChildScrollView(
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextFormField(
+                          controller: nombreController,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre de la cuenta *',
+                            border: OutlineInputBorder(),
+                            hintText: 'Ej: Cuenta Corriente BCP',
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'El nombre es obligatorio';
+                            }
+                            if (value.length > 100) {
+                              return 'Máximo 100 caracteres';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value: tipoSeleccionado,
+                          decoration: const InputDecoration(
+                            labelText: 'Tipo de cuenta *',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'efectivo', child: Text('Efectivo')),
+                            DropdownMenuItem(value: 'debito', child: Text('Tarjeta de Débito')),
+                            DropdownMenuItem(value: 'credito', child: Text('Tarjeta de Crédito')),
+                            DropdownMenuItem(value: 'virtual', child: Text('Billetera Virtual')),
+                            DropdownMenuItem(value: 'inversion', child: Text('Inversión')),
+                            DropdownMenuItem(value: 'por_cobrar', child: Text('Por Cobrar')),
+                            DropdownMenuItem(value: 'por_pagar', child: Text('Por Pagar')),
+                          ],
+                          onChanged: (value) {
+                            setDialogState(() {
+                              tipoSeleccionado = value!;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: institucionController,
+                          decoration: const InputDecoration(
+                            labelText: 'Institución financiera',
+                            border: OutlineInputBorder(),
+                            hintText: 'Ej: Banco de Crédito del Perú',
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: saldoController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Saldo inicial *',
+                                  border: OutlineInputBorder(),
+                                ),
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'El saldo es obligatorio';
+                                  }
+                                  final saldo = double.tryParse(value.trim());
+                                  if (saldo == null) {
+                                    return 'Ingrese un número válido';
+                                  }
+                                  // Validar saldo negativo para activos
+                                  final esPasivo = tipoSeleccionado == 'credito' || tipoSeleccionado == 'por_pagar';
+                                  if (!esPasivo && saldo < 0) {
+                                    return 'Los activos no pueden ser negativos';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: monedaSeleccionada,
+                                decoration: const InputDecoration(
+                                  labelText: 'Moneda',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: const [
+                                  DropdownMenuItem(value: 'PEN', child: Text('PEN')),
+                                  DropdownMenuItem(value: 'USD', child: Text('USD')),
+                                  DropdownMenuItem(value: 'EUR', child: Text('EUR')),
+                                ],
+                                onChanged: (value) {
+                                  setDialogState(() {
+                                    monedaSeleccionada = value!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: notaController,
+                          decoration: const InputDecoration(
+                            labelText: 'Nota (opcional)',
+                            border: OutlineInputBorder(),
+                            hintText: 'Agregar alguna observación...',
+                          ),
+                          maxLines: 2,
+                        ),
+                      ],
                     ),
                   ),
-                  SizedBox(height: 16),
-                  TextField(
-                    decoration: InputDecoration(
-                      labelText: 'Importe inicial',
-                      border: OutlineInputBorder(),
-                      prefixText: 'S/ ',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancelar'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (formKey.currentState!.validate()) {
+                        Navigator.pop(dialogContext);
+                        await _createAccount(
+                          nombre: nombreController.text,
+                          tipo: tipoSeleccionado,
+                          saldo: double.parse(saldoController.text),
+                          moneda: monedaSeleccionada,
+                          institucion: institucionController.text.trim().isEmpty
+                              ? null
+                              : institucionController.text,
+                          nota: notaController.text.trim().isEmpty
+                              ? null
+                              : notaController.text,
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF13BB67),
+                      foregroundColor: Colors.white,
                     ),
-                    keyboardType: TextInputType.number,
+                    child: const Text('Guardar'),
                   ),
                 ],
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Funcionalidad próximamente'),
-                      backgroundColor: Color(0xFF13BB67),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF13BB67),
-                ),
-                child: const Text('Guardar'),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
+  }
+
+  Future<void> _createAccount({
+    required String nombre,
+    required String tipo,
+    required double saldo,
+    required String moneda,
+    String? institucion,
+    String? nota,
+  }) async {
+    try {
+      final authService = AuthService();
+      final userId = authService.currentUserId;
+
+      if (userId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error: Usuario no autenticado'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      final result = await _accountService.createAccount(
+        usuarioId: userId,
+        nombre: nombre,
+        tipo: tipo,
+        saldo: saldo,
+        moneda: moneda,
+        institucion: institucion,
+        nota: nota,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message),
+            backgroundColor: result.success ? const Color(0xFF13BB67) : Colors.red,
+          ),
+        );
+      }
+
+      if (result.success) {
+        await _loadAccounts();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   void _showAccountDetails(Account account) {
@@ -528,9 +756,19 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                   ],
                 ),
                 const SizedBox(height: 20),
-                _buildDetailRow('Tipo', account.tipo),
+                _buildDetailRow('Tipo', account.tipoDisplay),
                 _buildDetailRow('Moneda', account.moneda),
                 _buildDetailRow('Balance', '${account.moneda} ${account.saldo.toStringAsFixed(2)}'),
+                if (account.institucion != null)
+                  _buildDetailRow('Institución', account.institucion!),
+                if (account.nota != null)
+                  _buildDetailRow('Nota', account.nota!),
+                _buildDetailRow(
+                  'Última actualización',
+                  account.fechaActualizacion != null
+                      ? _formatDate(account.fechaActualizacion!)
+                      : 'Sin actualizar'
+                ),
                 const SizedBox(height: 20),
                 Row(
                   children: [
@@ -538,7 +776,7 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                       child: OutlinedButton.icon(
                         onPressed: () {
                           Navigator.pop(context);
-                          _showComingSoonSnackBar('Editar cuenta');
+                          _showEditAccountDialog(account);
                         },
                         icon: const Icon(Icons.edit),
                         label: const Text('Editar'),
@@ -553,7 +791,7 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                       child: OutlinedButton.icon(
                         onPressed: () {
                           Navigator.pop(context);
-                          _showComingSoonSnackBar('Eliminar cuenta');
+                          _confirmDeleteAccount(account);
                         },
                         icon: const Icon(Icons.delete),
                         label: const Text('Eliminar'),
@@ -571,6 +809,283 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
         );
       },
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      return 'Hoy';
+    } else if (difference.inDays == 1) {
+      return 'Ayer';
+    } else if (difference.inDays < 7) {
+      return 'Hace ${difference.inDays} días';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
+  void _showEditAccountDialog(Account account) {
+    final formKey = GlobalKey<FormState>();
+    final nombreController = TextEditingController(text: account.nombre);
+    final saldoController = TextEditingController(text: account.saldo.toStringAsFixed(2));
+    final institucionController = TextEditingController(text: account.institucion ?? '');
+    final notaController = TextEditingController(text: account.nota ?? '');
+
+    String tipoSeleccionado = account.tipo;
+    String monedaSeleccionada = account.moneda;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Theme(
+              data: ThemeData.dark().copyWith(
+                dialogTheme: const DialogThemeData(
+                  backgroundColor: Color(0xFF2D2D2D),
+                ),
+                colorScheme: const ColorScheme.dark(
+                  primary: Color(0xFF13BB67),
+                  surface: Color(0xFF2D2D2D),
+                ),
+              ),
+              child: AlertDialog(
+                title: const Text('Editar Cuenta'),
+                content: SingleChildScrollView(
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextFormField(
+                          controller: nombreController,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre de la cuenta *',
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'El nombre es obligatorio';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String>(
+                          value: tipoSeleccionado,
+                          decoration: const InputDecoration(
+                            labelText: 'Tipo de cuenta *',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'efectivo', child: Text('Efectivo')),
+                            DropdownMenuItem(value: 'debito', child: Text('Tarjeta de Débito')),
+                            DropdownMenuItem(value: 'credito', child: Text('Tarjeta de Crédito')),
+                            DropdownMenuItem(value: 'virtual', child: Text('Billetera Virtual')),
+                            DropdownMenuItem(value: 'inversion', child: Text('Inversión')),
+                            DropdownMenuItem(value: 'por_cobrar', child: Text('Por Cobrar')),
+                            DropdownMenuItem(value: 'por_pagar', child: Text('Por Pagar')),
+                          ],
+                          onChanged: (value) {
+                            setDialogState(() {
+                              tipoSeleccionado = value!;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: institucionController,
+                          decoration: const InputDecoration(
+                            labelText: 'Institución financiera',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: saldoController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Saldo actual *',
+                                  border: OutlineInputBorder(),
+                                ),
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'El saldo es obligatorio';
+                                  }
+                                  if (double.tryParse(value.trim()) == null) {
+                                    return 'Ingrese un número válido';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: monedaSeleccionada,
+                                decoration: const InputDecoration(
+                                  labelText: 'Moneda',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: const [
+                                  DropdownMenuItem(value: 'PEN', child: Text('PEN')),
+                                  DropdownMenuItem(value: 'USD', child: Text('USD')),
+                                  DropdownMenuItem(value: 'EUR', child: Text('EUR')),
+                                ],
+                                onChanged: (value) {
+                                  setDialogState(() {
+                                    monedaSeleccionada = value!;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: notaController,
+                          decoration: const InputDecoration(
+                            labelText: 'Nota (opcional)',
+                            border: OutlineInputBorder(),
+                          ),
+                          maxLines: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancelar'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (formKey.currentState!.validate()) {
+                        Navigator.pop(dialogContext);
+                        await _updateAccount(
+                          account: account.copyWith(
+                            nombre: nombreController.text,
+                            tipo: tipoSeleccionado,
+                            saldo: double.parse(saldoController.text),
+                            moneda: monedaSeleccionada,
+                            institucion: institucionController.text.trim().isEmpty
+                                ? null
+                                : institucionController.text,
+                            nota: notaController.text.trim().isEmpty
+                                ? null
+                                : notaController.text,
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF13BB67),
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Guardar'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _updateAccount({required Account account}) async {
+    try {
+      final result = await _accountService.updateAccount(account: account);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message),
+            backgroundColor: result.success ? const Color(0xFF13BB67) : Colors.red,
+          ),
+        );
+      }
+
+      if (result.success) {
+        await _loadAccounts();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _confirmDeleteAccount(Account account) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2D2D2D),
+          title: const Text('Confirmar eliminación', style: TextStyle(color: Colors.white)),
+          content: Text(
+            '¿Está seguro que desea eliminar la cuenta "${account.nombre}"?',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _deleteAccount(account.id!);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+              ),
+              child: const Text('Eliminar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteAccount(int accountId) async {
+    try {
+      final result = await _accountService.deleteAccount(accountId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message),
+            backgroundColor: result.success ? const Color(0xFF13BB67) : Colors.red,
+          ),
+        );
+      }
+
+      if (result.success) {
+        await _loadAccounts();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildDetailRow(String label, String value) {

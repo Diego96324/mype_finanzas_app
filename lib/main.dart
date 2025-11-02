@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
 
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'MYPE Finanzas',
+          title: 'Numeria',
           theme: themeService.lightTheme,
           darkTheme: themeService.darkTheme,
           themeMode: themeService.isDarkMode ? ThemeMode.dark : ThemeMode.light,

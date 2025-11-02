@@ -1,5 +1,5 @@
 import 'dart:math';
-import 'package:sqflite/sqflite.dart';
+import 'package:flutter/foundation.dart';
 import '../db/app_database.dart';
 import '../models/user_model.dart';
 import '../models/session_model.dart';
@@ -62,7 +62,7 @@ class AuthRepository {
 
       return User.fromMap(userMap.first);
     } catch (e) {
-      print('Error al registrar usuario: $e');
+      debugPrint('❌ Error al registrar usuario: $e');
       return null;
     }
   }
@@ -120,7 +120,7 @@ class AuthRepository {
         'session': Session.fromMap(sessionMap.first),
       };
     } catch (e) {
-      print('Error al iniciar sesión: $e');
+      debugPrint('❌ Error al iniciar sesión: $e');
       return null;
     }
   }
@@ -136,7 +136,7 @@ class AuthRepository {
       );
       return true;
     } catch (e) {
-      print('Error al cerrar sesión: $e');
+      debugPrint('❌ Error al cerrar sesión: $e');
       return false;
     }
   }
@@ -170,7 +170,7 @@ class AuthRepository {
 
       return User.fromMap(users.first);
     } catch (e) {
-      print('Error al validar sesión: $e');
+      debugPrint('❌ Error al validar sesión: $e');
       return null;
     }
   }
@@ -187,7 +187,7 @@ class AuthRepository {
       if (users.isEmpty) return null;
       return User.fromMap(users.first);
     } catch (e) {
-      print('Error al obtener usuario: $e');
+      debugPrint('❌ Error al obtener usuario: $e');
       return null;
     }
   }
@@ -219,7 +219,7 @@ class AuthRepository {
 
       return true;
     } catch (e) {
-      print('Error al actualizar perfil: $e');
+      debugPrint('❌ Error al actualizar perfil: $e');
       return false;
     }
   }
@@ -252,7 +252,7 @@ class AuthRepository {
 
       return true;
     } catch (e) {
-      print('Error al cambiar contraseña: $e');
+      debugPrint('❌ Error al cambiar contraseña: $e');
       return false;
     }
   }

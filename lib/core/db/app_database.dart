@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -16,7 +15,7 @@ class AppDatabase {
     return _db!;
   }
 
-  // ¡Cuidado! Esto borra todo como si no hubiera mañana 🔥
+  // ¡Cuidado! Esto borra todo como si no hubiera mañana
   Future<void> resetDatabase() async {
     final dir = await getApplicationDocumentsDirectory();
     final path = join(dir.path, 'mype_finanzas.db');
@@ -30,7 +29,7 @@ class AppDatabase {
     final path = join(dir.path, 'mype_finanzas.db');
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -170,10 +169,11 @@ class AppDatabase {
         tipo TEXT NOT NULL,
         moneda TEXT NOT NULL DEFAULT 'PEN',
         saldo REAL NOT NULL DEFAULT 0,
+        institucion TEXT,
         nota TEXT,
         fecha_creacion TEXT NOT NULL,
-    await db.execute('CREATE INDEX idx_accounts_usuario ON accounts(usuario_id)');
-    await db.execute('CREATE INDEX idx_budgets_usuario_mes ON budgets(usuario_id, mes, anio)');
+        fecha_actualizacion TEXT,
+        activa INTEGER NOT NULL DEFAULT 1,
         FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
       )
     ''');
@@ -214,6 +214,8 @@ class AppDatabase {
     await db.execute('CREATE INDEX idx_transacciones_tipo ON transacciones(tipo)');
     await db.execute('CREATE INDEX idx_presupuestos_usuario ON presupuestos(usuario_id)');
     await db.execute('CREATE INDEX idx_metas_usuario ON metas_financieras(usuario_id)');
+    await db.execute('CREATE INDEX idx_accounts_usuario ON accounts(usuario_id)');
+    await db.execute('CREATE INDEX idx_budgets_usuario_mes ON budgets(usuario_id, mes, anio)');
     await db.execute('CREATE INDEX idx_budget_periods_usuario ON budget_periods(usuario_id, periodo, mes, anio)');
 
     final now = DateTime.now().toIso8601String();
@@ -375,6 +377,25 @@ class AppDatabase {
       ''');
 
       await db.execute('CREATE INDEX IF NOT EXISTS idx_budget_periods_usuario ON budget_periods(usuario_id, periodo, mes, anio)');
+    }
+
+    if (oldVersion < 5) {
+      // Agregar nuevos campos a la tabla accounts
+      try {
+        await db.execute('ALTER TABLE accounts ADD COLUMN institucion TEXT');
+      } catch (e) {
+        // Campo ya existe
+      }
+      try {
+        await db.execute('ALTER TABLE accounts ADD COLUMN fecha_actualizacion TEXT');
+      } catch (e) {
+        // Campo ya existe
+      }
+      try {
+        await db.execute('ALTER TABLE accounts ADD COLUMN activa INTEGER NOT NULL DEFAULT 1');
+      } catch (e) {
+        // Campo ya existe
+      }
     }
   }
 

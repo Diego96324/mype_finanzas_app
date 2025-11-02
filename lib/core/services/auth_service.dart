@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import '../repos/auth_repo.dart';
@@ -32,7 +33,7 @@ class AuthService {
       }
       return false;
     } catch (e) {
-      print('Error al inicializar AuthService: $e');
+      debugPrint('❌ Error al inicializar AuthService: $e');
       return false;
     }
   }
@@ -113,7 +114,7 @@ class AuthService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('auth_token');
     } catch (e) {
-      print('Error al cerrar sesión: $e');
+      debugPrint('❌ Error al cerrar sesión: $e');
     }
   }
 
@@ -143,7 +144,7 @@ class AuthService {
 
       return success;
     } catch (e) {
-      print('Error al actualizar perfil: $e');
+      debugPrint('❌ Error al actualizar perfil: $e');
       return false;
     }
   }
@@ -161,7 +162,7 @@ class AuthService {
         newPassword: newPassword,
       );
     } catch (e) {
-      print('Error al cambiar contraseña: $e');
+      debugPrint('❌ Error al cambiar contraseña: $e');
       return false;
     }
   }
