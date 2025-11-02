@@ -15,7 +15,7 @@ class AppDatabase {
     return _db!;
   }
 
-  // ¡Cuidado! Esto borra todo como si no hubiera mañana
+  // ¡Cuidado! que esto borra todito xd
   Future<void> resetDatabase() async {
     final dir = await getApplicationDocumentsDirectory();
     final path = join(dir.path, 'mype_finanzas.db');
@@ -204,7 +204,7 @@ class AppDatabase {
       )
     ''');
 
-    // Índices pa' que esto vuele como cohete espacial 🚀
+    // Índices
     await db.execute('CREATE INDEX idx_usuarios_email ON usuarios(email)');
     await db.execute('CREATE INDEX idx_sesiones_usuario ON sesiones(usuario_id)');
     await db.execute('CREATE INDEX idx_sesiones_token ON sesiones(token)');
@@ -220,7 +220,7 @@ class AppDatabase {
 
     final now = DateTime.now().toIso8601String();
 
-    // Categorías de fábrica (pa' que no empieces de cero, causa)
+    // Categorías de fábrica
     final categoriasDefault = [
       {'nombre': 'Salario', 'tipo': 'ingreso', 'icono': 'salary', 'color': '#4CAF50'},
       {'nombre': 'Ventas', 'tipo': 'ingreso', 'icono': 'sales', 'color': '#8BC34A'},
@@ -252,7 +252,6 @@ class AppDatabase {
         'updated_at': now,
       });
     }
-    // Usuario de prueba (¡ojo! eliminar cuando subas a producción)
     // Usuario de prueba - eliminar en producción
     await db.insert('usuarios', {
       'email': 'admin@mypefinanzas.com',
@@ -384,22 +383,18 @@ class AppDatabase {
       try {
         await db.execute('ALTER TABLE accounts ADD COLUMN institucion TEXT');
       } catch (e) {
-        // Campo ya existe
       }
       try {
         await db.execute('ALTER TABLE accounts ADD COLUMN fecha_actualizacion TEXT');
       } catch (e) {
-        // Campo ya existe
       }
       try {
         await db.execute('ALTER TABLE accounts ADD COLUMN activa INTEGER NOT NULL DEFAULT 1');
       } catch (e) {
-        // Campo ya existe
       }
     }
   }
 
-  // ¡Ojo al toque! Esto es solo pa' testing, usa bcrypt en producción o te hackean al toque
   String _hashPassword(String password) {
     return 'hash_$password';
   }

@@ -436,7 +436,6 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
             ),
             ElevatedButton(
               onPressed: () async {
-                // Capturar messenger al inicio para usarlo en todo el bloque
                 final messenger = ScaffoldMessenger.of(context);
                 final text = budgetController.text.trim();
                 final monto = double.tryParse(text);

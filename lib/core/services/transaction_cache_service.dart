@@ -47,7 +47,6 @@ class TransactionCacheService {
     );
   }
 
-  /// Invalidar todo el caché (cuando se agrega/edita/elimina transacción)
   void invalidateAll() {
     _cache.clear();
   }
@@ -73,7 +72,6 @@ class TransactionCacheService {
   /// Obtener tamaño del caché (para debugging)
   int get cacheSize => _cache.length;
 
-  /// Limpiar todo el caché manualmente
   void clear() {
     _cache.clear();
   }
