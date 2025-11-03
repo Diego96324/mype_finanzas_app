@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/services/auth_service.dart';
-import '../../core/services/theme_service.dart';
+import '../../core/providers/providers.dart';
 import '../../core/repos/transaction_repo.dart';
-import '../auth/login_screen.dart';
+import '../auth/change_password_screen.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -48,8 +49,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     setState(() => _loadingStats = true);
 
     try {
-      final authService = AuthService();
-      final userId = authService.currentUserId;
+      // Usar el provider para obtener el usuario
+      final userId = ref.read(currentUserIdProvider);
 
       if (userId != null) {
         final repo = TransactionRepo();
@@ -116,11 +117,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             content: const Text('¿Estás seguro de que deseas cerrar sesión?'),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: () => context.pop(false),
                 child: const Text('Cancelar'),
               ),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () => context.pop(true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF13BB67),
                   foregroundColor: Colors.white,
@@ -140,24 +141,21 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
   Future<void> _logout() async {
     final ctx = context;
-    final authService = AuthService();
 
-    await authService.logout();
+    // Usar el provider para hacer logout
+    await ref.read(authStateProvider.notifier).logout();
 
     if (!ctx.mounted) return;
 
-    Navigator.pushAndRemoveUntil(
-      ctx,
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
+    // GoRouter redirigirá automáticamente a login al detectar que no hay usuario
+    ctx.go('/login');
   }
 
   @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
-    final user = authService.currentUser;
-    final themeService = ThemeService();
+    // Usar providers en lugar de singletons
+    final user = ref.watch(currentUserProvider);
+    final isDark = ref.watch(isDarkModeProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E1E1E),
@@ -189,7 +187,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 const SizedBox(height: 20),
                 _buildSectionTitle('Configuración'),
                 const SizedBox(height: 12),
-                _buildSettingsCard(themeService),
+                _buildSettingsCard(isDark),
                 const SizedBox(height: 20),
                 _buildSectionTitle('Cuenta'),
                 const SizedBox(height: 12),
@@ -445,7 +443,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildSettingsCard(ThemeService themeService) {
+  Widget _buildSettingsCard(bool isDark) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF2D2D2D),
@@ -465,10 +463,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             title: 'Tema oscuro',
             subtitle: 'Activar modo nocturno',
             trailing: Switch(
-              value: themeService.isDarkMode,
+              value: isDark,
               onChanged: (value) {
-                themeService.toggleTheme();
-                setState(() {});
+                ref.read(themeStateProvider.notifier).toggle();
               },
               activeTrackColor: const Color(0xFF13BB67),
             ),
@@ -542,10 +539,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             subtitle: 'Actualizar tu contraseña',
             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Funcionalidad en desarrollo'),
-                  backgroundColor: Color(0xFF13BB67),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ChangePasswordScreen(),
                 ),
               );
             },
@@ -762,7 +759,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => context.pop(),
                 child: const Text('Cerrar'),
               ),
             ],

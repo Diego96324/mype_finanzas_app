@@ -90,6 +90,9 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
         typeLabel = 'TRANSFERENCIA';
     }
 
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -98,17 +101,17 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: Colors.grey[900],
+          backgroundColor: theme.appBarTheme.backgroundColor,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
             onPressed: () => Navigator.pop(context, _dirty),
           ),
-          title: const Text(
+          title: Text(
             'Detalle de transacción',
             style: TextStyle(
-              color: Colors.white,
+              color: colorScheme.onSurface,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
@@ -117,7 +120,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
           actions: [
             IconButton(
               tooltip: 'Editar',
-              icon: const Icon(Icons.edit_outlined, color: Colors.white),
+              icon: Icon(Icons.edit_outlined, color: colorScheme.onSurface),
               onPressed: () async {
                 final changed = await Navigator.push<bool>(
                   context,
@@ -132,7 +135,7 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
 
             IconButton(
               tooltip: 'Duplicar',
-              icon: const Icon(Icons.copy_outlined, color: Colors.white),
+              icon: Icon(Icons.copy_outlined, color: colorScheme.onSurface),
               onPressed: () async {
                 final saved = await Navigator.push<bool>(
                   context,
@@ -152,19 +155,19 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
 
             IconButton(
               tooltip: 'Eliminar',
-              icon: const Icon(Icons.delete_outline, color: Colors.white),
+              icon: Icon(Icons.delete_outline, color: colorScheme.onSurface),
               onPressed: () async {
                 final ok = await showDialog<bool>(
                   context: context,
                   builder: (_) => AlertDialog(
-                    backgroundColor: const Color(0xFF2A2A2A),
-                    title: const Text(
+                    backgroundColor: theme.cardColor,
+                    title: Text(
                       'Eliminar transacción',
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(color: colorScheme.onSurface),
                     ),
-                    content: const Text(
+                    content: Text(
                       '¿Seguro que deseas eliminarla?',
-                      style: TextStyle(color: Colors.white70),
+                      style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.7)),
                     ),
                     actions: [
                       TextButton(
@@ -291,16 +294,16 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
+                          color: colorScheme.onSurface.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.1),
+                            color: theme.dividerColor,
                           ),
                         ),
                         child: Text(
                           'ID: ${_tx.id}',
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.4),
+                            color: colorScheme.onSurface.withValues(alpha: 0.4),
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
                           ),
@@ -325,63 +328,70 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
     required Color color,
     bool isExpandable = false,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
-          width: 1,
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: isExpandable ? CrossAxisAlignment.start : CrossAxisAlignment.center,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                color: color,
-                size: 24,
-              ),
+    return Builder(
+      builder: (context) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+
+        return Container(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: theme.dividerColor,
+              width: 1,
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: isExpandable ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    content,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: isExpandable ? null : 1,
-                    overflow: isExpandable ? null : TextOverflow.ellipsis,
+                  child: Icon(
+                    icon,
+                    color: color,
+                    size: 24,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: colorScheme.onSurface.withValues(alpha: 0.6),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        content,
+                        style: TextStyle(
+                          color: colorScheme.onSurface,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: isExpandable ? null : 1,
+                        overflow: isExpandable ? null : TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

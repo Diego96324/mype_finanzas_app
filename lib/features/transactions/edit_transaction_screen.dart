@@ -108,20 +108,22 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final typeColor = _tipo == 'ingreso' ? Colors.greenAccent : Colors.redAccent;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.grey[900],
+        backgroundColor: theme.appBarTheme.backgroundColor,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
+        title: Text(
           'Editar transacción',
           style: TextStyle(
-            color: Colors.white,
+            color: colorScheme.onSurface,
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
@@ -141,7 +143,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                 children: [
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF1E1E1E),
+                      color: theme.cardColor,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: typeColor.withValues(alpha: 0.3),
@@ -156,7 +158,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                           child: Text(
                             'Tipo de transacción',
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.7),
+                              color: colorScheme.onSurface.withValues(alpha: 0.7),
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
                             ),
@@ -166,6 +168,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                           children: [
                             Expanded(
                               child: _buildTypeButton(
+                                context,
                                 'Ingreso',
                                 Icons.arrow_upward_rounded,
                                 Colors.greenAccent,
@@ -175,6 +178,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                             ),
                             Expanded(
                               child: _buildTypeButton(
+                                context,
                                 'Egreso',
                                 Icons.arrow_downward_rounded,
                                 Colors.redAccent,
@@ -191,6 +195,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                   const SizedBox(height: 20),
 
                   _buildTextField(
+                    context,
                     controller: _montoCtrl,
                     label: 'Monto',
                     hint: '0.00',
@@ -211,6 +216,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                   const SizedBox(height: 16),
 
                   _buildTextField(
+                    context,
                     controller: _etiquetaCtrl,
                     label: 'Etiqueta (opcional)',
                     hint: 'Ej: Ventas, Compras, Delivery…',
@@ -225,6 +231,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                   const SizedBox(height: 16),
 
                   _buildTextField(
+                    context,
                     controller: _notaCtrl,
                     label: 'Nota (opcional)',
                     hint: 'Detalles adicionales...',
@@ -241,10 +248,10 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                     child: Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF1E1E1E),
+                        color: theme.cardColor,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.1),
+                          color: theme.dividerColor,
                           width: 1,
                         ),
                       ),
@@ -271,7 +278,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                                 Text(
                                   'Fecha',
                                   style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.6),
+                                    color: colorScheme.onSurface.withValues(alpha: 0.6),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -279,8 +286,8 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                                 const SizedBox(height: 4),
                                 Text(
                                   '${_fecha.day.toString().padLeft(2, '0')}/${_fecha.month.toString().padLeft(2, '0')}/${_fecha.year}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: colorScheme.onSurface,
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -290,7 +297,7 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                           ),
                           Icon(
                             Icons.chevron_right_rounded,
-                            color: Colors.white.withValues(alpha: 0.4),
+                            color: colorScheme.onSurface.withValues(alpha: 0.4),
                           ),
                         ],
                       ),
@@ -322,16 +329,16 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                       child: InkWell(
                         onTap: _guardar,
                         borderRadius: BorderRadius.circular(16),
-                        child: const Center(
+                        child: Center(
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.save_rounded, color: Colors.black),
-                              SizedBox(width: 8),
+                              Icon(Icons.save_rounded, color: typeColor == Colors.greenAccent ? Colors.black : Colors.white),
+                              const SizedBox(width: 8),
                               Text(
                                 'Guardar cambios',
                                 style: TextStyle(
-                                  color: Colors.black,
+                                  color: typeColor == Colors.greenAccent ? Colors.black : Colors.white,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -354,12 +361,15 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
   }
 
   Widget _buildTypeButton(
+    BuildContext context,
     String label,
     IconData icon,
     Color color,
     bool isSelected,
     VoidCallback onTap,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -373,14 +383,14 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
           children: [
             Icon(
               icon,
-              color: isSelected ? color : Colors.white.withValues(alpha: 0.4),
+              color: isSelected ? color : colorScheme.onSurface.withValues(alpha: 0.4),
               size: 28,
             ),
             const SizedBox(height: 6),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? color : Colors.white.withValues(alpha: 0.6),
+                color: isSelected ? color : colorScheme.onSurface.withValues(alpha: 0.6),
                 fontSize: 14,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
               ),
@@ -391,7 +401,8 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
     );
   }
 
-  Widget _buildTextField({
+  Widget _buildTextField(
+    BuildContext context, {
     required TextEditingController controller,
     required String label,
     required String hint,
@@ -403,12 +414,15 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
     int? maxLines,
     int? maxLength,
   }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+        color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
+          color: theme.dividerColor,
           width: 1,
         ),
       ),
@@ -439,20 +453,20 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
                 validator: validator,
                 maxLines: maxLines,
                 maxLength: maxLength,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: colorScheme.onSurface,
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
                 ),
                 decoration: InputDecoration(
                   labelText: label,
                   labelStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.6),
+                    color: colorScheme.onSurface.withValues(alpha: 0.6),
                     fontSize: 12,
                   ),
                   hintText: hint,
                   hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.3),
+                    color: colorScheme.onSurface.withValues(alpha: 0.3),
                     fontSize: 14,
                   ),
                   border: InputBorder.none,

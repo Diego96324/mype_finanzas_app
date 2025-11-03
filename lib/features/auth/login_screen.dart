@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../../core/services/auth_service.dart';
-import '../../core/services/theme_service.dart';
-import '../personal_finances/home_screen.dart';
-import 'register_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/providers/providers.dart';
+import '../../core/widgets/animated_form_field.dart';
+import '../../core/utils/form_validators.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStateMixin {
+class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -40,38 +41,21 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
     setState(() => _loading = true);
     final ctx = context;
-    final nav = Navigator.of(ctx);
     final messenger = ScaffoldMessenger.of(ctx);
 
     final user = _userCtrl.text.trim();
     final pass = _passCtrl.text.trim();
 
-    final authService = AuthService();
-    final result = await authService.login(email: user, password: pass);
+    // Usar el provider de auth en lugar del singleton
+    final authNotifier = ref.read(authStateProvider.notifier);
+    final result = await authNotifier.login(email: user, password: pass);
 
     if (!ctx.mounted) return;
 
     if (result['success'] == true) {
-      nav.pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const MyHomePage(title: 'Registro de transacciones'),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            const begin = Offset(0.0, 1.0);
-            const end = Offset.zero;
-            const curve = Curves.ease;
-
-            final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-            final offsetAnimation = animation.drive(tween);
-
-            return SlideTransition(
-              position: offsetAnimation,
-              child: child,
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 600),
-        ),
-      );
+      // GoRouter se encargará de la navegación automáticamente
+      // cuando detecte el cambio en el estado de autenticación
+      ctx.go('/');
     } else {
       setState(() => _loading = false);
       messenger.showSnackBar(
@@ -90,8 +74,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final themeService = ThemeService();
-    final isDark = themeService.isDarkMode;
+    // Usar el provider de tema en lugar del singleton
+    final isDarkModeAsync = ref.watch(themeStateProvider);
+    final isDark = isDarkModeAsync.value ?? true;
+
     final bgColor = isDark ? Colors.black : Colors.green.shade50;
     final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
@@ -122,8 +108,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                 child: InkWell(
                   borderRadius: BorderRadius.circular(12),
                   onTap: () {
-                    themeService.toggleTheme();
-                    setState(() {});
+                    // Usar el provider para cambiar el tema
+                    ref.read(themeStateProvider.notifier).toggle();
                   },
                   child: Padding(
                     padding: const EdgeInsets.all(12),
@@ -197,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     const SizedBox(height: 32),
 
                     // Campo de usuario
-                    _buildTextField(
+                    AnimatedFormField(
                       controller: _userCtrl,
                       label: 'Email',
                       hint: 'tu@email.com',
@@ -205,12 +191,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       cardColor: cardColor,
                       textColor: textColor,
                       primaryColor: primaryColor,
-                      validator: (v) => v == null || v.isEmpty ? 'Ingrese su email' : null,
+                      keyboardType: TextInputType.emailAddress,
+                      validator: FormValidators.validateEmail,
+                      autoValidate: true,
+                      showSuccessIcon: true,
                     ),
                     const SizedBox(height: 16),
 
                     // Campo de contraseña
-                    _buildTextField(
+                    AnimatedFormField(
                       controller: _passCtrl,
                       label: 'Contraseña',
                       hint: '••••••',
@@ -219,6 +208,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       cardColor: cardColor,
                       textColor: textColor,
                       primaryColor: primaryColor,
+                      validator: FormValidators.validatePassword,
+                      autoValidate: false,
+                      showSuccessIcon: false,
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscure ? Icons.visibility_off : Icons.visibility,
@@ -226,7 +218,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         ),
                         onPressed: () => setState(() => _obscure = !_obscure),
                       ),
-                      validator: (v) => v == null || v.isEmpty ? 'Ingrese su contraseña' : null,
                     ),
                     const SizedBox(height: 12),
 
@@ -332,12 +323,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           ),
                         ),
                         onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const RegisterScreen(),
-                            ),
-                          );
+                          context.push('/register');
                         },
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -362,75 +348,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    required Color cardColor,
-    required Color textColor,
-    required Color primaryColor,
-    bool obscureText = false,
-    String? Function(String?)? validator,
-    Widget? suffixIcon,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: TextFormField(
-        controller: controller,
-        obscureText: obscureText,
-        validator: validator,
-        style: TextStyle(color: textColor, fontSize: 16),
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          prefixIcon: Icon(icon, color: primaryColor),
-          suffixIcon: suffixIcon,
-          labelStyle: TextStyle(
-            color: textColor.withValues(alpha: 0.7),
-          ),
-          hintStyle: TextStyle(
-            color: textColor.withValues(alpha: 0.4),
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: textColor.withValues(alpha: 0.1),
-              width: 1,
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: primaryColor,
-              width: 2,
-            ),
-          ),
-          filled: true,
-          fillColor: cardColor,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 16,
-          ),
-        ),
       ),
     );
   }

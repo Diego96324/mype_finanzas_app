@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/utils/analytics_design_system.dart';
 import 'reports_tab.dart';
 import 'accounts_tab.dart';
 
@@ -39,44 +40,37 @@ class _ReportsScreenState extends State<ReportsScreen> with TickerProviderStateM
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: AnalyticsDesignSystem.backgroundPrimary,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Text(
+            Text(
               'Informes',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                fontSize: 20,
-              ),
+              style: AnalyticsDesignSystem.h3.copyWith(fontSize: 20),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AnalyticsDesignSystem.spacing8),
             Center(
               child: Container(
                 height: 40,
                 width: 250,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1E1E1E),
-                  borderRadius: BorderRadius.circular(8),
+                  color: AnalyticsDesignSystem.backgroundPrimary,
+                  borderRadius: BorderRadius.circular(AnalyticsDesignSystem.radiusSmall),
                 ),
                 child: TabBar(
                   controller: _tabController,
                   indicator: BoxDecoration(
-                    color: const Color(0xFF13BB67),
-                    borderRadius: BorderRadius.circular(8),
+                    color: AnalyticsDesignSystem.primary,
+                    borderRadius: BorderRadius.circular(AnalyticsDesignSystem.radiusSmall),
                   ),
                   indicatorSize: TabBarIndicatorSize.tab,
                   dividerColor: Colors.transparent,
-                  labelColor: Colors.white,
-                  unselectedLabelColor: Colors.grey[400],
-                  labelStyle: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  labelColor: AnalyticsDesignSystem.textPrimary,
+                  unselectedLabelColor: AnalyticsDesignSystem.textSecondary,
+                  labelStyle: AnalyticsDesignSystem.buttonPrimary.copyWith(fontSize: 13),
                   tabs: const [
                     Tab(text: 'Informes'),
                     Tab(text: 'Cuentas'),
@@ -87,7 +81,7 @@ class _ReportsScreenState extends State<ReportsScreen> with TickerProviderStateM
           ],
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFF2D2D2D),
+        backgroundColor: AnalyticsDesignSystem.backgroundSecondary,
         elevation: 0,
         toolbarHeight: 100,
       ),

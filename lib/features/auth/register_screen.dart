@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/services/auth_service.dart';
-import '../../core/services/theme_service.dart';
-import '../personal_finances/home_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/providers/providers.dart';
+import '../../core/widgets/animated_form_field.dart';
+import '../../core/utils/form_validators.dart';
 
-class RegisterScreen extends StatefulWidget {
+class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProviderStateMixin {
+class _RegisterScreenState extends ConsumerState<RegisterScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -62,66 +64,17 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
     super.dispose();
   }
 
-  String? _validateEmail(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Ingrese su email';
-    }
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
-    if (!emailRegex.hasMatch(value)) {
-      return 'Email inválido';
-    }
-    return null;
-  }
-
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Ingrese una contraseña';
-    }
-    if (value.length < 6) {
-      return 'La contraseña debe tener al menos 6 caracteres';
-    }
-    return null;
-  }
-
-  String? _validateConfirmPassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Confirme su contraseña';
-    }
-    if (value != _passCtrl.text) {
-      return 'Las contraseñas no coinciden';
-    }
-    return null;
-  }
-
-  String? _validateNombre(String? value) {
-    if (value == null || value.isEmpty) {
-      return 'Ingrese su nombre';
-    }
-    if (value.length < 2) {
-      return 'El nombre debe tener al menos 2 caracteres';
-    }
-    return null;
-  }
-
-  String? _validateTelefono(String? value) {
-    if (value != null && value.isNotEmpty) {
-      if (value.length < 9) {
-        return 'Teléfono inválido';
-      }
-    }
-    return null;
-  }
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _loading = true);
     final ctx = context;
-    final nav = Navigator.of(ctx);
     final messenger = ScaffoldMessenger.of(ctx);
 
-    final authService = AuthService();
-    final result = await authService.register(
+    // Usar provider en lugar de singleton
+    final authNotifier = ref.read(authStateProvider.notifier);
+    final result = await authNotifier.register(
       email: _emailCtrl.text.trim().toLowerCase(),
       password: _passCtrl.text.trim(),
       nombre: _nombreCtrl.text.trim(),
@@ -144,27 +97,8 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
 
       if (!ctx.mounted) return;
 
-      nav.pushAndRemoveUntil(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const MyHomePage(title: 'Registro de transacciones'),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            const begin = Offset(1.0, 0.0);
-            const end = Offset.zero;
-            const curve = Curves.easeInOut;
-
-            final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-            final offsetAnimation = animation.drive(tween);
-
-            return SlideTransition(
-              position: offsetAnimation,
-              child: child,
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 600),
-        ),
-        (route) => false,
-      );
+      // GoRouter se encargará de la navegación automáticamente
+      ctx.go('/');
     } else {
       setState(() => _loading = false);
       messenger.showSnackBar(
@@ -178,8 +112,8 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
 
   @override
   Widget build(BuildContext context) {
-    final themeService = ThemeService();
-    final isDark = themeService.isDarkMode;
+    // Usar provider en lugar de singleton
+    final isDark = ref.watch(isDarkModeProvider);
     final bgColor = isDark ? Colors.black : Colors.green.shade50;
     final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
@@ -192,7 +126,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: primaryColor),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => context.pop(),
         ),
         actions: [
           // Botón de cambio de tema
@@ -214,8 +148,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: () {
-                  themeService.toggleTheme();
-                  setState(() {});
+                  ref.read(themeStateProvider.notifier).toggle();
                 },
                 child: Padding(
                   padding: const EdgeInsets.all(8),
@@ -294,7 +227,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                     const SizedBox(height: 32),
 
                     // Campo Email
-                    _buildTextField(
+                    AnimatedFormField(
                       controller: _emailCtrl,
                       label: 'Email',
                       hint: 'tu@email.com',
@@ -303,12 +236,14 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                       textColor: textColor,
                       primaryColor: primaryColor,
                       keyboardType: TextInputType.emailAddress,
-                      validator: _validateEmail,
+                      validator: FormValidators.validateEmail,
+                      autoValidate: true,
+                      showSuccessIcon: true,
                     ),
                     const SizedBox(height: 16),
 
                     // Campo Nombre
-                    _buildTextField(
+                    AnimatedFormField(
                       controller: _nombreCtrl,
                       label: 'Nombre',
                       hint: 'Juan',
@@ -317,12 +252,14 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                       textColor: textColor,
                       primaryColor: primaryColor,
                       textCapitalization: TextCapitalization.words,
-                      validator: _validateNombre,
+                      validator: FormValidators.validateName,
+                      autoValidate: true,
+                      showSuccessIcon: true,
                     ),
                     const SizedBox(height: 16),
 
                     // Campo Apellido
-                    _buildTextField(
+                    AnimatedFormField(
                       controller: _apellidoCtrl,
                       label: 'Apellido (opcional)',
                       hint: 'Pérez',
@@ -331,11 +268,13 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                       textColor: textColor,
                       primaryColor: primaryColor,
                       textCapitalization: TextCapitalization.words,
+                      autoValidate: false,
+                      showSuccessIcon: false,
                     ),
                     const SizedBox(height: 16),
 
                     // Campo Teléfono
-                    _buildTextField(
+                    AnimatedFormField(
                       controller: _telefonoCtrl,
                       label: 'Teléfono (opcional)',
                       hint: '999 999 999',
@@ -348,12 +287,14 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                         FilteringTextInputFormatter.digitsOnly,
                         LengthLimitingTextInputFormatter(9),
                       ],
-                      validator: _validateTelefono,
+                      validator: FormValidators.validatePhoneOptional,
+                      autoValidate: true,
+                      showSuccessIcon: true,
                     ),
                     const SizedBox(height: 16),
 
                     // Campo Contraseña
-                    _buildTextField(
+                    AnimatedFormField(
                       controller: _passCtrl,
                       label: 'Contraseña',
                       hint: '••••••',
@@ -362,7 +303,9 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                       textColor: textColor,
                       primaryColor: primaryColor,
                       obscureText: _obscurePass,
-                      validator: _validatePassword,
+                      validator: FormValidators.validatePassword,
+                      autoValidate: true,
+                      showSuccessIcon: true,
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscurePass ? Icons.visibility_off : Icons.visibility,
@@ -374,7 +317,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                     const SizedBox(height: 16),
 
                     // Campo Confirmar Contraseña
-                    _buildTextField(
+                    AnimatedFormField(
                       controller: _confirmPassCtrl,
                       label: 'Confirmar Contraseña',
                       hint: '••••••',
@@ -383,7 +326,12 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                       textColor: textColor,
                       primaryColor: primaryColor,
                       obscureText: _obscureConfirm,
-                      validator: _validateConfirmPassword,
+                      validator: (value) => FormValidators.validateConfirmPassword(
+                        value,
+                        _passCtrl.text,
+                      ),
+                      autoValidate: true,
+                      showSuccessIcon: true,
                       suffixIcon: IconButton(
                         icon: Icon(
                           _obscureConfirm ? Icons.visibility_off : Icons.visibility,
@@ -453,7 +401,7 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                           ),
                         ),
                         TextButton(
-                          onPressed: () => Navigator.pop(context),
+                          onPressed: () => context.pop(),
                           child: Text(
                             'Inicia Sesión',
                             style: TextStyle(
@@ -469,101 +417,6 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                 ),
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    required Color cardColor,
-    required Color textColor,
-    required Color primaryColor,
-    TextInputType? keyboardType,
-    bool obscureText = false,
-    String? Function(String?)? validator,
-    Widget? suffixIcon,
-    List<TextInputFormatter>? inputFormatters,
-    TextCapitalization textCapitalization = TextCapitalization.none,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: TextFormField(
-        controller: controller,
-        keyboardType: keyboardType,
-        obscureText: obscureText,
-        validator: validator,
-        inputFormatters: inputFormatters,
-        textCapitalization: textCapitalization,
-        style: TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-          color: textColor,
-        ),
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-          prefixIcon: Icon(icon, color: primaryColor),
-          suffixIcon: suffixIcon,
-          labelStyle: TextStyle(
-            color: textColor.withValues(alpha: 0.7),
-            fontSize: 14,
-          ),
-          hintStyle: TextStyle(
-            color: textColor.withValues(alpha: 0.4),
-            fontSize: 14,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: textColor.withValues(alpha: 0.1),
-              width: 1,
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: primaryColor,
-              width: 2,
-            ),
-          ),
-          errorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(
-              color: Colors.red,
-              width: 1,
-            ),
-          ),
-          focusedErrorBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(
-              color: Colors.red,
-              width: 2,
-            ),
-          ),
-          filled: true,
-          fillColor: cardColor,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 16,
           ),
         ),
       ),

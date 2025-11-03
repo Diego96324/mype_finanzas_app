@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/models/budget_period_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/budget_period_service.dart';
+import '../../../core/utils/analytics_design_system.dart';
 
 class DynamicBudgetSection extends StatefulWidget {
   final String selectedPeriod;
@@ -98,18 +99,14 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
 
   @override
   Widget build(BuildContext context) {
-    // Cargando por primera vez
     if (_isLoading && _previousBudget == null) {
-      return Container(
-        key: const ValueKey('loading'),
-        padding: const EdgeInsets.all(40),
-        decoration: BoxDecoration(
-          color: const Color(0xFF2D2D2D),
-          borderRadius: BorderRadius.circular(16),
-        ),
+      return AnalyticsDesignSystem.buildCard(
         child: const Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF13BB67),
+          child: Padding(
+            padding: EdgeInsets.all(AnalyticsDesignSystem.spacing32),
+            child: CircularProgressIndicator(
+              color: AnalyticsDesignSystem.primary,
+            ),
           ),
         ),
       );
@@ -139,18 +136,19 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
       },
       child: Container(
         key: ValueKey('budget_${_getPeriodType()}_${budgetAmount}_${widget.currentMonth}_${widget.currentYear}'),
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AnalyticsDesignSystem.spacing20),
         decoration: BoxDecoration(
-          color: const Color(0xFF2D2D2D),
-          borderRadius: BorderRadius.circular(16),
+          color: AnalyticsDesignSystem.backgroundSecondary,
+          borderRadius: BorderRadius.circular(AnalyticsDesignSystem.radiusMedium),
           border: Border.all(
             color: budgetAmount > 0
                 ? (remaining >= 0
-                    ? const Color(0xFF13BB67).withValues(alpha: 0.3)
-                    : Colors.redAccent.withValues(alpha: 0.3))
-                : const Color(0xFF13BB67).withValues(alpha: 0.3),
-            width: 1,
+                    ? AnalyticsDesignSystem.primary.withValues(alpha: 0.3)
+                    : AnalyticsDesignSystem.danger.withValues(alpha: 0.3))
+                : AnalyticsDesignSystem.primary.withValues(alpha: 0.3),
+            width: 1.5,
           ),
+          boxShadow: AnalyticsDesignSystem.shadowMedium,
         ),
         child: budgetAmount > 0
             ? _buildConfiguredBudget(budgetAmount, spent, remaining, percentage)
@@ -160,102 +158,106 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
   }
 
   Widget _buildConfiguredBudget(double budgetAmount, double spent, double remaining, double percentage) {
+    final isOverBudget = remaining < 0;
+    final statusColor = isOverBudget ? AnalyticsDesignSystem.danger : AnalyticsDesignSystem.primary;
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
               _getBudgetTitle(),
-              style: TextStyle(color: Colors.grey[400], fontSize: 14),
+              style: AnalyticsDesignSystem.h3.copyWith(fontSize: 16),
             ),
+
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 22),
-                  onPressed: _showDeleteBudgetDialog,
-                  tooltip: 'Eliminar presupuesto',
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                ),
-                const SizedBox(width: 4),
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Color(0xFF13BB67), size: 22),
+                _buildActionButton(
+                  icon: Icons.edit_outlined,
+                  color: AnalyticsDesignSystem.primary,
                   onPressed: _showSetBudgetDialog,
-                  tooltip: 'Editar presupuesto',
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
+                  tooltip: 'Editar',
+                ),
+                const SizedBox(width: AnalyticsDesignSystem.spacing8),
+                _buildActionButton(
+                  icon: Icons.delete_outline,
+                  color: AnalyticsDesignSystem.danger,
+                  onPressed: _showDeleteBudgetDialog,
+                  tooltip: 'Eliminar',
                 ),
               ],
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        const SizedBox(height: AnalyticsDesignSystem.spacing20),
+
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            'S/ ${budgetAmount.toStringAsFixed(2)}',
+            style: AnalyticsDesignSystem.kpiLarge.copyWith(
+              fontSize: 36,
+              fontWeight: FontWeight.bold,
+              color: AnalyticsDesignSystem.textPrimary,
+              letterSpacing: -1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        const SizedBox(height: AnalyticsDesignSystem.spacing20),
+
+        Stack(
+          alignment: Alignment.center,
           children: [
-            Flexible(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'S/ ${budgetAmount.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AnalyticsDesignSystem.radiusMedium),
+              child: LinearProgressIndicator(
+                value: (percentage / 100).clamp(0.0, 1.0),
+                minHeight: 28,
+                backgroundColor: AnalyticsDesignSystem.backgroundPrimary,
+                valueColor: AlwaysStoppedAnimation<Color>(statusColor),
               ),
             ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: remaining >= 0
-                    ? const Color(0xFF13BB67).withValues(alpha: 0.2)
-                    : Colors.redAccent.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '${percentage.toStringAsFixed(0)}% usado',
-                style: TextStyle(
-                  color: remaining >= 0 ? const Color(0xFF13BB67) : Colors.redAccent,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
+            Text(
+              '${percentage.toStringAsFixed(0)}%',
+              style: AnalyticsDesignSystem.h4.copyWith(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withValues(alpha: 0.3),
+                    offset: const Offset(0, 1),
+                    blurRadius: 2,
+                  ),
+                ],
               ),
             ),
           ],
         ),
-        const SizedBox(height: 20),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: LinearProgressIndicator(
-            value: percentage / 100,
-            minHeight: 12,
-            backgroundColor: const Color(0xFF1E1E1E),
-            valueColor: AlwaysStoppedAnimation<Color>(
-              remaining >= 0 ? const Color(0xFF13BB67) : Colors.redAccent,
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
+        const SizedBox(height: AnalyticsDesignSystem.spacing20),
+
         Row(
           children: [
             Expanded(
-              child: _buildBudgetInfo('Gastado', spent, Icons.shopping_cart, Colors.redAccent),
+              child: _buildStatBox(
+                label: 'Gastado',
+                amount: spent,
+                icon: Icons.trending_down,
+                color: AnalyticsDesignSystem.danger,
+              ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: AnalyticsDesignSystem.spacing12),
             Expanded(
-              child: _buildBudgetInfo(
-                'Disponible',
-                remaining,
-                Icons.account_balance_wallet,
-                remaining >= 0 ? const Color(0xFF13BB67) : Colors.redAccent,
+              child: _buildStatBox(
+                label: isOverBudget ? 'Excedido' : 'Disponible',
+                amount: remaining.abs(),
+                icon: isOverBudget ? Icons.warning_amber : Icons.account_balance_wallet,
+                color: statusColor,
               ),
             ),
           ],
@@ -264,38 +266,81 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
     );
   }
 
-  Widget _buildBudgetInfo(String label, double amount, IconData icon, Color color) {
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+    required String tooltip,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AnalyticsDesignSystem.radiusSmall),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: color, size: 18),
+        onPressed: onPressed,
+        tooltip: tooltip,
+        padding: const EdgeInsets.all(AnalyticsDesignSystem.spacing8),
+        constraints: const BoxConstraints(
+          minWidth: 36,
+          minHeight: 36,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatBox({
+    required String label,
+    required double amount,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(AnalyticsDesignSystem.spacing16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AnalyticsDesignSystem.radiusMedium),
+        border: Border.all(
+          color: color.withValues(alpha: 0.2),
+          width: 1.5,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
               Icon(icon, color: color, size: 18),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 12,
+              const SizedBox(width: AnalyticsDesignSystem.spacing6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: AnalyticsDesignSystem.kpiLabel.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AnalyticsDesignSystem.spacing8),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
               'S/ ${amount.toStringAsFixed(2)}',
-              style: TextStyle(
+              style: AnalyticsDesignSystem.kpiMedium.copyWith(
                 color: color,
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -305,79 +350,40 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
     );
   }
 
+
   Widget _buildNoBudgetState() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              _getBudgetTitle(),
-              style: TextStyle(color: Colors.grey[400], fontSize: 14),
-            ),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline, color: Color(0xFF13BB67), size: 26),
-              onPressed: _showSetBudgetDialog,
-              padding: const EdgeInsets.all(8),
-              tooltip: 'Configurar presupuesto',
-            ),
-          ],
+        Icon(
+          Icons.account_balance_wallet_outlined,
+          size: 64,
+          color: AnalyticsDesignSystem.primary.withValues(alpha: 0.5),
         ),
-        const SizedBox(height: 8),
-        const Text(
-          'No configurado',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+        const SizedBox(height: AnalyticsDesignSystem.spacing16),
+        Text(
+          'Sin presupuesto configurado',
+          style: AnalyticsDesignSystem.h4,
         ),
-        const SizedBox(height: 20),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: const Color(0xFF13BB67).withValues(alpha: 0.3),
+        const SizedBox(height: AnalyticsDesignSystem.spacing8),
+        Text(
+          'Establece un presupuesto ${_getBudgetTitle().toLowerCase()} para controlar tus gastos',
+          textAlign: TextAlign.center,
+          style: AnalyticsDesignSystem.bodySecondary,
+        ),
+        const SizedBox(height: AnalyticsDesignSystem.spacing24),
+        ElevatedButton.icon(
+          onPressed: _showSetBudgetDialog,
+          icon: const Icon(Icons.add),
+          label: const Text('Configurar Presupuesto'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AnalyticsDesignSystem.primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AnalyticsDesignSystem.spacing24,
+              vertical: AnalyticsDesignSystem.spacing12,
             ),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.info_outline,
-                color: Color(0xFF13BB67),
-                size: 24,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Configura un presupuesto ${_getPeriodType()} para controlar mejor tus gastos y alcanzar tus metas financieras.',
-                  style: TextStyle(
-                    color: Colors.grey[300],
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _showSetBudgetDialog,
-            icon: const Icon(Icons.add),
-            label: const Text('Configurar Presupuesto'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF13BB67),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AnalyticsDesignSystem.radiusSmall),
             ),
           ),
         ),
@@ -529,9 +535,6 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
   }
 
   void _showDeleteBudgetDialog() async {
-    // Capturar messenger antes de cualquier operación asíncrona
-    final messenger = ScaffoldMessenger.of(context);
-
     final confirm = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -556,6 +559,7 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
     );
 
     if (confirm == true) {
+      final messenger = ScaffoldMessenger.of(context);
       final authService = AuthService();
       final userId = authService.currentUserId;
 

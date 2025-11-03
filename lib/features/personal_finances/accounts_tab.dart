@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../../core/models/account_model.dart';
-import '../../core/repos/account_repo.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/account_service.dart';
 
@@ -335,28 +333,6 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
     );
   }
 
-  Widget _buildLegendItem(String label, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildAddAccountButton() {
     return SizedBox(
@@ -489,12 +465,16 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
 
     String tipoSeleccionado = 'efectivo';
     String monedaSeleccionada = 'PEN';
+    bool isLoading = false;
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            final dialogPrimaryColor = const Color(0xFF13BB67);
+
             return Theme(
               data: ThemeData.dark().copyWith(
                 dialogTheme: const DialogThemeData(
@@ -506,7 +486,23 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                 ),
               ),
               child: AlertDialog(
-                title: const Text('Añadir Nueva Cuenta'),
+                title: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: dialogPrimaryColor.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.account_balance_wallet,
+                        color: dialogPrimaryColor,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text('Añadir Nueva Cuenta'),
+                  ],
+                ),
                 content: SingleChildScrollView(
                   child: Form(
                     key: formKey,
@@ -515,10 +511,28 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                       children: [
                         TextFormField(
                           controller: nombreController,
-                          decoration: const InputDecoration(
+                          autofocus: true,
+                          decoration: InputDecoration(
                             labelText: 'Nombre de la cuenta *',
-                            border: OutlineInputBorder(),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: dialogPrimaryColor,
+                                width: 2,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Colors.redAccent,
+                                width: 1,
+                              ),
+                            ),
                             hintText: 'Ej: Cuenta Corriente BCP',
+                            prefixIcon: Icon(Icons.edit, color: dialogPrimaryColor),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
@@ -529,22 +543,58 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                             }
                             return null;
                           },
+                          autovalidateMode: AutovalidateMode.onUserInteraction,
                         ),
                         const SizedBox(height: 16),
+
                         DropdownButtonFormField<String>(
-                          value: tipoSeleccionado,
-                          decoration: const InputDecoration(
+                          initialValue: tipoSeleccionado,
+                          decoration: InputDecoration(
                             labelText: 'Tipo de cuenta *',
-                            border: OutlineInputBorder(),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: dialogPrimaryColor,
+                                width: 2,
+                              ),
+                            ),
+                            prefixIcon: Icon(
+                              _getAccountIcon(tipoSeleccionado),
+                              color: dialogPrimaryColor,
+                            ),
                           ),
                           items: const [
-                            DropdownMenuItem(value: 'efectivo', child: Text('Efectivo')),
-                            DropdownMenuItem(value: 'debito', child: Text('Tarjeta de Débito')),
-                            DropdownMenuItem(value: 'credito', child: Text('Tarjeta de Crédito')),
-                            DropdownMenuItem(value: 'virtual', child: Text('Billetera Virtual')),
-                            DropdownMenuItem(value: 'inversion', child: Text('Inversión')),
-                            DropdownMenuItem(value: 'por_cobrar', child: Text('Por Cobrar')),
-                            DropdownMenuItem(value: 'por_pagar', child: Text('Por Pagar')),
+                            DropdownMenuItem(
+                              value: 'efectivo',
+                              child: Text('Efectivo'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'debito',
+                              child: Text('Tarjeta de Débito'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'credito',
+                              child: Text('Tarjeta de Crédito'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'virtual',
+                              child: Text('Billetera Virtual'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'inversion',
+                              child: Text('Inversión'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'por_cobrar',
+                              child: Text('Por Cobrar'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'por_pagar',
+                              child: Text('Por Pagar'),
+                            ),
                           ],
                           onChanged: (value) {
                             setDialogState(() {
@@ -553,24 +603,55 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                           },
                         ),
                         const SizedBox(height: 16),
+
+                        // Institución opcional
                         TextFormField(
                           controller: institucionController,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Institución financiera',
-                            border: OutlineInputBorder(),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: dialogPrimaryColor,
+                                width: 2,
+                              ),
+                            ),
                             hintText: 'Ej: Banco de Crédito del Perú',
+                            prefixIcon: Icon(Icons.business, color: dialogPrimaryColor),
                           ),
                         ),
                         const SizedBox(height: 16),
+
+                        // Saldo y Moneda
                         Row(
                           children: [
                             Expanded(
                               flex: 2,
                               child: TextFormField(
                                 controller: saldoController,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Saldo inicial *',
-                                  border: OutlineInputBorder(),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: dialogPrimaryColor,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  errorBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                      color: Colors.redAccent,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  prefixIcon: Icon(Icons.attach_money, color: dialogPrimaryColor),
                                 ),
                                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                 validator: (value) {
@@ -581,22 +662,32 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                                   if (saldo == null) {
                                     return 'Ingrese un número válido';
                                   }
-                                  // Validar saldo negativo para activos
-                                  final esPasivo = tipoSeleccionado == 'credito' || tipoSeleccionado == 'por_pagar';
+                                  final esPasivo = tipoSeleccionado == 'credito' ||
+                                      tipoSeleccionado == 'por_pagar';
                                   if (!esPasivo && saldo < 0) {
                                     return 'Los activos no pueden ser negativos';
                                   }
                                   return null;
                                 },
+                                autovalidateMode: AutovalidateMode.onUserInteraction,
                               ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: DropdownButtonFormField<String>(
-                                value: monedaSeleccionada,
-                                decoration: const InputDecoration(
+                                initialValue: monedaSeleccionada,
+                                decoration: InputDecoration(
                                   labelText: 'Moneda',
-                                  border: OutlineInputBorder(),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: dialogPrimaryColor,
+                                      width: 2,
+                                    ),
+                                  ),
                                 ),
                                 items: const [
                                   DropdownMenuItem(value: 'PEN', child: Text('PEN')),
@@ -613,12 +704,24 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                           ],
                         ),
                         const SizedBox(height: 16),
+
+                        // Nota opcional
                         TextFormField(
                           controller: notaController,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Nota (opcional)',
-                            border: OutlineInputBorder(),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: dialogPrimaryColor,
+                                width: 2,
+                              ),
+                            ),
                             hintText: 'Agregar alguna observación...',
+                            prefixIcon: Icon(Icons.note, color: dialogPrimaryColor),
                           ),
                           maxLines: 2,
                         ),
@@ -628,32 +731,50 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                 ),
                 actions: [
                   TextButton(
-                    onPressed: () => Navigator.pop(dialogContext),
+                    onPressed: isLoading ? null : () => Navigator.pop(dialogContext),
                     child: const Text('Cancelar'),
                   ),
-                  ElevatedButton(
-                    onPressed: () async {
-                      if (formKey.currentState!.validate()) {
-                        Navigator.pop(dialogContext);
-                        await _createAccount(
-                          nombre: nombreController.text,
-                          tipo: tipoSeleccionado,
-                          saldo: double.parse(saldoController.text),
-                          moneda: monedaSeleccionada,
-                          institucion: institucionController.text.trim().isEmpty
-                              ? null
-                              : institucionController.text,
-                          nota: notaController.text.trim().isEmpty
-                              ? null
-                              : notaController.text,
-                        );
-                      }
-                    },
+                  ElevatedButton.icon(
+                    onPressed: isLoading
+                        ? null
+                        : () async {
+                            if (formKey.currentState!.validate()) {
+                              setDialogState(() => isLoading = true);
+
+                              await _createAccount(
+                                nombre: nombreController.text.trim(),
+                                tipo: tipoSeleccionado,
+                                saldo: double.parse(saldoController.text.trim()),
+                                moneda: monedaSeleccionada,
+                                institucion: institucionController.text.trim().isEmpty
+                                    ? null
+                                    : institucionController.text.trim(),
+                                nota: notaController.text.trim().isEmpty
+                                    ? null
+                                    : notaController.text.trim(),
+                              );
+
+                              if (dialogContext.mounted) {
+                                Navigator.pop(dialogContext);
+                              }
+                            }
+                          },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF13BB67),
+                      backgroundColor: dialogPrimaryColor,
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey,
                     ),
-                    child: const Text('Guardar'),
+                    icon: isLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.save),
+                    label: Text(isLoading ? 'Guardando...' : 'Guardar'),
                   ),
                 ],
               ),
@@ -874,7 +995,7 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                         ),
                         const SizedBox(height: 16),
                         DropdownButtonFormField<String>(
-                          value: tipoSeleccionado,
+                          initialValue: tipoSeleccionado,
                           decoration: const InputDecoration(
                             labelText: 'Tipo de cuenta *',
                             border: OutlineInputBorder(),
@@ -928,7 +1049,7 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
                             const SizedBox(width: 12),
                             Expanded(
                               child: DropdownButtonFormField<String>(
-                                value: monedaSeleccionada,
+                                initialValue: monedaSeleccionada,
                                 decoration: const InputDecoration(
                                   labelText: 'Moneda',
                                   border: OutlineInputBorder(),
@@ -1140,16 +1261,6 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showComingSoonSnackBar(String format) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Funcionalidad de $format próximamente'),
-        backgroundColor: const Color(0xFF13BB67),
-        behavior: SnackBarBehavior.floating,
       ),
     );
   }

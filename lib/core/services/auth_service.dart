@@ -1,43 +1,61 @@
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
-import '../repos/auth_repo.dart';
+import '../providers/providers.dart';
 
+/// Singleton de AuthService - DEPRECADO
+/// Este servicio ahora es un wrapper del provider de Riverpod
+/// Para nuevas funcionalidades, usar directamente authStateProvider
+///
+/// NOTA: Los métodos login, register, logout, etc. ya no están aquí.
+/// Usar ref.read(authStateProvider.notifier).login() en su lugar.
 class AuthService {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
   AuthService._internal();
 
-  final AuthRepository _authRepo = AuthRepository();
-  User? _currentUser;
-  String? _currentToken;
+  // Container global de Riverpod (se configura en main.dart)
+  static ProviderContainer? _container;
 
-  User? get currentUser => _currentUser;
-  bool get isAuthenticated => _currentUser != null;
-  int? get currentUserId => _currentUser?.id;
-
-  Future<bool> init() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-
-      if (token != null) {
-        final user = await _authRepo.validateSession(token);
-        if (user != null) {
-          _currentUser = user;
-          _currentToken = token;
-          return true;
-        } else {
-          await logout();
-        }
-      }
-      return false;
-    } catch (e) {
-      debugPrint('❌ Error al inicializar AuthService: $e');
-      return false;
-    }
+  static void setContainer(ProviderContainer container) {
+    _container = container;
   }
 
+  User? get currentUser {
+    if (_container != null) {
+      return _container!.read(currentUserProvider);
+    }
+    return null;
+  }
+
+  bool get isAuthenticated {
+    if (_container != null) {
+      return _container!.read(isAuthenticatedProvider);
+    }
+    return false;
+  }
+
+  int? get currentUserId {
+    if (_container != null) {
+      return _container!.read(currentUserIdProvider);
+    }
+    return null;
+  }
+
+  // Estos métodos están deprecados - usar authStateProvider.notifier en su lugar
+  @Deprecated('Use ref.read(authStateProvider.notifier).login() instead')
+  Future<Map<String, dynamic>> login({
+    required String email,
+    required String password,
+  }) async {
+    debugPrint('⚠️ AuthService.login() está deprecado. Usa authStateProvider.notifier.login()');
+    return {
+      'success': false,
+      'message': 'Método deprecado. Usa Riverpod providers.',
+    };
+  }
+
+  @Deprecated('Use ref.read(authStateProvider.notifier).register() instead')
   Future<Map<String, dynamic>> register({
     required String email,
     required String password,
@@ -45,125 +63,38 @@ class AuthService {
     String? apellido,
     String? telefono,
   }) async {
-    try {
-      final user = await _authRepo.register(
-        email: email,
-        password: password,
-        nombre: nombre,
-        apellido: apellido,
-        telefono: telefono,
-      );
-
-      if (user == null) {
-        return {
-          'success': false,
-          'message': 'El email ya está registrado',
-        };
-      }
-
-      return await login(email: email, password: password);
-    } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error al registrar usuario: $e',
-      };
-    }
+    debugPrint('⚠️ AuthService.register() está deprecado. Usa authStateProvider.notifier.register()');
+    return {
+      'success': false,
+      'message': 'Método deprecado. Usa Riverpod providers.',
+    };
   }
 
-  Future<Map<String, dynamic>> login({
-    required String email,
-    required String password,
-  }) async {
-    try {
-      final result = await _authRepo.login(email: email, password: password);
-
-      if (result == null) {
-        return {
-          'success': false,
-          'message': 'Credenciales inválidas',
-        };
-      }
-
-      _currentUser = result['user'] as User;
-      _currentToken = (result['session'] as dynamic).token as String;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('auth_token', _currentToken!);
-
-      return {
-        'success': true,
-        'user': _currentUser,
-      };
-    } catch (e) {
-      return {
-        'success': false,
-        'message': 'Error al iniciar sesión: $e',
-      };
-    }
-  }
-
+  @Deprecated('Use ref.read(authStateProvider.notifier).logout() instead')
   Future<void> logout() async {
-    try {
-      if (_currentToken != null) {
-        await _authRepo.logout(_currentToken!);
-      }
-
-      _currentUser = null;
-      _currentToken = null;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('auth_token');
-    } catch (e) {
-      debugPrint('❌ Error al cerrar sesión: $e');
-    }
+    debugPrint('⚠️ AuthService.logout() está deprecado. Usa authStateProvider.notifier.logout()');
   }
 
+  @Deprecated('Use ref.read(authStateProvider.notifier).updateProfile() instead')
   Future<bool> updateProfile({
     String? nombre,
     String? apellido,
     String? telefono,
     String? avatarUri,
   }) async {
-    if (_currentUser == null) return false;
-
-    try {
-      final success = await _authRepo.updateProfile(
-        userId: _currentUser!.id!,
-        nombre: nombre,
-        apellido: apellido,
-        telefono: telefono,
-        avatarUri: avatarUri,
-      );
-
-      if (success) {
-        final updatedUser = await _authRepo.getUserById(_currentUser!.id!);
-        if (updatedUser != null) {
-          _currentUser = updatedUser;
-        }
-      }
-
-      return success;
-    } catch (e) {
-      debugPrint('❌ Error al actualizar perfil: $e');
-      return false;
-    }
+    debugPrint('⚠️ AuthService.updateProfile() está deprecado. Usa authStateProvider.notifier.updateProfile()');
+    return false;
   }
 
-  Future<bool> changePassword({
+  @Deprecated('Use ref.read(authStateProvider.notifier).changePassword() instead')
+  Future<Map<String, dynamic>> changePassword({
     required String oldPassword,
     required String newPassword,
   }) async {
-    if (_currentUser == null) return false;
-
-    try {
-      return await _authRepo.changePassword(
-        userId: _currentUser!.id!,
-        oldPassword: oldPassword,
-        newPassword: newPassword,
-      );
-    } catch (e) {
-      debugPrint('❌ Error al cambiar contraseña: $e');
-      return false;
-    }
+    debugPrint('⚠️ AuthService.changePassword() está deprecado. Usa authStateProvider.notifier.changePassword()');
+    return {
+      'success': false,
+      'message': 'Método deprecado. Usa Riverpod providers.',
+    };
   }
 }

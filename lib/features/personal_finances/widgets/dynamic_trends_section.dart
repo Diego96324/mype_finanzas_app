@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../../../core/models/transaction_model.dart';
-import 'reports_widgets.dart';
+import '../../../core/utils/analytics_design_system.dart';
 
 class DynamicTrendsSection extends StatelessWidget {
   final String selectedPeriod;
@@ -44,13 +44,21 @@ class DynamicTrendsSection extends StatelessWidget {
 
   Widget _buildTrendsChart() {
     if (transactions.isEmpty) {
-      return ReportsWidgets.buildEmptyState('No hay datos para mostrar');
+      return AnalyticsDesignSystem.buildEmptyState(
+        message: 'No hay datos para mostrar tendencias',
+        icon: Icons.trending_up,
+        minHeight: 250,
+      );
     }
 
     final chartData = _createChartData();
 
     if (chartData.isEmpty) {
-      return ReportsWidgets.buildEmptyState('No hay datos para mostrar');
+      return AnalyticsDesignSystem.buildEmptyState(
+        message: 'No hay datos suficientes para el gráfico',
+        icon: Icons.trending_up,
+        minHeight: 250,
+      );
     }
 
     final spots = chartData.map((data) => FlSpot(data.index.toDouble(), data.balance)).toList();
@@ -59,153 +67,117 @@ class DynamicTrendsSection extends StatelessWidget {
     final yInterval = _calculateYInterval(spots);
     final uniqueYValues = _calculateUniqueYValues(spots, yInterval);
 
-    return Container(
-      key: ValueKey('chart-$selectedPeriod'),
-      height: 280,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2D2D2D),
-        borderRadius: BorderRadius.circular(16),
+    return AnalyticsDesignSystem.buildChartContainer(
+      title: _getChartTitle(),
+      headerAction: AnalyticsDesignSystem.buildBadge(
+        label: _getChartSubtitle(),
+        color: AnalyticsDesignSystem.info,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _getChartTitle(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+      height: 250,
+      child: LineChart(
+        LineChartData(
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: true,
+            verticalInterval: _calculateBottomInterval(chartData.length).toDouble(),
+            horizontalInterval: yInterval,
+            getDrawingVerticalLine: (value) => FlLine(
+              color: AnalyticsDesignSystem.divider.withValues(alpha: 0.5),
+              strokeWidth: 1,
+            ),
+            getDrawingHorizontalLine: (value) => FlLine(
+              color: AnalyticsDesignSystem.divider,
+              strokeWidth: 1,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            _getChartSubtitle(),
-            style: TextStyle(
-              color: Colors.grey[500],
-              fontSize: 11,
+          titlesData: FlTitlesData(
+            show: true,
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 55,
+                interval: yInterval,
+                getTitlesWidget: (value, meta) {
+                  if (!uniqueYValues.contains(value)) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final formattedValue = _formatYAxisValue(value);
+
+                  return Padding(
+                    padding: const EdgeInsets.only(right: AnalyticsDesignSystem.spacing8),
+                    child: Text(
+                      formattedValue,
+                      textAlign: TextAlign.right,
+                      style: AnalyticsDesignSystem.caption,
+                    ),
+                  );
+                },
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 28,
+                interval: _calculateBottomInterval(chartData.length).toDouble(),
+                getTitlesWidget: (value, meta) {
+                  final index = value.toInt();
+                  final label = labels[index];
+                  if (label == null) return const SizedBox();
+
+                  return Padding(
+                    padding: const EdgeInsets.only(top: AnalyticsDesignSystem.spacing6),
+                    child: Text(
+                      label,
+                      style: AnalyticsDesignSystem.caption,
+                    ),
+                  );
+                },
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: LineChart(
-                LineChartData(
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: true,
-                    verticalInterval: _calculateBottomInterval(chartData.length).toDouble(),
-                    horizontalInterval: yInterval,
-                    getDrawingVerticalLine: (value) => FlLine(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      strokeWidth: 1,
-                    ),
-                    getDrawingHorizontalLine: (value) => FlLine(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      strokeWidth: 1,
-                    ),
-                  ),
-                  titlesData: FlTitlesData(
-                    show: true,
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 55,
-                        interval: yInterval,
-                        getTitlesWidget: (value, meta) {
-                          if (!uniqueYValues.contains(value)) {
-                            return const SizedBox.shrink();
-                          }
-
-                          final formattedValue = _formatYAxisValue(value);
-
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: Text(
-                              formattedValue,
-                              textAlign: TextAlign.right,
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 28,
-                        interval: _calculateBottomInterval(chartData.length).toDouble(),
-                        getTitlesWidget: (value, meta) {
-                          final index = value.toInt();
-                          final label = labels[index];
-                          if (label == null) return const SizedBox();
-
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              label,
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 10,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  borderData: FlBorderData(
-                    show: true,
-                    border: Border(
-                      left: BorderSide(color: Colors.white.withValues(alpha: 0.2), width: 1),
-                      bottom: BorderSide(color: Colors.white.withValues(alpha: 0.2), width: 1),
-                    ),
-                  ),
-                  minX: 0,
-                  maxX: (chartData.length - 1).toDouble(),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spots,
-                      isCurved: true,
-                      curveSmoothness: 0.3,
-                      color: const Color(0xFF13BB67),
-                      barWidth: 2.5,
-                      isStrokeCapRound: true,
-                      dotData: FlDotData(
-                        show: chartData.length <= 15,
-                        getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-                          radius: 3.5,
-                          color: const Color(0xFF13BB67),
-                          strokeWidth: 2,
-                          strokeColor: const Color(0xFF2D2D2D),
-                        ),
-                      ),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            const Color(0xFF13BB67).withValues(alpha: 0.2),
-                            const Color(0xFF13BB67).withValues(alpha: 0.05),
-                          ],
-                        ),
-                      ),
-                    ),
+          borderData: FlBorderData(
+            show: true,
+            border: Border(
+              left: BorderSide(color: AnalyticsDesignSystem.border, width: 1),
+              bottom: BorderSide(color: AnalyticsDesignSystem.border, width: 1),
+            ),
+          ),
+          minX: 0,
+          maxX: (chartData.length - 1).toDouble(),
+          lineBarsData: [
+            LineChartBarData(
+              spots: spots,
+              isCurved: true,
+              curveSmoothness: 0.3,
+              color: AnalyticsDesignSystem.primary,
+              barWidth: 3,
+              isStrokeCapRound: true,
+              dotData: FlDotData(
+                show: chartData.length <= 15,
+                getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+                  radius: 4,
+                  color: AnalyticsDesignSystem.primary,
+                  strokeWidth: 2,
+                  strokeColor: AnalyticsDesignSystem.backgroundSecondary,
+                ),
+              ),
+              belowBarData: BarAreaData(
+                show: true,
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AnalyticsDesignSystem.primary.withValues(alpha: 0.25),
+                    AnalyticsDesignSystem.primary.withValues(alpha: 0.05),
                   ],
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

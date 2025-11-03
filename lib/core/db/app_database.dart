@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -383,14 +384,20 @@ class AppDatabase {
       try {
         await db.execute('ALTER TABLE accounts ADD COLUMN institucion TEXT');
       } catch (e) {
+        // Columna ya existe, ignorar error
+        debugPrint('⚠️ Columna institucion ya existe o error al agregar: $e');
       }
       try {
         await db.execute('ALTER TABLE accounts ADD COLUMN fecha_actualizacion TEXT');
       } catch (e) {
+        // Columna ya existe, ignorar error
+        debugPrint('⚠️ Columna fecha_actualizacion ya existe o error al agregar: $e');
       }
       try {
         await db.execute('ALTER TABLE accounts ADD COLUMN activa INTEGER NOT NULL DEFAULT 1');
       } catch (e) {
+        // Columna ya existe, ignorar error
+        debugPrint('⚠️ Columna activa ya existe o error al agregar: $e');
       }
     }
   }

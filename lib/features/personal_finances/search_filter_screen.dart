@@ -29,12 +29,15 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.grey[900],
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: const Text('Buscar y Filtrar', style: TextStyle(color: Colors.white)),
+        backgroundColor: theme.appBarTheme.backgroundColor,
+        iconTheme: IconThemeData(color: colorScheme.onSurface),
+        title: Text('Buscar y Filtrar', style: TextStyle(color: colorScheme.onSurface)),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -43,12 +46,12 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
           children: [
             TextField(
               controller: _searchTermController,
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: colorScheme.onSurface),
               decoration: InputDecoration(
                 hintText: 'Buscar por etiqueta...',
-                hintStyle: TextStyle(color: Colors.grey[400]),
+                hintStyle: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.5)),
                 filled: true,
-                fillColor: Colors.grey[800],
+                fillColor: colorScheme.surfaceContainerHighest,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                   borderSide: BorderSide.none,
@@ -56,11 +59,11 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            _buildMultiFilterSection('Tipo de transacción', ['todos', 'ingreso', 'egreso', 'transferencia'], _tipos, (selectedList) {
+            _buildMultiFilterSection(context, 'Tipo de transacción', ['todos', 'ingreso', 'egreso', 'transferencia'], _tipos, (selectedList) {
               setState(() => _tipos = selectedList);
             }),
             const SizedBox(height: 24),
-            _buildMultiFilterSection('Orden', ['fecha_desc', 'fecha_asc', 'monto_desc', 'monto_asc'], _orders, (selectedList) {
+            _buildMultiFilterSection(context, 'Orden', ['fecha_desc', 'fecha_asc', 'monto_desc', 'monto_asc'], _orders, (selectedList) {
               setState(() => _orders = selectedList);
             }),
             const SizedBox(height: 40),
@@ -79,8 +82,8 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                       });
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[800],
-                      foregroundColor: Colors.white,
+                      backgroundColor: colorScheme.surfaceContainerHighest,
+                      foregroundColor: colorScheme.onSurface,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -120,11 +123,13 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
     );
   }
 
-  Widget _buildMultiFilterSection(String title, List<String> options, List<String> selectedValues, ValueChanged<List<String>> onChanged) {
+  Widget _buildMultiFilterSection(BuildContext context, String title, List<String> options, List<String> selectedValues, ValueChanged<List<String>> onChanged) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+        Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface)),
         const SizedBox(height: 12),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -135,7 +140,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
               return ChoiceChip(
                 label: Text(
                   _getDisplayValue(option),
-                  style: TextStyle(color: isSelected ? Colors.black : Colors.white),
+                  style: TextStyle(color: isSelected ? Colors.black : colorScheme.onSurface),
                 ),
                 selected: isSelected,
                 onSelected: (selected) {

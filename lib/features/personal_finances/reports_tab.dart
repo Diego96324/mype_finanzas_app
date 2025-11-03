@@ -3,6 +3,7 @@ import '../../core/models/transaction_model.dart';
 import '../../core/repos/transaction_repo.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/utils/date_picker_theme.dart';
+import '../../core/utils/analytics_design_system.dart';
 import 'widgets/reports_widgets.dart';
 import 'widgets/dynamic_budget_section.dart';
 import 'widgets/dynamic_trends_section.dart';
@@ -19,14 +20,12 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
   @override
   bool get wantKeepAlive => true;
 
-  // Período seleccionado
   String _selectedPeriod = 'mes';
   DateTimeRange _selectedDateRange = DateTimeRange(
     start: DateTime(DateTime.now().year, DateTime.now().month, 1),
     end: DateTime(DateTime.now().year, DateTime.now().month + 1, 0, 23, 59, 59),
   );
 
-  // Datos
   List<AppTransaction> _transactions = [];
   bool _isLoading = true;
 
@@ -44,7 +43,6 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
       final userId = authService.currentUserId;
 
       if (userId != null) {
-        // Cargar transacciones del período seleccionado
         final repo = TransactionRepo();
         final transactions = await repo.list(
           usuarioId: userId,
@@ -178,10 +176,10 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildPeriodSelector(),
-              const SizedBox(height: 20),
-              _buildSummaryCards(summary),
               const SizedBox(height: 24),
-              ReportsWidgets.buildSectionTitle(_getDynamicBudgetTitle()),
+
+              // Presupuesto
+              Text(_getDynamicBudgetTitle(), style: AnalyticsDesignSystem.h3),
               const SizedBox(height: 12),
               DynamicBudgetSection(
                 selectedPeriod: _selectedPeriod,
@@ -191,7 +189,9 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
                 onBudgetChanged: _loadData,
               ),
               const SizedBox(height: 24),
-              ReportsWidgets.buildSectionTitle('Tendencias'),
+
+              // Tendencias
+              Text('Tendencias', style: AnalyticsDesignSystem.h3),
               const SizedBox(height: 12),
               DynamicTrendsSection(
                 selectedPeriod: _selectedPeriod,
@@ -199,7 +199,9 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
                 dateRange: _selectedDateRange,
               ),
               const SizedBox(height: 24),
-              ReportsWidgets.buildSectionTitle('Comparativa de Períodos'),
+
+              // Comparativa
+              Text('Comparativa de Períodos', style: AnalyticsDesignSystem.h3),
               const SizedBox(height: 12),
               DynamicComparisonSection(
                 selectedPeriod: _selectedPeriod,
@@ -218,10 +220,14 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
 
   Widget _buildPeriodSelector() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AnalyticsDesignSystem.spacing12,
+        vertical: AnalyticsDesignSystem.spacing8,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D2D),
-        borderRadius: BorderRadius.circular(12),
+        color: AnalyticsDesignSystem.backgroundSecondary,
+        borderRadius: BorderRadius.circular(AnalyticsDesignSystem.radiusMedium),
+        boxShadow: AnalyticsDesignSystem.shadowSoft,
       ),
       child: Row(
         children: [
@@ -233,16 +239,16 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
               onTap: () => _changePeriod('mes'),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AnalyticsDesignSystem.spacing6),
           Expanded(
             child: ReportsWidgets.buildPeriodButton(
-              label: 'Trimestre',
+              label: 'Trim',
               period: 'trimestre',
               selectedPeriod: _selectedPeriod,
               onTap: () => _changePeriod('trimestre'),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AnalyticsDesignSystem.spacing6),
           Expanded(
             child: ReportsWidgets.buildPeriodButton(
               label: 'Año',
@@ -251,10 +257,10 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
               onTap: () => _changePeriod('año'),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AnalyticsDesignSystem.spacing6),
           Expanded(
             child: ReportsWidgets.buildPeriodButton(
-              label: 'Custom',
+              label: 'Pers',
               period: 'personalizado',
               selectedPeriod: _selectedPeriod,
               onTap: _selectCustomRange,
@@ -264,25 +270,4 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
       ),
     );
   }
-
-  Widget _buildSummaryCards(Map<String, double> summary) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2D2D2D),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          ReportsWidgets.buildCompactStat('Ingresos', summary['ingresos']!, Icons.arrow_upward, const Color(0xFF13BB67)),
-          Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.1)),
-          ReportsWidgets.buildCompactStat('Gastos', summary['gastos']!, Icons.arrow_downward, Colors.redAccent),
-          Container(width: 1, height: 40, color: Colors.white.withValues(alpha: 0.1)),
-          ReportsWidgets.buildCompactStat('Balance', summary['balance']!, Icons.wallet, summary['balance']! >= 0 ? const Color(0xFF13BB67) : Colors.redAccent),
-        ],
-      ),
-    );
-  }
 }
-

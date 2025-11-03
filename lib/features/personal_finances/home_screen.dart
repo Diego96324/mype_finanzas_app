@@ -39,8 +39,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Widget _buildNavItem(IconData icon, String label, int index) {
     final isSelected = _pageIndex == index;
-    const activeColor = Colors.white;
-    final inactiveColor = Colors.white.withValues(alpha: 0.93);
+    final colorScheme = Theme.of(context).colorScheme;
+    final activeColor = colorScheme.onSurface;
+    final inactiveColor = colorScheme.onSurface.withValues(alpha: 0.6);
 
     return Expanded(
       child: InkWell(
@@ -91,22 +92,25 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: _pageIndex == 0
           ? AppBar(
-              backgroundColor: Colors.grey[900],
+              backgroundColor: theme.appBarTheme.backgroundColor,
               centerTitle: true,
-              title: const Text(
+              title: Text(
                 'Mis Gastos',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: colorScheme.onSurface,
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               leading: IconButton(
-                icon: const Icon(Icons.search, color: Colors.white),
+                icon: Icon(Icons.search, color: colorScheme.onSurface),
                 onPressed: () async {
                   final result = await Navigator.push<Map<String, dynamic>>(
                     context,
@@ -130,7 +134,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   tooltip: _transactionsPageKey.currentState?.range == null
                       ? 'Filtrar por fecha'
                       : 'Rango activo',
-                  icon: const Icon(Icons.date_range, color: Colors.white),
+                  icon: Icon(Icons.date_range, color: colorScheme.onSurface),
                   onPressed: () async {
                     _transactionsPageKey.currentState?.selectDateRange();
                   },
@@ -140,7 +144,7 @@ class _MyHomePageState extends State<MyHomePage> {
           : null,
       body: _pages[_pageIndex],
       bottomNavigationBar: BottomAppBar(
-        color: Colors.grey[900],
+        color: theme.appBarTheme.backgroundColor,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
@@ -157,14 +161,14 @@ class _MyHomePageState extends State<MyHomePage> {
               height: 65,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [Colors.greenAccent, Color(0xFF00C853)],
+                gradient: LinearGradient(
+                  colors: [colorScheme.primary, colorScheme.secondary],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.greenAccent.withValues(alpha: 0.5),
+                    color: colorScheme.primary.withValues(alpha: 0.5),
                     blurRadius: 20,
                     spreadRadius: 2,
                     offset: const Offset(0, 4),
@@ -184,10 +188,10 @@ class _MyHomePageState extends State<MyHomePage> {
                       _transactionsPageKey.currentState?._loadTransactions();
                     }
                   },
-                  child: const Center(
+                  child: Center(
                     child: Icon(
                       Icons.add_rounded,
-                      color: Colors.black,
+                      color: colorScheme.onPrimary,
                       size: 32,
                     ),
                   ),
@@ -341,19 +345,22 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return SafeArea(
       child: Container(
-        color: const Color(0xFF121212),
+        color: theme.scaffoldBackgroundColor,
         child: Column(
           children: [
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.grey[900],
+                color: colorScheme.surfaceContainerHighest,
                 border: Border(
                   bottom: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: theme.dividerColor,
                     width: 1,
                   ),
                 ),
@@ -369,6 +376,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                     children: [
                       Expanded(
                         child: _buildCompactStatCard(
+                          context,
                           'Gastos',
                           egresos,
                           Icons.trending_down_rounded,
@@ -378,6 +386,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildCompactStatCard(
+                          context,
                           'Ingresos',
                           ingresos,
                           Icons.trending_up_rounded,
@@ -387,6 +396,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                       const SizedBox(width: 8),
                       Expanded(
                         child: _buildCompactStatCard(
+                          context,
                           'Saldo',
                           saldo,
                           Icons.account_balance_wallet_rounded,
@@ -401,7 +411,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
 
             Expanded(
               child: Container(
-                color: const Color(0xFF121212),
+                color: theme.scaffoldBackgroundColor,
                 child: FutureBuilder<List<AppTransaction>>(
                   future: _futureTransactions,
                   builder: (context, snapshot) {
@@ -414,7 +424,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                               width: 40,
                               height: 40,
                               child: CircularProgressIndicator(
-                                color: Colors.greenAccent,
+                                color: colorScheme.primary,
                                 strokeWidth: 3,
                               ),
                             ),
@@ -422,7 +432,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                             Text(
                               'Cargando transacciones...',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.7),
+                                color: colorScheme.onSurface.withValues(alpha: 0.7),
                                 fontSize: 13,
                               ),
                             ),
@@ -438,14 +448,14 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                           children: [
                             Icon(
                               Icons.error_outline_rounded,
-                              color: Colors.redAccent,
+                              color: colorScheme.error,
                               size: 48,
                             ),
                             const SizedBox(height: 12),
                             Text(
                               'Error al cargar',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: colorScheme.onSurface,
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -454,7 +464,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                             Text(
                               '${snapshot.error}',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.6),
+                                color: colorScheme.onSurface.withValues(alpha: 0.6),
                                 fontSize: 13,
                               ),
                               textAlign: TextAlign.center,
@@ -475,20 +485,20 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                               width: 80,
                               height: 80,
                               decoration: BoxDecoration(
-                                color: Colors.greenAccent.withValues(alpha: 0.1),
+                                color: colorScheme.primary.withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
                                 Icons.receipt_long_rounded,
                                 size: 40,
-                                color: Colors.greenAccent.withValues(alpha: 0.5),
+                                color: colorScheme.primary.withValues(alpha: 0.5),
                               ),
                             ),
                             const SizedBox(height: 16),
                             Text(
                               'No hay transacciones',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: colorScheme.onSurface,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -497,7 +507,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                             Text(
                               'Toca el botón + para agregar una',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.6),
+                                color: colorScheme.onSurface.withValues(alpha: 0.6),
                                 fontSize: 13,
                               ),
                             ),
@@ -529,7 +539,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildDateSeparator(date, dayEgresos, dayIngresos),
+                            _buildDateSeparator(context, date, dayEgresos, dayIngresos),
 
                             ...txList.map((t) {
                               final Color typeColor;
@@ -548,7 +558,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                               return Container(
                                   margin: const EdgeInsets.only(bottom: 6),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF1E1E1E),
+                                    color: theme.cardColor,
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
                                       color: typeColor.withValues(alpha: 0.2),
@@ -595,8 +605,8 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                                                 children: [
                                                   Text(
                                                     t.etiqueta ?? 'Sin etiqueta',
-                                                    style: const TextStyle(
-                                                      color: Colors.white,
+                                                    style: TextStyle(
+                                                      color: colorScheme.onSurface,
                                                       fontSize: 14,
                                                       fontWeight: FontWeight.w600,
                                                     ),
@@ -608,7 +618,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                                                     Text(
                                                       t.nota!,
                                                       style: TextStyle(
-                                                        color: Colors.white.withValues(alpha: 0.5),
+                                                        color: colorScheme.onSurface.withValues(alpha: 0.5),
                                                         fontSize: 11,
                                                       ),
                                                       maxLines: 1,
@@ -621,40 +631,18 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
 
                                             const SizedBox(width: 8),
 
-                                            Column(
-                                              crossAxisAlignment: CrossAxisAlignment.end,
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  'S/. ${t.monto.toStringAsFixed(2)}',
-                                                  style: TextStyle(
-                                                    color: typeColor,
-                                                    fontSize: 14,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 2),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                  decoration: BoxDecoration(
-                                                    color: typeColor.withValues(alpha: 0.15),
-                                                    borderRadius: BorderRadius.circular(4),
-                                                  ),
-                                                  child: Text(
-                                                    t.tipo == 'ingreso' ? 'Ingreso' : 'Gasto',
-                                                    style: TextStyle(
-                                                      color: typeColor,
-                                                      fontSize: 9,
-                                                      fontWeight: FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
+                                            Text(
+                                              'S/. ${t.monto.toStringAsFixed(2)}',
+                                              style: TextStyle(
+                                                color: typeColor,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                              ),
                                             ),
                                             const SizedBox(width: 4),
                                             Icon(
                                               Icons.chevron_right_rounded,
-                                              color: Colors.white.withValues(alpha: 0.25),
+                                              color: colorScheme.onSurface.withValues(alpha: 0.25),
                                               size: 18,
                                             ),
                                           ],
@@ -678,11 +666,14 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
     );
   }
 
-  Widget _buildCompactStatCard(String label, double amount, IconData icon, Color color) {
+  Widget _buildCompactStatCard(BuildContext context, String label, double amount, IconData icon, Color color) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF252525),
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: color.withValues(alpha: 0.3),
@@ -700,7 +691,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
+              color: colorScheme.onSurface.withValues(alpha: 0.7),
               fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
@@ -745,7 +736,10 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
     return result;
   }
 
-  Widget _buildDateSeparator(DateTime date, double dayEgresos, double dayIngresos) {
+  Widget _buildDateSeparator(BuildContext context, DateTime date, double dayEgresos, double dayIngresos) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     final now = DateTime.now();
     final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
     final isYesterday = date.year == now.year && date.month == now.month && date.day == now.day - 1;
@@ -768,10 +762,10 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
       margin: const EdgeInsets.only(top: 8, bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.1),
+          color: theme.dividerColor,
           width: 1,
         ),
       ),
@@ -779,14 +773,14 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
         children: [
           Icon(
             Icons.calendar_today_rounded,
-            color: Colors.greenAccent,
+            color: colorScheme.primary,
             size: 14,
           ),
           const SizedBox(width: 8),
           Text(
             dateStr,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: colorScheme.onSurface,
               fontSize: 13,
               fontWeight: FontWeight.bold,
             ),

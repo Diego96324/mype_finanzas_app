@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/models/transaction_model.dart';
 import '../../../core/repos/transaction_repo.dart';
 import '../../../core/services/auth_service.dart';
-import 'reports_widgets.dart';
+import '../../../core/utils/analytics_design_system.dart';
 
 class DynamicComparisonSection extends StatefulWidget {
   final String selectedPeriod;
@@ -74,7 +74,6 @@ class _DynamicComparisonSectionState extends State<DynamicComparisonSection> {
 
     switch (widget.selectedPeriod) {
       case 'mes':
-        // Mes anterior
         final previousMonth = DateTime(current.start.year, current.start.month - 1, 1);
         return DateTimeRange(
           start: previousMonth,
@@ -82,7 +81,6 @@ class _DynamicComparisonSectionState extends State<DynamicComparisonSection> {
         );
 
       case 'trimestre':
-        // Trimestre anterior
         final quarterStart = current.start.month;
         final previousQuarterStart = quarterStart - 3;
         final previousYear = previousQuarterStart <= 0 ? current.start.year - 1 : current.start.year;
@@ -94,14 +92,12 @@ class _DynamicComparisonSectionState extends State<DynamicComparisonSection> {
         );
 
       case 'año':
-        // Año anterior
         return DateTimeRange(
           start: DateTime(current.start.year - 1, 1, 1),
           end: DateTime(current.start.year - 1, 12, 31, 23, 59, 59),
         );
 
       default:
-        // Para período personalizado, usar el mismo rango de días pero hacia atrás
         final duration = current.end.difference(current.start);
         return DateTimeRange(
           start: current.start.subtract(duration),
@@ -127,19 +123,6 @@ class _DynamicComparisonSectionState extends State<DynamicComparisonSection> {
       'gastos': gastos,
       'balance': ingresos - gastos,
     };
-  }
-
-  String _getPeriodLabel() {
-    switch (widget.selectedPeriod) {
-      case 'mes':
-        return 'Mes';
-      case 'trimestre':
-        return 'Trimestre';
-      case 'año':
-        return 'Año';
-      default:
-        return 'Período';
-    }
   }
 
   String _getCurrentPeriodName() {
@@ -179,8 +162,8 @@ class _DynamicComparisonSectionState extends State<DynamicComparisonSection> {
 
   String _getMonthName(int month) {
     const months = [
-      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
     ];
     return months[month - 1];
   }
@@ -210,17 +193,14 @@ class _DynamicComparisonSectionState extends State<DynamicComparisonSection> {
 
   Widget _buildComparison() {
     if (_isLoading) {
-      return Container(
-        height: 200,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFF2D2D2D),
-          borderRadius: BorderRadius.circular(16),
-        ),
+      return AnalyticsDesignSystem.buildCard(
         child: const Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF13BB67),
-            strokeWidth: 2,
+          child: Padding(
+            padding: EdgeInsets.all(AnalyticsDesignSystem.spacing32),
+            child: CircularProgressIndicator(
+              color: AnalyticsDesignSystem.primary,
+              strokeWidth: 2,
+            ),
           ),
         ),
       );
@@ -229,112 +209,209 @@ class _DynamicComparisonSectionState extends State<DynamicComparisonSection> {
     final currentSummary = _calculateSummary(widget.currentTransactions);
     final previousSummary = _calculateSummary(_previousTransactions);
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF2D2D2D),
-        borderRadius: BorderRadius.circular(16),
+    return AnalyticsDesignSystem.buildCard(
+      padding: const EdgeInsets.symmetric(
+        vertical: AnalyticsDesignSystem.spacing16,
+        horizontal: AnalyticsDesignSystem.spacing12,
       ),
-      child: Column(
-        children: [
-          // Header con nombres de períodos
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: MediaQuery.of(context).size.width -
+                    (AnalyticsDesignSystem.spacing12 * 2) -  // Card horizontal
+                    (AnalyticsDesignSystem.spacing16 * 2),   // reports_tab padding
+          ),
+          child: Table(
+            columnWidths: const {
+              0: FlexColumnWidth(2.5),
+              1: FlexColumnWidth(2.0),
+              2: FlexColumnWidth(2.0),
+              3: FlexColumnWidth(2.0),
+            },
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
-              Expanded(
-                flex: 2,
-                child: Text(
-                  '',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  _getCurrentPeriodName(),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF13BB67),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Text(
-                  _getPreviousPeriodName(),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const Expanded(
-                flex: 2,
-                child: SizedBox(),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Filas de comparación
-          ReportsWidgets.buildComparisonRow(
-            'Ingresos',
-            currentSummary['ingresos']!,
-            previousSummary['ingresos']!,
-            const Color(0xFF13BB67),
-          ),
-          const SizedBox(height: 12),
-          ReportsWidgets.buildComparisonRow(
-            'Gastos',
-            currentSummary['gastos']!,
-            previousSummary['gastos']!,
-            Colors.redAccent,
-          ),
-          const SizedBox(height: 12),
-          ReportsWidgets.buildComparisonRow(
-            'Balance',
-            currentSummary['balance']!,
-            previousSummary['balance']!,
-            currentSummary['balance']! >= 0 ? const Color(0xFF13BB67) : Colors.redAccent,
-          ),
-          if (_previousTransactions.isEmpty && widget.currentTransactions.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.orange.withValues(alpha: 0.3),
-                  width: 1,
-                ),
-              ),
-              child: Row(
+              // Header Row
+              TableRow(
                 children: [
-                  Icon(
-                    Icons.info_outline,
-                    size: 18,
-                    color: Colors.orange[300],
+                  _buildTableCell(
+                    'Categoría',
+                    isHeader: true,
+                    align: TextAlign.left,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'No hay datos del ${_getPeriodLabel().toLowerCase()} anterior para comparar',
-                      style: TextStyle(
-                        color: Colors.orange[300],
-                        fontSize: 12,
-                      ),
-                    ),
+                  _buildTableCell(
+                    _getCurrentPeriodName(),
+                    isHeader: true,
+                    align: TextAlign.center,
+                    color: AnalyticsDesignSystem.primary,
+                  ),
+                  _buildTableCell(
+                    _getPreviousPeriodName(),
+                    isHeader: true,
+                    align: TextAlign.center,
+                  ),
+                  _buildTableCell(
+                    'Cambio',
+                    isHeader: true,
+                    align: TextAlign.center,
                   ),
                 ],
               ),
-            ),
-          ],
-        ],
+
+              // Divider Row
+              TableRow(
+                children: List.generate(
+                  4,
+                  (index) => Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AnalyticsDesignSystem.spacing8,
+                      horizontal: AnalyticsDesignSystem.spacing6,
+                    ),
+                    child: AnalyticsDesignSystem.buildDivider(),
+                  ),
+                ),
+              ),
+
+              // Ingresos Row
+              _buildDataRow(
+                'Ingresos',
+                currentSummary['ingresos']!,
+                previousSummary['ingresos']!,
+                AnalyticsDesignSystem.primary,
+              ),
+
+              // Gastos Row
+              _buildDataRow(
+                'Gastos',
+                currentSummary['gastos']!,
+                previousSummary['gastos']!,
+                AnalyticsDesignSystem.danger,
+              ),
+
+              // Divider Row
+              TableRow(
+                children: List.generate(
+                  4,
+                  (index) => Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AnalyticsDesignSystem.spacing8,
+                      horizontal: AnalyticsDesignSystem.spacing6,
+                    ),
+                    child: AnalyticsDesignSystem.buildDivider(),
+                  ),
+                ),
+              ),
+
+              // Balance Row
+              _buildDataRow(
+                'Balance',
+                currentSummary['balance']!,
+                previousSummary['balance']!,
+                currentSummary['balance']! >= 0
+                    ? AnalyticsDesignSystem.primary
+                    : AnalyticsDesignSystem.warning,
+              ),
+            ],
+          ),
+        ),
       ),
+    );
+  }
+
+  Widget _buildTableCell(
+    String text, {
+    bool isHeader = false,
+    TextAlign align = TextAlign.left,
+    Color? color,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        vertical: AnalyticsDesignSystem.spacing8,
+        horizontal: AnalyticsDesignSystem.spacing6,
+      ),
+      child: Text(
+        text,
+        textAlign: align,
+        overflow: TextOverflow.ellipsis,
+        maxLines: 1,
+        style: isHeader
+            ? AnalyticsDesignSystem.bodyBold.copyWith(
+                color: color ?? AnalyticsDesignSystem.textSecondary,
+              )
+            : AnalyticsDesignSystem.bodyNormal.copyWith(
+                color: color ?? AnalyticsDesignSystem.textPrimary,
+              ),
+      ),
+    );
+  }
+
+  TableRow _buildDataRow(
+    String label,
+    double currentValue,
+    double previousValue,
+    Color color,
+  ) {
+    final difference = currentValue - previousValue;
+    final percentChange = previousValue != 0
+        ? ((difference / previousValue) * 100).toDouble()
+        : 0.0;
+    final isPositive = difference >= 0;
+
+    return TableRow(
+      children: [
+        // Categoría
+        _buildTableCell(
+          label,
+          align: TextAlign.left,
+          color: AnalyticsDesignSystem.textPrimary,
+        ),
+
+        // Valor Actual
+        _buildTableCell(
+          'S/ ${currentValue.toStringAsFixed(0)}',
+          align: TextAlign.center,
+          color: color,
+        ),
+
+        // Valor Anterior
+        _buildTableCell(
+          'S/ ${previousValue.toStringAsFixed(0)}',
+          align: TextAlign.center,
+          color: AnalyticsDesignSystem.textSecondary,
+        ),
+
+        // Cambio Porcentual
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            vertical: AnalyticsDesignSystem.spacing8,
+            horizontal: AnalyticsDesignSystem.spacing6,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isPositive ? Icons.arrow_upward : Icons.arrow_downward,
+                size: 14,
+                color: isPositive
+                    ? AnalyticsDesignSystem.primary
+                    : AnalyticsDesignSystem.danger,
+              ),
+              const SizedBox(width: AnalyticsDesignSystem.spacing4),
+              Text(
+                '${percentChange.abs().toStringAsFixed(1)}%',
+                textAlign: TextAlign.center,
+                style: AnalyticsDesignSystem.bodyBold.copyWith(
+                  color: isPositive
+                      ? AnalyticsDesignSystem.primary
+                      : AnalyticsDesignSystem.danger,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
