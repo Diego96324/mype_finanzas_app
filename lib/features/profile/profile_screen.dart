@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/providers/providers.dart';
-import '../../core/repos/transaction_repo.dart';
+import '../transactions/controllers/transactions_controller.dart';
 import '../auth/change_password_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -22,11 +22,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
   bool _notificationsEnabled = true;
   bool _biometricsEnabled = false;
 
-  // Estadísticas del usuario
-  int _totalTransactions = 0;
-  double _totalIngresos = 0.0;
-  double _totalGastos = 0.0;
-  bool _loadingStats = true;
+  // Estadísticas se obtienen del TransactionsController ahora
 
   @override
   void initState() {
@@ -41,43 +37,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
     );
     _animationController.forward();
 
-    _loadUserStats();
+    // Ya no necesitamos _loadUserStats porque usaremos el controlador
     _loadPreferences();
   }
 
-  Future<void> _loadUserStats() async {
-    setState(() => _loadingStats = true);
-
-    try {
-      // Usar el provider para obtener el usuario
-      final userId = ref.read(currentUserIdProvider);
-
-      if (userId != null) {
-        final repo = TransactionRepo();
-        final transactions = await repo.list(usuarioId: userId);
-
-        double ingresos = 0.0;
-        double gastos = 0.0;
-
-        for (var transaction in transactions) {
-          if (transaction.tipo == 'ingreso') {
-            ingresos += transaction.monto;
-          } else {
-            gastos += transaction.monto;
-          }
-        }
-
-        setState(() {
-          _totalTransactions = transactions.length;
-          _totalIngresos = ingresos;
-          _totalGastos = gastos;
-          _loadingStats = false;
-        });
-      }
-    } catch (e) {
-      setState(() => _loadingStats = false);
-    }
-  }
+  // Eliminamos _loadUserStats - ahora usamos el controlador
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
@@ -304,20 +268,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
   }
 
   Widget _buildStatsSection() {
-    if (_loadingStats) {
-      return Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF2D2D2D),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        padding: const EdgeInsets.all(24),
-        child: const Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF13BB67),
-          ),
-        ),
-      );
-    }
+    // Obtenemos datos del TransactionsController
+    final transactionsState = ref.watch(transactionsControllerProvider);
+    final stats = transactionsState.stats ?? {};
+
+    final totalTransactions = transactionsState.transactions.length;
+    final ingresos = stats['ingresos'] ?? 0.0;
+    final gastos = stats['egresos'] ?? 0.0;
+    final balance = ingresos - gastos;
 
     return Container(
       decoration: BoxDecoration(
@@ -350,7 +308,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
                 child: _buildStatItem(
                   icon: Icons.receipt_long,
                   label: 'Transacciones',
-                  value: _totalTransactions.toString(),
+                  value: totalTransactions.toString(),
                   color: Colors.blue,
                 ),
               ),
@@ -359,7 +317,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
                 child: _buildStatItem(
                   icon: Icons.trending_up,
                   label: 'Ingresos',
-                  value: 'S/ ${_totalIngresos.toStringAsFixed(2)}',
+                  value: 'S/ ${ingresos.toStringAsFixed(2)}',
                   color: const Color(0xFF13BB67),
                 ),
               ),
@@ -372,7 +330,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
                 child: _buildStatItem(
                   icon: Icons.trending_down,
                   label: 'Gastos',
-                  value: 'S/ ${_totalGastos.toStringAsFixed(2)}',
+                  value: 'S/ ${gastos.toStringAsFixed(2)}',
                   color: Colors.redAccent,
                 ),
               ),
@@ -381,8 +339,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
                 child: _buildStatItem(
                   icon: Icons.account_balance_wallet,
                   label: 'Balance',
-                  value: 'S/ ${(_totalIngresos - _totalGastos).toStringAsFixed(2)}',
-                  color: (_totalIngresos - _totalGastos) >= 0
+                  value: 'S/ ${balance.toStringAsFixed(2)}',
+                  color: balance >= 0
                       ? const Color(0xFF13BB67)
                       : Colors.redAccent,
                 ),

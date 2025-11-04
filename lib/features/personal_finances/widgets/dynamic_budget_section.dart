@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../core/models/budget_period_model.dart';
-import '../../../core/services/auth_service.dart';
-import '../../../core/services/budget_period_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/analytics_design_system.dart';
+import '../controllers/budget_period_controller.dart';
 
-class DynamicBudgetSection extends StatefulWidget {
+class DynamicBudgetSection extends ConsumerStatefulWidget {
   final String selectedPeriod;
   final int currentMonth;
   final int currentYear;
@@ -21,67 +20,53 @@ class DynamicBudgetSection extends StatefulWidget {
   });
 
   @override
-  State<DynamicBudgetSection> createState() => _DynamicBudgetSectionState();
+  ConsumerState<DynamicBudgetSection> createState() => _DynamicBudgetSectionState();
 }
 
-class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
-  final BudgetPeriodService _budgetService = BudgetPeriodService();
-  BudgetPeriod? _currentBudget;
-  bool _isLoading = true;
-  BudgetPeriod? _previousBudget;
+class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
+  // Creamos una key única para este presupuesto
+  late BudgetPeriodKey _budgetKey;
 
   @override
   void initState() {
     super.initState();
-    _loadBudget();
+    print('🔵 [DynamicBudgetSection] initState - selectedPeriod=${widget.selectedPeriod}, mes=${widget.currentMonth}, anio=${widget.currentYear}');
+
+    // Creamos la key inicial
+    _budgetKey = _createBudgetKey();
+    print('   budgetKey=$_budgetKey');
   }
 
   @override
   void didUpdateWidget(DynamicBudgetSection oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Recargamos si cambió el período o el mes/año
     if (oldWidget.selectedPeriod != widget.selectedPeriod ||
         oldWidget.currentMonth != widget.currentMonth ||
         oldWidget.currentYear != widget.currentYear) {
-      _previousBudget = _currentBudget;
-      _loadBudget();
+      print('🔵 [DynamicBudgetSection] didUpdateWidget - Cambio detectado');
+      print('   Old: periodo=${oldWidget.selectedPeriod}, mes=${oldWidget.currentMonth}, anio=${oldWidget.currentYear}');
+      print('   New: periodo=${widget.selectedPeriod}, mes=${widget.currentMonth}, anio=${widget.currentYear}');
+
+      // Actualizamos la key
+      setState(() {
+        _budgetKey = _createBudgetKey();
+        print('   Nueva budgetKey=$_budgetKey');
+      });
     }
   }
 
-  Future<void> _loadBudget() async {
-    if (_previousBudget == null) {
-      setState(() => _isLoading = true);
-    }
-
-    try {
-      final authService = AuthService();
-      final userId = authService.currentUserId;
-
-      if (userId != null) {
-        final budget = await _budgetService.getBudgetForPeriod(
-          usuarioId: userId,
-          periodo: _getPeriodType(),
-          mes: widget.currentMonth,
-          anio: widget.currentYear,
-        );
-
-        if (mounted) {
-          setState(() {
-            _currentBudget = budget;
-            _isLoading = false;
-            _previousBudget = null;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _previousBudget = null;
-        });
-      }
-    }
+  // Crea una key única basada en el período actual
+  BudgetPeriodKey _createBudgetKey() {
+    final periodType = _getPeriodType();
+    return BudgetPeriodKey(
+      periodo: periodType,
+      mes: widget.currentMonth,
+      anio: widget.currentYear,
+    );
   }
 
+  // Métdo helper para obtener información del período
   String _getPeriodType() {
     switch (widget.selectedPeriod) {
       case 'trimestre':
@@ -94,12 +79,26 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
   }
 
   String _getBudgetTitle() {
-    return _budgetService.getPeriodName(_getPeriodType());
+    switch (_getPeriodType()) {
+      case 'trimestral':
+        return 'Presupuesto Trimestral';
+      case 'anual':
+        return 'Presupuesto Anual';
+      default:
+        return 'Presupuesto Mensual';
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading && _previousBudget == null) {
+    // Observamos el estado del controlador usando la key única
+    final budgetState = ref.watch(budgetPeriodControllerProvider(_budgetKey));
+
+    print('🔍 [DynamicBudgetSection] build - key=$_budgetKey, isLoading=${budgetState.isLoading}, currentBudget=${budgetState.currentBudget?.monto ?? "null"}, error=${budgetState.error}');
+
+    // Mostramos loading si está cargando (sin importar si hay presupuesto previo)
+    if (budgetState.isLoading) {
+      print('   → Mostrando loading');
       return AnalyticsDesignSystem.buildCard(
         child: const Center(
           child: Padding(
@@ -112,7 +111,32 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
       );
     }
 
-    final double budgetAmount = _currentBudget?.monto ?? 0.0;
+    // Si hay error, mostrarlo
+    if (budgetState.error != null) {
+      print('   → Mostrando error: ${budgetState.error}');
+      return AnalyticsDesignSystem.buildCard(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AnalyticsDesignSystem.spacing32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.redAccent, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  budgetState.error!,
+                  style: const TextStyle(color: Colors.redAccent),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    print('   → Renderizando presupuesto');
+    final double budgetAmount = budgetState.currentBudget?.monto ?? 0.0;
     final double spent = widget.summary['gastos'] ?? 0.0;
     final double remaining = budgetAmount - spent;
     final double percentage = budgetAmount > 0 ? (spent / budgetAmount * 100).clamp(0, 100) : 0;
@@ -392,13 +416,14 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
   }
 
   void _showSetBudgetDialog() {
-    final bool hasExistingBudget = _currentBudget != null && _currentBudget!.monto > 0;
+    final budgetState = ref.read(budgetPeriodControllerProvider(_budgetKey));
+    final bool hasExistingBudget = budgetState.currentBudget != null && budgetState.currentBudget!.monto > 0;
 
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) {
         final TextEditingController budgetController = TextEditingController(
-          text: hasExistingBudget ? _currentBudget!.monto.toStringAsFixed(0) : '',
+          text: hasExistingBudget ? budgetState.currentBudget!.monto.toStringAsFixed(0) : '',
         );
 
         return AlertDialog(
@@ -447,37 +472,21 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
                 final monto = double.tryParse(text);
 
                 if (monto != null && monto > 0) {
-                  final authService = AuthService();
-                  final userId = authService.currentUserId;
+                  // Usamos el controlador con la key única
+                  final controller = ref.read(budgetPeriodControllerProvider(_budgetKey).notifier);
 
-                  if (userId != null) {
-                    try {
-                      final periodType = _getPeriodType();
-                      if (periodType == 'mensual') {
-                        await _budgetService.saveMonthlyBudget(
-                          usuarioId: userId,
-                          monto: monto,
-                          mes: widget.currentMonth,
-                          anio: widget.currentYear,
-                        );
-                      } else if (periodType == 'trimestral') {
-                        await _budgetService.saveQuarterlyBudget(
-                          usuarioId: userId,
-                          monto: monto,
-                          mes: widget.currentMonth,
-                          anio: widget.currentYear,
-                        );
-                      } else if (periodType == 'anual') {
-                        await _budgetService.saveYearlyBudget(
-                          usuarioId: userId,
-                          monto: monto,
-                          anio: widget.currentYear,
-                        );
-                      }
+                  try {
+                    final success = await controller.saveBudget(
+                      monto: monto,
+                      periodo: _budgetKey.periodo,
+                      mes: _budgetKey.mes,
+                      anio: _budgetKey.anio,
+                    );
 
-                      if (dialogContext.mounted) {
-                        Navigator.pop(dialogContext);
-                        _loadBudget();
+                    if (dialogContext.mounted) {
+                      Navigator.pop(dialogContext);
+
+                      if (success) {
                         widget.onBudgetChanged();
 
                         messenger.showSnackBar(
@@ -491,9 +500,7 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
                             behavior: SnackBarBehavior.floating,
                           ),
                         );
-                      }
-                    } catch (e) {
-                      if (dialogContext.mounted) {
+                      } else {
                         messenger.showSnackBar(
                           const SnackBar(
                             content: Text('Error al guardar el presupuesto'),
@@ -502,6 +509,16 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
                           ),
                         );
                       }
+                    }
+                  } catch (e) {
+                    if (dialogContext.mounted) {
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Error al guardar el presupuesto'),
+                          backgroundColor: Colors.redAccent,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
                     }
                   }
                 } else {
@@ -559,23 +576,20 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
     );
 
     if (confirm == true) {
-      final authService = AuthService();
-      final userId = authService.currentUserId;
+      // Usamos el controlador con la key única
+      final controller = ref.read(budgetPeriodControllerProvider(_budgetKey).notifier);
 
-      if (userId != null) {
-        try {
-          await _budgetService.deleteBudget(
-            usuarioId: userId,
-            periodo: _getPeriodType(),
-            mes: widget.currentMonth,
-            anio: widget.currentYear,
-            syncToOthers: true,
-          );
+      try {
+        final success = await controller.deleteBudget(
+          periodo: _budgetKey.periodo,
+          mes: _budgetKey.mes,
+          anio: _budgetKey.anio,
+        );
 
-          if (mounted) {
-            _loadBudget();
-            widget.onBudgetChanged();
+        if (mounted) {
+          widget.onBudgetChanged();
 
+          if (success) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Presupuesto eliminado correctamente'),
@@ -583,9 +597,7 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
                 behavior: SnackBarBehavior.floating,
               ),
             );
-          }
-        } catch (e) {
-          if (mounted) {
+          } else {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Error al eliminar el presupuesto'),
@@ -594,6 +606,16 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
               ),
             );
           }
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Error al eliminar el presupuesto'),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         }
       }
     }

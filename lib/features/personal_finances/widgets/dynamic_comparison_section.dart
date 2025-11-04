@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/transaction_model.dart';
 import '../../../core/repos/transaction_repo.dart';
-import '../../../core/services/auth_service.dart';
+import '../../../core/providers/providers.dart';
 import '../../../core/utils/analytics_design_system.dart';
 
-class DynamicComparisonSection extends StatefulWidget {
+class DynamicComparisonSection extends ConsumerStatefulWidget {
   final String selectedPeriod;
   final DateTimeRange currentDateRange;
   final List<AppTransaction> currentTransactions;
@@ -17,10 +18,10 @@ class DynamicComparisonSection extends StatefulWidget {
   });
 
   @override
-  State<DynamicComparisonSection> createState() => _DynamicComparisonSectionState();
+  ConsumerState<DynamicComparisonSection> createState() => _DynamicComparisonSectionState();
 }
 
-class _DynamicComparisonSectionState extends State<DynamicComparisonSection> {
+class _DynamicComparisonSectionState extends ConsumerState<DynamicComparisonSection> {
   List<AppTransaction> _previousTransactions = [];
   bool _isLoading = true;
 
@@ -43,8 +44,8 @@ class _DynamicComparisonSectionState extends State<DynamicComparisonSection> {
     setState(() => _isLoading = true);
 
     try {
-      final authService = AuthService();
-      final userId = authService.currentUserId;
+      // Usamos el provider en lugar de AuthService
+      final userId = ref.read(currentUserIdProvider);
 
       if (userId != null) {
         final previousRange = _calculatePreviousPeriod();

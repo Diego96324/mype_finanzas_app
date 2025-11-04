@@ -246,8 +246,6 @@ class TransactionsPage extends ConsumerStatefulWidget {
 }
 
 class _TransactionsPageState extends ConsumerState<TransactionsPage> {
-  DateTimeRange? _range;
-
   @override
   void initState() {
     super.initState();
@@ -259,60 +257,6 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     });
   }
 
-  // Getters que usan los métodos del controlador
-  String get tipoFilter {
-    return ref.read(transactionsControllerProvider.notifier).currentTypeFilter;
-  }
-
-  String get order {
-    return ref.read(transactionsControllerProvider.notifier).currentOrder;
-  }
-
-  DateTimeRange? get range => _range;
-
-  String? get searchTerm {
-    return ref.read(transactionsControllerProvider.notifier).currentSearchTerm;
-  }
-
-
-  void updateFilters(Map<String, dynamic> filters) {
-    // Ahora delega el trabajo al controlador
-    final controller = ref.read(transactionsControllerProvider.notifier);
-    controller.updateFiltersFromMap(filters);
-  }
-
-  Future<void> selectDateRange() async {
-    final now = DateTime.now();
-    final initial = _range ??
-        DateTimeRange(
-          start: DateTime(now.year, now.month, 1),
-          end: DateTime(now.year, now.month + 1, 0),
-        );
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2010),
-      lastDate: DateTime(2100),
-      initialDateRange: initial,
-      helpText: 'Selecciona rango',
-      locale: const Locale('es', 'PE'),
-      builder: (context, child) {
-        return Theme(
-          data: AppDatePickerTheme.darkDateRangePickerTheme(context),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() {
-        _range = picked;
-      });
-
-      // Le decimos al controlador que filtre por esas fechas
-      final controller = ref.read(transactionsControllerProvider.notifier);
-      controller.selectDateRange(picked.start, picked.end);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
