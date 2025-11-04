@@ -1,6 +1,6 @@
 import '../models/transaction_model.dart';
 
-// cache simple para no estar consultando la bd todo el tiempo
+// cache simple para no estar consultando la bd a cada rato
 class TransactionCacheService {
   static final TransactionCacheService _instance = TransactionCacheService._internal();
   factory TransactionCacheService() => _instance;
