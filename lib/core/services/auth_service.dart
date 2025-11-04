@@ -3,18 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
 import '../providers/providers.dart';
 
-/// Singleton de AuthService - DEPRECADO
-/// Este servicio ahora es un wrapper del provider de Riverpod
-/// Para nuevas funcionalidades, usar directamente authStateProvider
-///
-/// NOTA: Los métodos login, register, logout, etc. ya no están aquí.
-/// Usar ref.read(authStateProvider.notifier).login() en su lugar.
+// wrapper del auth provider de riverpod, ya casi no se usa
 class AuthService {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
   AuthService._internal();
 
-  // Container global de Riverpod (se configura en main.dart)
   static ProviderContainer? _container;
 
   static void setContainer(ProviderContainer container) {
@@ -42,13 +36,11 @@ class AuthService {
     return null;
   }
 
-  // Estos métodos están deprecados - usar authStateProvider.notifier en su lugar
   @Deprecated('Use ref.read(authStateProvider.notifier).login() instead')
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
   }) async {
-    debugPrint('⚠️ AuthService.login() está deprecado. Usa authStateProvider.notifier.login()');
     return {
       'success': false,
       'message': 'Método deprecado. Usa Riverpod providers.',
@@ -63,7 +55,6 @@ class AuthService {
     String? apellido,
     String? telefono,
   }) async {
-    debugPrint('⚠️ AuthService.register() está deprecado. Usa authStateProvider.notifier.register()');
     return {
       'success': false,
       'message': 'Método deprecado. Usa Riverpod providers.',
@@ -72,7 +63,7 @@ class AuthService {
 
   @Deprecated('Use ref.read(authStateProvider.notifier).logout() instead')
   Future<void> logout() async {
-    debugPrint('⚠️ AuthService.logout() está deprecado. Usa authStateProvider.notifier.logout()');
+    // nada
   }
 
   @Deprecated('Use ref.read(authStateProvider.notifier).updateProfile() instead')
@@ -82,7 +73,6 @@ class AuthService {
     String? telefono,
     String? avatarUri,
   }) async {
-    debugPrint('⚠️ AuthService.updateProfile() está deprecado. Usa authStateProvider.notifier.updateProfile()');
     return false;
   }
 
@@ -91,7 +81,6 @@ class AuthService {
     required String oldPassword,
     required String newPassword,
   }) async {
-    debugPrint('⚠️ AuthService.changePassword() está deprecado. Usa authStateProvider.notifier.changePassword()');
     return {
       'success': false,
       'message': 'Método deprecado. Usa Riverpod providers.',

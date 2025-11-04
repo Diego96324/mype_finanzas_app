@@ -1,40 +1,24 @@
 import 'package:flutter/material.dart';
 
-/// Sistema de diseño unificado para Reportes y Analítica
-/// Define tipografía, espaciados, colores y componentes reutilizables
+// constantes de estilos y colores para reportes
 class AnalyticsDesignSystem {
-  // ========== COLORES ==========
-
-  /// Color primario - Verde (éxito/positivo)
   static const Color primary = Color(0xFF13BB67);
-
-  /// Color secundario - Rojo (alerta/negativo)
   static const Color danger = Color(0xFFFF5252);
-
-  /// Color de advertencia - Naranja
   static const Color warning = Color(0xFFFF9800);
-
-  /// Color de información - Azul
   static const Color info = Color(0xFF2196F3);
 
-  /// Fondos
   static const Color backgroundPrimary = Color(0xFF1E1E1E);
   static const Color backgroundSecondary = Color(0xFF2D2D2D);
   static const Color backgroundTertiary = Color(0xFF3A3A3A);
 
-  /// Textos
   static const Color textPrimary = Colors.white;
   static const Color textSecondary = Color(0xFFB0B0B0);
   static const Color textTertiary = Color(0xFF808080);
   static const Color textDisabled = Color(0xFF666666);
 
-  /// Divisores y bordes
   static Color get divider => Colors.white.withValues(alpha: 0.1);
   static Color get border => Colors.white.withValues(alpha: 0.15);
 
-  // ========== TIPOGRAFÍA ==========
-
-  /// Títulos principales (H1) - Para encabezados de pantalla
   static const TextStyle h1 = TextStyle(
     fontSize: 28,
     fontWeight: FontWeight.bold,
@@ -43,7 +27,6 @@ class AnalyticsDesignSystem {
     letterSpacing: -0.5,
   );
 
-  /// Títulos de sección (H2) - Para secciones principales
   static const TextStyle h2 = TextStyle(
     fontSize: 22,
     fontWeight: FontWeight.bold,
@@ -52,7 +35,6 @@ class AnalyticsDesignSystem {
     letterSpacing: -0.3,
   );
 
-  /// Títulos de tarjeta (H3) - Para títulos dentro de tarjetas
   static const TextStyle h3 = TextStyle(
     fontSize: 18,
     fontWeight: FontWeight.bold,
@@ -60,7 +42,6 @@ class AnalyticsDesignSystem {
     height: 1.4,
   );
 
-  /// Subtítulos (H4)
   static const TextStyle h4 = TextStyle(
     fontSize: 16,
     fontWeight: FontWeight.w600,
@@ -68,7 +49,6 @@ class AnalyticsDesignSystem {
     height: 1.4,
   );
 
-  /// KPIs - Valores numéricos destacados (grandes)
   static const TextStyle kpiLarge = TextStyle(
     fontSize: 32,
     fontWeight: FontWeight.bold,
@@ -77,7 +57,6 @@ class AnalyticsDesignSystem {
     letterSpacing: -1,
   );
 
-  /// KPIs - Valores numéricos destacados (medianos)
   static const TextStyle kpiMedium = TextStyle(
     fontSize: 24,
     fontWeight: FontWeight.bold,
@@ -86,7 +65,6 @@ class AnalyticsDesignSystem {
     letterSpacing: -0.5,
   );
 
-  /// KPIs - Valores numéricos destacados (pequeños)
   static const TextStyle kpiSmall = TextStyle(
     fontSize: 18,
     fontWeight: FontWeight.bold,
@@ -94,7 +72,6 @@ class AnalyticsDesignSystem {
     height: 1.3,
   );
 
-  /// Etiquetas de KPIs
   static const TextStyle kpiLabel = TextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w500,
@@ -103,7 +80,6 @@ class AnalyticsDesignSystem {
     letterSpacing: 0.5,
   );
 
-  /// Texto del cuerpo (normal)
   static const TextStyle bodyNormal = TextStyle(
     fontSize: 14,
     fontWeight: FontWeight.normal,
@@ -111,7 +87,6 @@ class AnalyticsDesignSystem {
     height: 1.5,
   );
 
-  /// Texto del cuerpo (destacado)
   static const TextStyle bodyBold = TextStyle(
     fontSize: 14,
     fontWeight: FontWeight.w600,
@@ -119,7 +94,6 @@ class AnalyticsDesignSystem {
     height: 1.5,
   );
 
-  /// Texto secundario
   static const TextStyle bodySecondary = TextStyle(
     fontSize: 13,
     fontWeight: FontWeight.normal,
@@ -127,7 +101,6 @@ class AnalyticsDesignSystem {
     height: 1.4,
   );
 
-  /// Texto pequeño (caption)
   static const TextStyle caption = TextStyle(
     fontSize: 11,
     fontWeight: FontWeight.normal,
@@ -135,7 +108,6 @@ class AnalyticsDesignSystem {
     height: 1.3,
   );
 
-  /// Botones principales
   static const TextStyle buttonPrimary = TextStyle(
     fontSize: 14,
     fontWeight: FontWeight.w600,
@@ -143,15 +115,12 @@ class AnalyticsDesignSystem {
     letterSpacing: 0.3,
   );
 
-  /// Botones secundarios
   static const TextStyle buttonSecondary = TextStyle(
     fontSize: 13,
     fontWeight: FontWeight.w500,
     color: textSecondary,
     letterSpacing: 0.2,
   );
-
-  // ========== ESPACIADOS ==========
 
   static const double spacing2 = 2.0;
   static const double spacing4 = 4.0;
@@ -166,14 +135,11 @@ class AnalyticsDesignSystem {
   static const double spacing40 = 40.0;
   static const double spacing48 = 48.0;
 
-  // ========== BORDES Y RADIOS ==========
-
   static const double radiusSmall = 8.0;
   static const double radiusMedium = 12.0;
   static const double radiusLarge = 16.0;
   static const double radiusXLarge = 20.0;
 
-  // ========== SOMBRAS ==========
 
   static List<BoxShadow> shadowSoft = [
     BoxShadow(
@@ -208,9 +174,6 @@ class AnalyticsDesignSystem {
     ),
   ];
 
-  // ========== MÉTODOS HELPER PARA WIDGETS ==========
-
-  /// Construye un título de sección
   static Widget buildSectionTitle(String title, {IconData? icon}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: spacing12),
@@ -226,7 +189,6 @@ class AnalyticsDesignSystem {
     );
   }
 
-  /// Construye un botón de filtro
   static Widget buildFilterButton({
     required String label,
     VoidCallback? onPressed,
@@ -252,7 +214,6 @@ class AnalyticsDesignSystem {
     );
   }
 
-  /// Construye un estado vacío
   static Widget buildEmptyState({
     required String message,
     IconData icon = Icons.inbox_outlined,
@@ -287,7 +248,6 @@ class AnalyticsDesignSystem {
     return Center(child: content);
   }
 
-  /// Construye un contenedor de gráfico
   static Widget buildChartContainer({
     required String title,
     required Widget child,
@@ -325,7 +285,6 @@ class AnalyticsDesignSystem {
     );
   }
 
-  /// Construye una insignia/badge
   static Widget buildBadge({
     required String label,
     required Color color,
@@ -343,7 +302,6 @@ class AnalyticsDesignSystem {
     );
   }
 
-  /// Construye una tarjeta KPI compacta
   static Widget buildCompactKpiCard({
     required String label,
     required double value,
@@ -380,7 +338,6 @@ class AnalyticsDesignSystem {
     );
   }
 
-  /// Construye una fila de comparación
   static Widget buildComparisonRow({
     required String label,
     double? value,
@@ -421,7 +378,6 @@ class AnalyticsDesignSystem {
     );
   }
 
-  /// Construye una tarjeta genérica
   static Widget buildCard({
     required Widget child,
     Color? color,
@@ -438,7 +394,6 @@ class AnalyticsDesignSystem {
     );
   }
 
-  /// Construye un divisor
   static Widget buildDivider() {
     return Divider(
       color: divider,

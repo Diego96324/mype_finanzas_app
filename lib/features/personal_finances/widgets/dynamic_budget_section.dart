@@ -559,7 +559,6 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
     );
 
     if (confirm == true) {
-      final messenger = ScaffoldMessenger.of(context);
       final authService = AuthService();
       final userId = authService.currentUserId;
 
@@ -577,7 +576,7 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
             _loadBudget();
             widget.onBudgetChanged();
 
-            messenger.showSnackBar(
+            ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Presupuesto eliminado correctamente'),
                 backgroundColor: Color(0xFF13BB67),
@@ -587,7 +586,7 @@ class _DynamicBudgetSectionState extends State<DynamicBudgetSection> {
           }
         } catch (e) {
           if (mounted) {
-            messenger.showSnackBar(
+            ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Error al eliminar el presupuesto'),
                 backgroundColor: Colors.redAccent,

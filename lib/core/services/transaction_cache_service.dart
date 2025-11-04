@@ -1,19 +1,15 @@
 import '../models/transaction_model.dart';
 
-/// 🗄️ Servicio de caché pa' las transacciones
-/// Evita estar consultando la BD cada 5 segundos como loco
+// cache simple para no estar consultando la bd todo el tiempo
 class TransactionCacheService {
   static final TransactionCacheService _instance = TransactionCacheService._internal();
   factory TransactionCacheService() => _instance;
   TransactionCacheService._internal();
 
-  // 📦 Caché de transacciones por rango de fechas
   final Map<String, _CacheEntry> _cache = {};
 
-  // ⏰ Tiempo de vida del caché (5 minutos)
   static const Duration _cacheTTL = Duration(minutes: 5);
 
-  /// Obtener transacciones desde caché o BD
   List<AppTransaction>? get({
     required int userId,
     required DateTime from,
@@ -24,7 +20,6 @@ class TransactionCacheService {
 
     if (entry == null) return null;
 
-    // Verificar si el caché expiró
     if (DateTime.now().difference(entry.timestamp) > _cacheTTL) {
       _cache.remove(key);
       return null;
@@ -33,7 +28,6 @@ class TransactionCacheService {
     return entry.transactions;
   }
 
-  /// Guardar transacciones en caché
   void put({
     required int userId,
     required DateTime from,
@@ -51,12 +45,10 @@ class TransactionCacheService {
     _cache.clear();
   }
 
-  /// Invalidar caché de un usuario específico
   void invalidateUser(int userId) {
     _cache.removeWhere((key, _) => key.startsWith('$userId:'));
   }
 
-  /// Limpiar caché expirado (limpieza periódica)
   void cleanExpired() {
     final now = DateTime.now();
     _cache.removeWhere((_, entry) {
@@ -64,12 +56,10 @@ class TransactionCacheService {
     });
   }
 
-  /// Construir clave única para el caché
   String _buildKey(int userId, DateTime from, DateTime to) {
     return '$userId:${from.toIso8601String()}:${to.toIso8601String()}';
   }
 
-  /// Obtener tamaño del caché (para debugging)
   int get cacheSize => _cache.length;
 
   void clear() {
@@ -77,7 +67,6 @@ class TransactionCacheService {
   }
 }
 
-/// 📦 Entrada del caché con timestamp
 class _CacheEntry {
   final List<AppTransaction> transactions;
   final DateTime timestamp;

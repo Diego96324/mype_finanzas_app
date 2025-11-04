@@ -16,7 +16,7 @@ class AppDatabase {
     return _db!;
   }
 
-  // ¡Cuidado! que esto borra todito xd
+  // NO TOCAR xd
   Future<void> resetDatabase() async {
     final dir = await getApplicationDocumentsDirectory();
     final path = join(dir.path, 'mype_finanzas.db');
@@ -205,7 +205,6 @@ class AppDatabase {
       )
     ''');
 
-    // Índices
     await db.execute('CREATE INDEX idx_usuarios_email ON usuarios(email)');
     await db.execute('CREATE INDEX idx_sesiones_usuario ON sesiones(usuario_id)');
     await db.execute('CREATE INDEX idx_sesiones_token ON sesiones(token)');
@@ -221,7 +220,6 @@ class AppDatabase {
 
     final now = DateTime.now().toIso8601String();
 
-    // Categorías de fábrica
     final categoriasDefault = [
       {'nombre': 'Salario', 'tipo': 'ingreso', 'icono': 'salary', 'color': '#4CAF50'},
       {'nombre': 'Ventas', 'tipo': 'ingreso', 'icono': 'sales', 'color': '#8BC34A'},
@@ -253,7 +251,8 @@ class AppDatabase {
         'updated_at': now,
       });
     }
-    // Usuario de prueba - eliminar en producción
+
+    // usuario de prueba
     await db.insert('usuarios', {
       'email': 'admin@mypefinanzas.com',
       'password_hash': _hashPassword('admin123'),
@@ -322,14 +321,12 @@ class AppDatabase {
           }
         }
       } catch (e) {
-        // En caso de error, recrear la base de datos
         await _onCreate(db, newVersion);
         rethrow;
       }
     }
 
     if (oldVersion < 3) {
-      // Agregar tablas nuevas de accounts y budgets
       await db.execute('''
         CREATE TABLE IF NOT EXISTS accounts(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -362,7 +359,6 @@ class AppDatabase {
     }
 
     if (oldVersion < 4) {
-      // Agregar tabla de presupuestos por período
       await db.execute('''
         CREATE TABLE IF NOT EXISTS budget_periods(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -380,23 +376,19 @@ class AppDatabase {
     }
 
     if (oldVersion < 5) {
-      // Agregar nuevos campos a la tabla accounts
       try {
         await db.execute('ALTER TABLE accounts ADD COLUMN institucion TEXT');
       } catch (e) {
-        // Columna ya existe, ignorar error
         debugPrint('⚠️ Columna institucion ya existe o error al agregar: $e');
       }
       try {
         await db.execute('ALTER TABLE accounts ADD COLUMN fecha_actualizacion TEXT');
       } catch (e) {
-        // Columna ya existe, ignorar error
         debugPrint('⚠️ Columna fecha_actualizacion ya existe o error al agregar: $e');
       }
       try {
         await db.execute('ALTER TABLE accounts ADD COLUMN activa INTEGER NOT NULL DEFAULT 1');
       } catch (e) {
-        // Columna ya existe, ignorar error
         debugPrint('⚠️ Columna activa ya existe o error al agregar: $e');
       }
     }

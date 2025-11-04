@@ -2,6 +2,7 @@ import 'package:flutter/material.dart' as flutter;
 import 'package:flutter/material.dart' hide ThemeMode;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_router.dart';
 import 'core/db/app_database.dart';
@@ -14,6 +15,12 @@ Future<void> main() async {
   await AppDatabase().database.then(
     (db) => debugPrint('📦 Base de datos inicializada: $db'),
   );
+
+  final prefs = await SharedPreferences.getInstance();
+  if (prefs.containsKey('auth_token')) {
+    await prefs.remove('auth_token');
+    debugPrint('🔒 Token antiguo eliminado de SharedPreferences');
+  }
 
   final container = ProviderContainer();
 

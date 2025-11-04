@@ -13,7 +13,7 @@ class AuthRepository {
     return values.map((e) => e.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  // TODO: usar bcrypt o argon2 en producción
+  // hash super basico, despues hay que mejorarlo
   String _hashPassword(String password) {
     return 'hash_$password';
   }
@@ -36,7 +36,7 @@ class AuthRepository {
       );
 
       if (existing.isNotEmpty) {
-        return null;
+        return null; // ya existe ese email
       }
 
       final userId = await database.insert('usuarios', {
@@ -104,7 +104,7 @@ class AuthRepository {
         'dispositivo': 'mobile',
         'ip_address': null,
         'fecha_inicio': now.toIso8601String(),
-        'fecha_expiracion': now.add(const Duration(days: 30)).toIso8601String(),
+        'fecha_expiracion': now.add(const Duration(days: 30)).toIso8601String(), // sesion dura 30 dias
         'activa': 1,
         'created_at': now.toIso8601String(),
       });
@@ -156,7 +156,7 @@ class AuthRepository {
       final session = Session.fromMap(sessions.first);
 
       if (session.isExpired) {
-        await logout(token);
+        await logout(token); // ya expiro, cerramos la sesion
         return null;
       }
 

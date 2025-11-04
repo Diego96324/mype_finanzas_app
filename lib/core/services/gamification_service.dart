@@ -1,2 +1,2 @@
-// Sistema de gamificación - próximamente (ahorita nomás 😄)
+// Sistema de gamificación - próximamente
 
