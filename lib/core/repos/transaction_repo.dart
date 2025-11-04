@@ -125,32 +125,28 @@ class TransactionRepo {
     if (orders != null && orders.isNotEmpty) {
       List<String> orderCriteria = [];
 
+      // Ordenar por fecha
       if (orders.contains('fecha_desc')) {
-        orderCriteria.add('DATE(fecha) DESC');
+        orderCriteria.add('fecha DESC');
       } else if (orders.contains('fecha_asc')) {
-        orderCriteria.add('DATE(fecha) ASC');
+        orderCriteria.add('fecha ASC');
       }
 
+      // Ordenar por monto (secundario)
       if (orders.contains('monto_desc')) {
         orderCriteria.add('monto DESC');
       } else if (orders.contains('monto_asc')) {
         orderCriteria.add('monto ASC');
       }
 
-      if (orders.contains('fecha_desc') || orders.contains('fecha_asc')) {
-        if (orders.contains('fecha_desc')) {
-          orderCriteria.add('fecha DESC');
-        } else {
-          orderCriteria.add('fecha ASC');
-        }
-      }
-
+      // Si no hay criterios, usar fecha descendente por defecto
       if (orderCriteria.isEmpty) {
         orderCriteria.add('fecha DESC');
       }
 
       orderBy = orderCriteria.join(', ');
     } else {
+      // Usar el parámetro order (String) simple
       switch (order) {
         case 'fecha_asc':  orderBy = 'fecha ASC'; break;
         case 'monto_desc': orderBy = 'monto DESC, fecha DESC'; break;

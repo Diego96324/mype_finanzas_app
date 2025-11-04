@@ -1,44 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/transaction_model.dart';
-import '../../core/repos/transaction_repo.dart';
-import '../../core/services/auth_service.dart';
 import '../../core/utils/date_picker_theme.dart';
 import '../transactions/add_transaction_screen.dart';
+import 'controllers/analytics_controller.dart';
 
-class AnalyticsScreen extends StatefulWidget {
+class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
 
   @override
-  State<AnalyticsScreen> createState() => _AnalyticsScreenState();
+  ConsumerState<AnalyticsScreen> createState() => _AnalyticsScreenState();
 }
 
-class _AnalyticsScreenState extends State<AnalyticsScreen> with SingleTickerProviderStateMixin {
+class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
-  // Rango de fechas seleccionado
-  late DateTimeRange _selectedDateRange;
-
-  // Períodos predefinidos
-  String _selectedPeriod = 'mes'; // mes, semana, año, personalizado
-
-  // Estado de las transacciones
-  List<AppTransaction> _transactions = [];
-  bool _isLoading = true;
-  String? _errorMessage;
+  // Período seleccionado (mes, trimestre, año, personalizado)
+  String _selectedPeriod = 'mes';
 
   @override
   void initState() {
     super.initState();
-
-    // Inicializar con el mes actual
-    final now = DateTime.now();
-    _selectedDateRange = DateTimeRange(
-      start: DateTime(now.year, now.month, 1),
-      end: DateTime(now.year, now.month + 1, 0, 23, 59, 59),
-    );
 
     _animationController = AnimationController(
       vsync: this,
@@ -51,44 +36,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> with SingleTickerProv
     );
 
     _animationController.forward();
-    _loadTransactions();
-  }
-
-  Future<void> _loadTransactions() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final authService = AuthService();
-      final userId = authService.currentUserId;
-
-      if (userId == null) {
-        setState(() {
-          _transactions = [];
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final repo = TransactionRepo();
-      final transactions = await repo.list(
-        usuarioId: userId,
-        from: _selectedDateRange.start,
-        to: _selectedDateRange.end,
-      );
-
-      setState(() {
-        _transactions = transactions;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
-    }
   }
 
   @override
@@ -98,53 +45,31 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> with SingleTickerProv
   }
 
   void _changePeriod(String period) {
-    _selectedPeriod = period;
-    final now = DateTime.now();
+    setState(() {
+      _selectedPeriod = period;
+    });
 
-    switch (period) {
-      case 'semana':
-        _selectedDateRange = DateTimeRange(
-          start: now.subtract(Duration(days: now.weekday - 1)),
-          end: now.add(Duration(days: 7 - now.weekday)),
-        );
-        break;
-      case 'mes':
-        _selectedDateRange = DateTimeRange(
-          start: DateTime(now.year, now.month, 1),
-          end: DateTime(now.year, now.month + 1, 0, 23, 59, 59),
-        );
-        break;
-      case 'año':
-        _selectedDateRange = DateTimeRange(
-          start: DateTime(now.year, 1, 1),
-          end: DateTime(now.year, 12, 31, 23, 59, 59),
-        );
-        break;
-    }
-
-    if (mounted) setState(() {});
-    _loadTransactions();
+    // Le decimos al controlador que cambie el período
+    ref.read(analyticsControllerProvider.notifier).changePeriod(period);
   }
 
   void _moveTimeRange(bool forward) {
-    final duration = _selectedDateRange.duration;
-    final days = forward ? duration.inDays : -duration.inDays;
-
-    _selectedDateRange = DateTimeRange(
-      start: _selectedDateRange.start.add(Duration(days: days)),
-      end: _selectedDateRange.end.add(Duration(days: days)),
-    );
-
-    if (mounted) setState(() {});
-    _loadTransactions();
+    // Usamos el métdo del controlador para mover el rango
+    ref.read(analyticsControllerProvider.notifier).moveTimeRange(forward);
   }
 
   Future<void> _selectCustomRange() async {
+    final state = ref.read(analyticsControllerProvider);
+    final currentRange = state.dateRange ?? DateTimeRange(
+      start: DateTime.now().subtract(const Duration(days: 30)),
+      end: DateTime.now(),
+    );
+
     final picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      initialDateRange: _selectedDateRange,
+      initialDateRange: currentRange,
       locale: const Locale('es'),
       builder: (context, child) {
         return Theme(
@@ -156,19 +81,26 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> with SingleTickerProv
 
     if (picked != null) {
       setState(() {
-        _selectedDateRange = picked;
         _selectedPeriod = 'personalizado';
       });
-      _loadTransactions();
+      // Le decimos al controlador que cambie al rango personalizado
+      ref.read(analyticsControllerProvider.notifier)
+          .changePeriod('personalizado', customRange: picked);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Observamos el estado del controlador
+    final state = ref.watch(analyticsControllerProvider);
+    final transactions = state.transactions;
+    final isLoading = state.isLoading;
+    final error = state.error;
+
     return Scaffold(
       backgroundColor: const Color(0xFF1E1E1E),
       appBar: AppBar(
-        leading: const SizedBox(width: 48), // Espaciador invisible para balancear
+        leading: const SizedBox(width: 48),
         title: const Text(
           'Análisis',
           style: TextStyle(
@@ -182,20 +114,26 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> with SingleTickerProv
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: _loadTransactions,
+            onPressed: () {
+              // Refrescamos usando el controlador
+              ref.read(analyticsControllerProvider.notifier).refresh();
+            },
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _loadTransactions,
+        onRefresh: () async {
+          // Refrescamos usando el controlador
+          await ref.read(analyticsControllerProvider.notifier).refresh();
+        },
         color: const Color(0xFF13BB67),
         child: FadeTransition(
           opacity: _fadeAnimation,
-          child: _isLoading
+          child: isLoading && transactions.isEmpty
               ? _buildLoadingState()
-              : _errorMessage != null
-                  ? _buildErrorState(_errorMessage!)
-                  : _buildAnalyticsContent(_transactions),
+              : error != null
+                  ? _buildErrorState(error)
+                  : _buildAnalyticsContent(transactions),
         ),
       ),
     );
@@ -355,17 +293,20 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> with SingleTickerProv
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: () {
-                  // Navegar a agregar transacción con el rango de fechas seleccionado
+                  final state = ref.read(analyticsControllerProvider);
+                  final dateRange = state.dateRange;
+
+                  // Navegar a agregar transacción
                   Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (context) => AddTransactionScreen(
-                        initialDate: _selectedDateRange.start,
-                        allowedDateRange: _selectedDateRange,
+                        initialDate: dateRange?.start ?? DateTime.now(),
+                        allowedDateRange: dateRange,
                       ),
                     ),
                   ).then((_) {
-                    // Recargar transacciones cuando se regrese
-                    _loadTransactions();
+                    // Recargar usando el controlador
+                    ref.read(analyticsControllerProvider.notifier).refresh();
                   });
                 },
                 icon: const Icon(Icons.add),
@@ -443,6 +384,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> with SingleTickerProv
   }
 
   Widget _buildTimeline() {
+    final state = ref.watch(analyticsControllerProvider);
+    final dateRange = state.dateRange;
+
+    if (dateRange == null) {
+      return const SizedBox.shrink();
+    }
+
     final formatter = DateFormat('dd MMM yyyy', 'es');
 
     return Container(
@@ -487,7 +435,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> with SingleTickerProv
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${formatter.format(_selectedDateRange.start)} - ${formatter.format(_selectedDateRange.end)}',
+                      '${formatter.format(dateRange.start)} - ${formatter.format(dateRange.end)}',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: Colors.white,

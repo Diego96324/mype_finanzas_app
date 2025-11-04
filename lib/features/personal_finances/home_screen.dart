@@ -11,18 +11,16 @@ import 'reports_screen.dart' as reports;
 import 'search_filter_screen.dart';
 import '../transactions/controllers/transactions_controller.dart';
 
-class MyHomePage extends StatefulWidget {
+class MyHomePage extends ConsumerStatefulWidget {
   const MyHomePage({super.key, required this.title});
   final String title;
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  ConsumerState<MyHomePage> createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _MyHomePageState extends ConsumerState<MyHomePage> {
   int _pageIndex = 0;
-
-  final GlobalKey<_TransactionsPageState> _transactionsPageKey = GlobalKey();
 
   late final List<Widget> _pages;
 
@@ -30,7 +28,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void initState() {
     super.initState();
     _pages = [
-      TransactionsPage(key: _transactionsPageKey),
+      const TransactionsPage(),
       const AnalyticsScreen(),
       const reports.ReportsScreen(),
       const ProfileScreen(),
@@ -112,31 +110,67 @@ class _MyHomePageState extends State<MyHomePage> {
               leading: IconButton(
                 icon: Icon(Icons.search, color: colorScheme.onSurface),
                 onPressed: () async {
+                  // Obtenemos los filtros actuales del controlador
+                  final controller = ref.read(transactionsControllerProvider.notifier);
+
                   final result = await Navigator.push<Map<String, dynamic>>(
                     context,
                     MaterialPageRoute(
                       builder: (_) => SearchFilterScreen(
                         initialFilters: {
-                          'tipo': _transactionsPageKey.currentState?.tipoFilter ?? 'todos',
-                          'order': _transactionsPageKey.currentState?.order ?? 'fecha_desc',
-                          'searchTerm': _transactionsPageKey.currentState?.searchTerm,
+                          'tipo': controller.currentTypeFilter,
+                          'order': controller.currentOrder,
+                          'searchTerm': controller.currentSearchTerm,
                         },
                       ),
                     ),
                   );
                   if (result != null) {
-                    _transactionsPageKey.currentState?.updateFilters(result);
+                    // Aplicamos los filtros directamente al controlador
+                    controller.updateFiltersFromMap(result);
                   }
                 },
               ),
               actions: [
                 IconButton(
-                  tooltip: _transactionsPageKey.currentState?.range == null
-                      ? 'Filtrar por fecha'
-                      : 'Rango activo',
+                  tooltip: () {
+                    final state = ref.watch(transactionsControllerProvider);
+                    return state.filters.from != null && state.filters.to != null
+                        ? 'Rango activo'
+                        : 'Filtrar por fecha';
+                  }(),
                   icon: Icon(Icons.date_range, color: colorScheme.onSurface),
                   onPressed: () async {
-                    _transactionsPageKey.currentState?.selectDateRange();
+                    // Obtenemos el rango actual del controlador
+                    final now = DateTime.now();
+                    final state = ref.read(transactionsControllerProvider);
+                    final currentRange = state.filters.from != null && state.filters.to != null
+                        ? DateTimeRange(start: state.filters.from!, end: state.filters.to!)
+                        : DateTimeRange(
+                            start: DateTime(now.year, now.month, 1),
+                            end: DateTime(now.year, now.month + 1, 0),
+                          );
+
+                    final picked = await showDateRangePicker(
+                      context: context,
+                      firstDate: DateTime(2010),
+                      lastDate: DateTime(2100),
+                      initialDateRange: currentRange,
+                      helpText: 'Selecciona rango',
+                      locale: const Locale('es', 'PE'),
+                      builder: (context, child) {
+                        return Theme(
+                          data: AppDatePickerTheme.darkDateRangePickerTheme(context),
+                          child: child!,
+                        );
+                      },
+                    );
+
+                    if (picked != null && context.mounted) {
+                      // Aplicamos el rango directamente al controlador
+                      ref.read(transactionsControllerProvider.notifier)
+                          .selectDateRange(picked.start, picked.end);
+                    }
                   },
                 ),
               ],
@@ -185,7 +219,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
                     );
                     if (saved == true) {
-                      _transactionsPageKey.currentState?._loadTransactions();
+                      // Recargamos usando el controlador
+                      ref.read(transactionsControllerProvider.notifier).reloadAfterCreate();
                     }
                   },
                   child: Center(
@@ -239,10 +274,6 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     return ref.read(transactionsControllerProvider.notifier).currentSearchTerm;
   }
 
-  // Para cuando se crea una transacción desde el FAB
-  void _loadTransactions() {
-    ref.read(transactionsControllerProvider.notifier).reloadAfterCreate();
-  }
 
   void updateFilters(Map<String, dynamic> filters) {
     // Ahora delega el trabajo al controlador
@@ -496,6 +527,10 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                         final date = group['date'] as DateTime;
                         final txList = group['transactions'] as List<AppTransaction>;
 
+                        // Verificamos si hay cambio de año
+                        final showYearSeparator = groupIndex > 0 &&
+                            date.year != (groupedTransactions[groupIndex - 1]['date'] as DateTime).year;
+
                         double dayIngresos = 0;
                         double dayEgresos = 0;
                         for (var tx in txList) {
@@ -509,6 +544,10 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Separador de año si cambia
+                            if (showYearSeparator)
+                              _buildYearSeparator(context, date.year),
+
                             _buildDateSeparator(context, date, dayEgresos, dayIngresos),
 
                             ...txList.map((t) {
@@ -883,6 +922,46 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     result.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
 
     return result;
+  }
+
+  Widget _buildYearSeparator(BuildContext context, int year) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          // Línea izquierda
+          Expanded(
+            child: Container(
+              height: 0.5,
+              color: colorScheme.onSurface.withValues(alpha: 0.15),
+            ),
+          ),
+          // Año con estilo minimalista
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              year.toString(),
+              style: TextStyle(
+                color: colorScheme.onSurface.withValues(alpha: 0.4),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          // Línea derecha
+          Expanded(
+            child: Container(
+              height: 0.5,
+              color: colorScheme.onSurface.withValues(alpha: 0.15),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildDateSeparator(BuildContext context, DateTime date, double dayEgresos, double dayIngresos) {

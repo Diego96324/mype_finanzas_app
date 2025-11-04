@@ -108,7 +108,7 @@ class TransactionsController extends _$TransactionsController {
 
       // Traemos las transacciones según los filtros
       final filters = state.filters;
-      print('🔵 [TransactionsController] Filtros: tipos=${filters.tipos}, from=${filters.from}, to=${filters.to}');
+      print('🔵 [TransactionsController] Filtros: tipos=${filters.tipos}, from=${filters.from}, to=${filters.to}, order=${filters.order}');
 
       final transactions = await _transactionRepo.listMultiple(
         usuarioId: userId,
@@ -116,7 +116,7 @@ class TransactionsController extends _$TransactionsController {
         from: filters.from,
         to: filters.to,
         searchTerm: filters.searchTerm,
-        order: filters.order,
+        orders: [filters.order], // Pasamos como lista para que use la lógica correcta
       );
 
       print('✅ [TransactionsController] ${transactions.length} transacciones');
