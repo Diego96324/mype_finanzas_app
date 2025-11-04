@@ -1,108 +1,43 @@
 import 'package:flutter/material.dart';
-import '../../core/models/transaction_model.dart';
-import '../../core/repos/transaction_repo.dart';
-import '../../core/services/auth_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/utils/date_picker_theme.dart';
 import '../../core/utils/analytics_design_system.dart';
 import 'widgets/reports_widgets.dart';
 import 'widgets/dynamic_budget_section.dart';
 import 'widgets/dynamic_trends_section.dart';
 import 'widgets/dynamic_comparison_section.dart';
+import 'controllers/reports_controller.dart';
 
-class ReportsTab extends StatefulWidget {
+class ReportsTab extends ConsumerStatefulWidget {
   const ReportsTab({super.key});
 
   @override
-  State<ReportsTab> createState() => _ReportsTabState();
+  ConsumerState<ReportsTab> createState() => _ReportsTabState();
 }
 
-class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMixin {
+class _ReportsTabState extends ConsumerState<ReportsTab> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
-
-  String _selectedPeriod = 'mes';
-  DateTimeRange _selectedDateRange = DateTimeRange(
-    start: DateTime(DateTime.now().year, DateTime.now().month, 1),
-    end: DateTime(DateTime.now().year, DateTime.now().month + 1, 0, 23, 59, 59),
-  );
-
-  List<AppTransaction> _transactions = [];
-  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final authService = AuthService();
-      final userId = authService.currentUserId;
-
-      if (userId != null) {
-        final repo = TransactionRepo();
-        final transactions = await repo.list(
-          usuarioId: userId,
-          from: _selectedDateRange.start,
-          to: _selectedDateRange.end,
-        );
-
-        setState(() {
-          _transactions = transactions;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      rethrow;
-    }
+    // El controlador ya carga las transacciones automáticamente
   }
 
   void _changePeriod(String period) {
-    final now = DateTime.now();
-
-    DateTimeRange newDateRange;
-    switch (period) {
-      case 'mes':
-        newDateRange = DateTimeRange(
-          start: DateTime(now.year, now.month, 1),
-          end: DateTime(now.year, now.month + 1, 0, 23, 59, 59),
-        );
-        break;
-      case 'trimestre':
-        final quarterStart = ((now.month - 1) ~/ 3) * 3 + 1;
-        newDateRange = DateTimeRange(
-          start: DateTime(now.year, quarterStart, 1),
-          end: DateTime(now.year, quarterStart + 3, 0, 23, 59, 59),
-        );
-        break;
-      case 'año':
-        newDateRange = DateTimeRange(
-          start: DateTime(now.year, 1, 1),
-          end: DateTime(now.year, 12, 31, 23, 59, 59),
-        );
-        break;
-      default:
-        newDateRange = _selectedDateRange;
-    }
-
-    setState(() {
-      _selectedPeriod = period;
-      _selectedDateRange = newDateRange;
-    });
-
-    _loadData();
+    // Delegamos al controlador
+    ref.read(reportsControllerProvider.notifier).changePeriod(period);
   }
 
   Future<void> _selectCustomRange() async {
+    final state = ref.read(reportsControllerProvider);
+
     final picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      initialDateRange: _selectedDateRange,
+      initialDateRange: state.dateRange,
       locale: const Locale('es'),
       builder: (context, child) {
         return Theme(
@@ -113,19 +48,18 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
     );
 
     if (picked != null) {
-      setState(() {
-        _selectedDateRange = picked;
-        _selectedPeriod = 'personalizado';
-      });
-      _loadData();
+      // Delegamos al controlador
+      ref.read(reportsControllerProvider.notifier)
+          .changePeriod('personalizado', customRange: picked);
     }
   }
 
   Map<String, double> _calculateSummary() {
+    final state = ref.read(reportsControllerProvider);
     double ingresos = 0;
     double gastos = 0;
 
-    for (var transaction in _transactions) {
+    for (var transaction in state.transactions) {
       if (transaction.tipo == 'ingreso') {
         ingresos += transaction.monto;
       } else {
@@ -141,7 +75,8 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
   }
 
   String _getDynamicBudgetTitle() {
-    switch (_selectedPeriod) {
+    final state = ref.read(reportsControllerProvider);
+    switch (state.selectedPeriod) {
       case 'trimestre':
         return 'Presupuesto Trimestral';
       case 'año':
@@ -155,7 +90,10 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
   Widget build(BuildContext context) {
     super.build(context);
 
-    if (_isLoading) {
+    // Observamos el estado del controlador
+    final state = ref.watch(reportsControllerProvider);
+
+    if (state.isLoading) {
       return const Center(
         child: CircularProgressIndicator(
           color: Color(0xFF13BB67),
@@ -166,7 +104,10 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
     final summary = _calculateSummary();
 
     return RefreshIndicator(
-      onRefresh: _loadData,
+      onRefresh: () async {
+        // Refrescamos usando el controlador
+        await ref.read(reportsControllerProvider.notifier).refresh();
+      },
       color: const Color(0xFF13BB67),
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -182,11 +123,14 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
               Text(_getDynamicBudgetTitle(), style: AnalyticsDesignSystem.h3),
               const SizedBox(height: 12),
               DynamicBudgetSection(
-                selectedPeriod: _selectedPeriod,
-                currentMonth: _selectedDateRange.start.month,
-                currentYear: _selectedDateRange.start.year,
+                selectedPeriod: state.selectedPeriod,
+                currentMonth: state.dateRange.start.month,
+                currentYear: state.dateRange.start.year,
                 summary: summary,
-                onBudgetChanged: _loadData,
+                onBudgetChanged: () async {
+                  // Refrescamos usando el controlador
+                  await ref.read(reportsControllerProvider.notifier).refresh();
+                },
               ),
               const SizedBox(height: 24),
 
@@ -194,9 +138,9 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
               Text('Tendencias', style: AnalyticsDesignSystem.h3),
               const SizedBox(height: 12),
               DynamicTrendsSection(
-                selectedPeriod: _selectedPeriod,
-                transactions: _transactions,
-                dateRange: _selectedDateRange,
+                selectedPeriod: state.selectedPeriod,
+                transactions: state.transactions,
+                dateRange: state.dateRange,
               ),
               const SizedBox(height: 24),
 
@@ -204,9 +148,9 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
               Text('Comparativa de Períodos', style: AnalyticsDesignSystem.h3),
               const SizedBox(height: 12),
               DynamicComparisonSection(
-                selectedPeriod: _selectedPeriod,
-                currentDateRange: _selectedDateRange,
-                currentTransactions: _transactions,
+                selectedPeriod: state.selectedPeriod,
+                currentDateRange: state.dateRange,
+                currentTransactions: state.transactions,
               ),
               const SizedBox(height: 24),
               ReportsWidgets.buildExportButton(context),
@@ -219,6 +163,8 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
   }
 
   Widget _buildPeriodSelector() {
+    final state = ref.watch(reportsControllerProvider);
+
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AnalyticsDesignSystem.spacing12,
@@ -235,7 +181,7 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
             child: ReportsWidgets.buildPeriodButton(
               label: 'Mes',
               period: 'mes',
-              selectedPeriod: _selectedPeriod,
+              selectedPeriod: state.selectedPeriod,
               onTap: () => _changePeriod('mes'),
             ),
           ),
@@ -244,7 +190,7 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
             child: ReportsWidgets.buildPeriodButton(
               label: 'Trim',
               period: 'trimestre',
-              selectedPeriod: _selectedPeriod,
+              selectedPeriod: state.selectedPeriod,
               onTap: () => _changePeriod('trimestre'),
             ),
           ),
@@ -253,7 +199,7 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
             child: ReportsWidgets.buildPeriodButton(
               label: 'Año',
               period: 'año',
-              selectedPeriod: _selectedPeriod,
+              selectedPeriod: state.selectedPeriod,
               onTap: () => _changePeriod('año'),
             ),
           ),
@@ -262,7 +208,7 @@ class _ReportsTabState extends State<ReportsTab> with AutomaticKeepAliveClientMi
             child: ReportsWidgets.buildPeriodButton(
               label: 'Pers',
               period: 'personalizado',
-              selectedPeriod: _selectedPeriod,
+              selectedPeriod: state.selectedPeriod,
               onTap: _selectCustomRange,
             ),
           ),
