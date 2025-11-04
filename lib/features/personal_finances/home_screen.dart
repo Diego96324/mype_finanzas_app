@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/transaction_model.dart';
-import '../../core/repos/transaction_repo.dart';
-import '../../core/services/auth_service.dart';
 import '../../core/utils/date_picker_theme.dart';
 import '../profile/profile_screen.dart';
 import '../transactions/add_transaction_screen.dart';
@@ -10,6 +9,7 @@ import '../transactions/transaction_detail_screen.dart';
 import '../analytics/analytics_screen.dart';
 import 'reports_screen.dart' as reports;
 import 'search_filter_screen.dart';
+import '../transactions/controllers/transactions_controller.dart';
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
@@ -203,115 +203,76 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-class TransactionsPage extends StatefulWidget {
+class TransactionsPage extends ConsumerStatefulWidget {
   const TransactionsPage({super.key});
 
   @override
-  State<TransactionsPage> createState() => _TransactionsPageState();
+  ConsumerState<TransactionsPage> createState() => _TransactionsPageState();
 }
 
-class _TransactionsPageState extends State<TransactionsPage> with WidgetsBindingObserver {
-  final _repo = TransactionRepo();
-  late Future<List<AppTransaction>> _futureTransactions;
-
-  List<String> _tipoFilters = ['todos'];
-  List<String> _orderFilters = [];
+class _TransactionsPageState extends ConsumerState<TransactionsPage> {
   DateTimeRange? _range;
-  String? _searchTerm;
-
-  late Future<double> _totalIngresos;
-  late Future<double> _totalEgresos;
-
-  String get tipoFilter => _tipoFilters.contains('todos') ? 'todos' : _tipoFilters.first;
-  String get order => _orderFilters.isNotEmpty ? _orderFilters.first : 'fecha_desc';
-  DateTimeRange? get range => _range;
-  String? get searchTerm => _searchTerm;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _loadTransactions();
-    _loadTotals();
+    // El controlador ya se inicializa automáticamente y carga las transacciones
+
+    // Debug: Imprimir cuando el estado cambia
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      print('🔍 [TransactionsPage] initState completado');
+    });
   }
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
+  // Getters para compatibilidad con MyHomePage
+  String get tipoFilter {
+    final filters = ref.read(transactionsControllerProvider).filters;
+    return filters.tipos == null || filters.tipos!.isEmpty ? 'todos' : filters.tipos!.first;
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      setState(() {});
-    }
+  String get order {
+    return ref.read(transactionsControllerProvider).filters.order;
   }
 
+  DateTimeRange? get range => _range;
+
+  String? get searchTerm {
+    return ref.read(transactionsControllerProvider).filters.searchTerm;
+  }
+
+  // Para compatibilidad temporal con el FAB en MyHomePage
   void _loadTransactions() {
-    if (!mounted) return;
-    final authService = AuthService();
-    final usuarioId = authService.currentUserId;
-
-    _futureTransactions = _repo.listMultiple(
-      usuarioId: usuarioId,
-      tipos: _tipoFilters.contains('todos') ? null : _tipoFilters,
-      from: _range?.start,
-      to: _range?.end,
-      orders: _orderFilters.isNotEmpty ? _orderFilters : ['fecha_desc'],
-      searchTerm: _searchTerm,
-    );
-
-    if (mounted) setState(() {});
-    _loadTotalsAsync();
-  }
-
-  void _loadTotals() {
-    if (!mounted) return;
-    final authService = AuthService();
-    final usuarioId = authService.currentUserId;
-
-    _totalIngresos = _repo.total('ingreso', usuarioId: usuarioId);
-    _totalEgresos = _repo.total('egreso', usuarioId: usuarioId);
-
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _loadTotalsAsync() async {
-    if (!mounted) return;
-    final authService = AuthService();
-    final usuarioId = authService.currentUserId;
-
-    final results = await Future.wait([
-      _repo.total('egreso', usuarioId: usuarioId),
-      _repo.total('ingreso', usuarioId: usuarioId),
-    ]);
-
-    if (!mounted) return;
-
-    _totalEgresos = Future.value(results[0]);
-    _totalIngresos = Future.value(results[1]);
-
-    if (mounted) setState(() {});
+    ref.read(transactionsControllerProvider.notifier).loadTransactions();
   }
 
   void updateFilters(Map<String, dynamic> filters) {
-    setState(() {
-      if (filters.containsKey('tipos')) {
-        _tipoFilters = List<String>.from(filters['tipos']);
-      } else if (filters.containsKey('tipo')) {
-        _tipoFilters = [filters['tipo']];
-      }
+    final controller = ref.read(transactionsControllerProvider.notifier);
 
-      if (filters.containsKey('orders')) {
-        _orderFilters = List<String>.from(filters['orders']);
-      } else if (filters.containsKey('order')) {
-        _orderFilters = [filters['order']];
-      }
+    List<String>? tipos;
+    if (filters.containsKey('tipos')) {
+      tipos = List<String>.from(filters['tipos']);
+    } else if (filters.containsKey('tipo')) {
+      final tipo = filters['tipo'] as String;
+      tipos = tipo == 'todos' ? null : [tipo];
+    }
 
-      _searchTerm = filters['searchTerm'];
-      _loadTransactions();
-    });
+    String order = 'fecha_desc';
+    if (filters.containsKey('orders')) {
+      final orders = List<String>.from(filters['orders']);
+      if (orders.isNotEmpty) order = orders.first;
+    } else if (filters.containsKey('order')) {
+      order = filters['order'] as String;
+    }
+
+    final newFilters = TransactionFilters(
+      tipos: tipos,
+      from: _range?.start,
+      to: _range?.end,
+      searchTerm: filters['searchTerm'] as String?,
+      order: order,
+    );
+
+    controller.applyFilters(newFilters);
   }
 
   Future<void> selectDateRange() async {
@@ -338,8 +299,17 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
     if (picked != null) {
       setState(() {
         _range = picked;
-        _loadTransactions();
       });
+
+      final controller = ref.read(transactionsControllerProvider.notifier);
+      final currentFilters = ref.read(transactionsControllerProvider).filters;
+
+      final newFilters = currentFilters.copyWith(
+        from: picked.start,
+        to: picked.end,
+      );
+
+      controller.applyFilters(newFilters);
     }
   }
 
@@ -347,6 +317,26 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    // Observar el estado del controlador
+    final state = ref.watch(transactionsControllerProvider);
+
+    // Debug: Escuchar cambios de estado
+    ref.listen<TransactionsState>(
+      transactionsControllerProvider,
+      (previous, next) {
+        print('🔍 [TransactionsPage] Estado cambió:');
+        print('   - isLoading: ${next.isLoading}');
+        print('   - transactions: ${next.transactions.length}');
+        print('   - error: ${next.error}');
+        print('   - stats: ${next.stats}');
+      },
+    );
+
+    final stats = state.stats ?? {};
+    final egresos = stats['egresos'] ?? 0.0;
+    final ingresos = stats['ingresos'] ?? 0.0;
+    final saldo = ingresos - egresos;
 
     return SafeArea(
       child: Container(
@@ -379,61 +369,52 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                   ),
                 ],
               ),
-              child: FutureBuilder<List<double>>(
-                future: Future.wait([_totalEgresos, _totalIngresos]),
-                builder: (context, snapshot) {
-                  final egresos = snapshot.data?[0] ?? 0.0;
-                  final ingresos = snapshot.data?[1] ?? 0.0;
-                  final saldo = ingresos - egresos;
-
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: _buildEnhancedStatCard(
-                          context,
-                          'Gastos',
-                          egresos,
-                          Icons.receipt_long_rounded,
-                          Colors.redAccent,
-                          false,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: _buildEnhancedStatCard(
-                          context,
-                          'Saldo Total',
-                          saldo,
-                          Icons.account_balance_wallet_rounded,
-                          saldo >= 0 ? const Color(0xFF10A05B) : const Color(0xFFFF9800),
-                          true,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildEnhancedStatCard(
-                          context,
-                          'Ingresos',
-                          ingresos,
-                          Icons.attach_money_rounded,
-                          Colors.greenAccent,
-                          false,
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildEnhancedStatCard(
+                      context,
+                      'Gastos',
+                      egresos,
+                      Icons.receipt_long_rounded,
+                      Colors.redAccent,
+                      false,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: _buildEnhancedStatCard(
+                      context,
+                      'Saldo Total',
+                      saldo,
+                      Icons.account_balance_wallet_rounded,
+                      saldo >= 0 ? const Color(0xFF10A05B) : const Color(0xFFFF9800),
+                      true,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _buildEnhancedStatCard(
+                      context,
+                      'Ingresos',
+                      ingresos,
+                      Icons.attach_money_rounded,
+                      Colors.greenAccent,
+                      false,
+                    ),
+                  ),
+                ],
               ),
             ),
 
             Expanded(
               child: Container(
                 color: theme.scaffoldBackgroundColor,
-                child: FutureBuilder<List<AppTransaction>>(
-                  future: _futureTransactions,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
+                child: Builder(
+                  builder: (context) {
+                    // Mostrar loading
+                    if (state.isLoading && state.transactions.isEmpty) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -459,7 +440,8 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                       );
                     }
 
-                    if (snapshot.hasError) {
+                    // Mostrar error
+                    if (state.error != null) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -480,7 +462,7 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              '${snapshot.error}',
+                              state.error!,
                               style: TextStyle(
                                 color: colorScheme.onSurface.withValues(alpha: 0.6),
                                 fontSize: 13,
@@ -492,8 +474,9 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                       );
                     }
 
-                    final transactions = snapshot.data ?? [];
+                    final transactions = state.transactions;
 
+                    // Mostrar estado vacío
                     if (transactions.isEmpty) {
                       return Center(
                         child: Column(
@@ -606,10 +589,10 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                                     );
 
                                     if (confirm == true) {
-                                      await _repo.delete(t.id!);
-                                      _loadTransactions();
-                                      _loadTotals();
-                                      if (context.mounted) {
+                                      final controller = ref.read(transactionsControllerProvider.notifier);
+                                      final success = await controller.deleteTransaction(t.id!);
+
+                                      if (success && context.mounted) {
                                         ScaffoldMessenger.of(context).showSnackBar(
                                           const SnackBar(
                                             content: Text('Transacción eliminada'),
@@ -621,16 +604,13 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                                     }
                                     return false;
                                   } else if (direction == DismissDirection.startToEnd) {
-                                    final changed = await Navigator.push<bool>(
+                                    await Navigator.push<bool>(
                                       context,
                                       MaterialPageRoute(
                                         builder: (_) => TransactionDetailScreen(tx: t),
                                       ),
                                     );
-                                    if (changed == true) {
-                                      _loadTransactions();
-                                      _loadTotals();
-                                    }
+                                    // El controlador se actualiza automáticamente
                                     return false;
                                   }
                                   return false;
@@ -707,15 +687,13 @@ class _TransactionsPageState extends State<TransactionsPage> with WidgetsBinding
                                       child: InkWell(
                                         borderRadius: BorderRadius.circular(12),
                                         onTap: () async {
-                                          final changed = await Navigator.push<bool>(
+                                          await Navigator.push<bool>(
                                             context,
                                             MaterialPageRoute(
                                               builder: (_) => TransactionDetailScreen(tx: t),
                                             ),
                                           );
-                                          if (changed == true) {
-                                            _loadTransactions();
-                                          }
+                                          // El controlador se actualiza automáticamente
                                         },
                                         child: Padding(
                                           padding: const EdgeInsets.all(12),

@@ -83,18 +83,22 @@ class TransactionsController extends _$TransactionsController {
   @override
   TransactionsState build() {
     // Al crear el controlador, cargamos las transacciones de una
-    loadTransactions();
+    // Programamos la carga para después del build
+    Future.microtask(() => loadTransactions());
     return const TransactionsState(isLoading: true);
   }
 
   // Carga las transacciones con los filtros que tengas activos
   Future<void> loadTransactions() async {
+    print('🔵 [TransactionsController] Iniciando loadTransactions...');
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       final userId = _authService.currentUserId;
+      print('🔵 [TransactionsController] Usuario ID: $userId');
 
       if (userId == null) {
+        print('🔴 [TransactionsController] Usuario no autenticado');
         state = state.copyWith(
           isLoading: false,
           error: 'Usuario no autenticado',
@@ -104,6 +108,8 @@ class TransactionsController extends _$TransactionsController {
 
       // Traemos las transacciones según los filtros
       final filters = state.filters;
+      print('🔵 [TransactionsController] Consultando con filtros: tipos=${filters.tipos}, from=${filters.from}, to=${filters.to}');
+
       final transactions = await _transactionRepo.listMultiple(
         usuarioId: userId,
         tipos: filters.tipos,
@@ -113,8 +119,11 @@ class TransactionsController extends _$TransactionsController {
         order: filters.order,
       );
 
+      print('✅ [TransactionsController] Transacciones cargadas: ${transactions.length}');
+
       // También calculamos los totales
       final stats = await _transactionRepo.getStats(usuarioId: userId);
+      print('✅ [TransactionsController] Stats: $stats');
 
       state = TransactionsState(
         transactions: transactions,
@@ -123,7 +132,11 @@ class TransactionsController extends _$TransactionsController {
         error: null,
         filters: filters,
       );
-    } catch (e) {
+
+      print('✅ [TransactionsController] Estado actualizado correctamente');
+    } catch (e, stackTrace) {
+      print('🔴 [TransactionsController] Error: $e');
+      print('🔴 [TransactionsController] StackTrace: $stackTrace');
       state = state.copyWith(
         isLoading: false,
         error: 'Error al cargar transacciones: ${e.toString()}',

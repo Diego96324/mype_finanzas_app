@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/utils/analytics_design_system.dart';
 
 /// Widgets reutilizables para la pantalla de informes
-/// Usa el sistema de diseño unificado AnalyticsDesignSystem
+
 class ReportsWidgets {
   /// Construye el título de una sección
   static Widget buildSectionTitle(String title) {
