@@ -47,19 +47,22 @@ class AccountsController extends _$AccountsController {
 
   @override
   AccountsState build() {
-    // Apenas se crea el controlador, ya cargamos las cuentas
-    loadAccounts();
+    // Apenas arranca el controlador, traemos las cuentas
+    Future.microtask(() => loadAccounts());
     return const AccountsState(isLoading: true);
   }
 
   // Trae todas las cuentas desde la BD
   Future<void> loadAccounts() async {
+    print('🔵 [AccountsController] Cargando cuentas...');
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       final userId = _authService.currentUserId;
+      print('🔵 [AccountsController] User: $userId');
 
       if (userId == null) {
+        print('🔴 [AccountsController] No hay usuario logueado');
         state = state.copyWith(
           isLoading: false,
           error: 'Usuario no autenticado',
@@ -67,7 +70,8 @@ class AccountsController extends _$AccountsController {
         return;
       }
 
-      // Traemos cuentas en paralelo para que sea más rápido
+      print('🔵 [AccountsController] Trayendo cuentas de la BD...');
+      // Traemos todas las cuentas junto para que sea más rápido
       final results = await Future.wait([
         _accountService.listAccounts(userId),
         _accountService.getGroupedAccounts(userId),
@@ -78,6 +82,9 @@ class AccountsController extends _$AccountsController {
       final grouped = results[1] as Map<String, List<Account>>;
       final patrimonio = results[2] as PatrimonioSummary;
 
+      print('✅ [AccountsController] Listo! ${accounts.length} cuentas');
+      print('✅ [AccountsController] Patrimonio: activos=${patrimonio.activos}, pasivos=${patrimonio.pasivos}');
+
       state = AccountsState(
         accounts: accounts,
         groupedAccounts: grouped,
@@ -85,7 +92,11 @@ class AccountsController extends _$AccountsController {
         isLoading: false,
         error: null,
       );
-    } catch (e) {
+
+      print('✅ [AccountsController] Ya está');
+    } catch (e, stackTrace) {
+      print('🔴 [AccountsController] Error: $e');
+      print('🔴 [AccountsController] StackTrace: $stackTrace');
       state = state.copyWith(
         isLoading: false,
         error: 'Error al cargar cuentas: ${e.toString()}',

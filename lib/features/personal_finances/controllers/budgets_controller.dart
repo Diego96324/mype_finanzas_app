@@ -35,24 +35,28 @@ class BudgetsController extends StateNotifier<BudgetsState> {
   final AuthService _authService = AuthService();
 
   BudgetsController() : super(const BudgetsState(isLoading: true)) {
-    // Apenas se crea, cargamos el presupuesto del mes actual
-    loadCurrentMonthBudget();
+    // Al arrancar, cargamos el presupuesto del mes actual
+    Future.microtask(() => loadCurrentMonthBudget());
   }
 
-  // Carga el presupuesto del mes en el que estamos
+  // Carga el presupuesto del mes actual
   Future<void> loadCurrentMonthBudget() async {
+    print('🔵 [BudgetsController] Cargando presupuesto...');
     final now = DateTime.now();
     await loadBudgetForMonth(now.month, now.year);
   }
 
   // Trae el presupuesto de un mes específico
   Future<void> loadBudgetForMonth(int mes, int anio) async {
+    print('🔵 [BudgetsController] Mes: $mes/$anio');
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       final userId = _authService.currentUserId;
+      print('🔵 [BudgetsController] User: $userId');
 
       if (userId == null) {
+        print('🔴 [BudgetsController] No hay usuario');
         state = state.copyWith(
           isLoading: false,
           error: 'Usuario no autenticado',
@@ -66,12 +70,18 @@ class BudgetsController extends StateNotifier<BudgetsState> {
         anio: anio,
       );
 
+      print('✅ [BudgetsController] Presupuesto: ${budget?.monto ?? "ninguno"}');
+
       state = BudgetsState(
         currentBudget: budget,
         isLoading: false,
         error: null,
       );
-    } catch (e) {
+
+      print('✅ [BudgetsController] Listo');
+    } catch (e, stackTrace) {
+      print('🔴 [BudgetsController] Error: $e');
+      print('🔴 [BudgetsController] StackTrace: $stackTrace');
       state = state.copyWith(
         isLoading: false,
         error: 'Error al cargar presupuesto: ${e.toString()}',

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/models/transaction_model.dart';
@@ -83,22 +84,21 @@ class TransactionsController extends _$TransactionsController {
   @override
   TransactionsState build() {
     // Al crear el controlador, cargamos las transacciones de una
-    // Programamos la carga para después del build
     Future.microtask(() => loadTransactions());
     return const TransactionsState(isLoading: true);
   }
 
   // Carga las transacciones con los filtros que tengas activos
   Future<void> loadTransactions() async {
-    print('🔵 [TransactionsController] Iniciando loadTransactions...');
+    print('🔵 [TransactionsController] Cargando transacciones...');
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       final userId = _authService.currentUserId;
-      print('🔵 [TransactionsController] Usuario ID: $userId');
+      print('🔵 [TransactionsController] User: $userId');
 
       if (userId == null) {
-        print('🔴 [TransactionsController] Usuario no autenticado');
+        print('🔴 [TransactionsController] Sin usuario');
         state = state.copyWith(
           isLoading: false,
           error: 'Usuario no autenticado',
@@ -108,7 +108,7 @@ class TransactionsController extends _$TransactionsController {
 
       // Traemos las transacciones según los filtros
       final filters = state.filters;
-      print('🔵 [TransactionsController] Consultando con filtros: tipos=${filters.tipos}, from=${filters.from}, to=${filters.to}');
+      print('🔵 [TransactionsController] Filtros: tipos=${filters.tipos}, from=${filters.from}, to=${filters.to}');
 
       final transactions = await _transactionRepo.listMultiple(
         usuarioId: userId,
@@ -119,7 +119,7 @@ class TransactionsController extends _$TransactionsController {
         order: filters.order,
       );
 
-      print('✅ [TransactionsController] Transacciones cargadas: ${transactions.length}');
+      print('✅ [TransactionsController] ${transactions.length} transacciones');
 
       // También calculamos los totales
       final stats = await _transactionRepo.getStats(usuarioId: userId);
@@ -133,7 +133,7 @@ class TransactionsController extends _$TransactionsController {
         filters: filters,
       );
 
-      print('✅ [TransactionsController] Estado actualizado correctamente');
+      print('✅ [TransactionsController] Ya está');
     } catch (e, stackTrace) {
       print('🔴 [TransactionsController] Error: $e');
       print('🔴 [TransactionsController] StackTrace: $stackTrace');
@@ -285,5 +285,86 @@ class TransactionsController extends _$TransactionsController {
     final filters = state.filters.copyWith(order: order);
     await applyFilters(filters);
   }
+
+  // Filtro para actualizar filtros desde un mapa (compatibilidad con SearchFilterScreen)
+  Future<void> updateFiltersFromMap(Map<String, dynamic> filtersMap) async {
+    List<String>? tipos;
+    if (filtersMap.containsKey('tipos')) {
+      tipos = List<String>.from(filtersMap['tipos']);
+    } else if (filtersMap.containsKey('tipo')) {
+      final tipo = filtersMap['tipo'] as String;
+      tipos = tipo == 'todos' ? null : [tipo];
+    }
+
+    String order = state.filters.order;
+    if (filtersMap.containsKey('orders')) {
+      final orders = List<String>.from(filtersMap['orders']);
+      if (orders.isNotEmpty) order = orders.first;
+    } else if (filtersMap.containsKey('order')) {
+      order = filtersMap['order'] as String;
+    }
+
+    final newFilters = TransactionFilters(
+      tipos: tipos,
+      from: state.filters.from,
+      to: state.filters.to,
+      searchTerm: filtersMap['searchTerm'] as String?,
+      order: order,
+    );
+
+    await applyFilters(newFilters);
+  }
+
+  // Filtro para seleccionar rango de fechas
+  Future<void> selectDateRange(DateTime? start, DateTime? end) async {
+    final newFilters = state.filters.copyWith(
+      from: start,
+      to: end,
+    );
+    await applyFilters(newFilters);
+  }
+
+  // Filtro para limpiar el rango de fechas
+  Future<void> clearDateRange() async {
+    final newFilters = state.filters.copyWith(
+      from: null,
+      to: null,
+    );
+    await applyFilters(newFilters);
+  }
+
+  // Recarga después de crear una transacción (llamado desde el FAB)
+  Future<void> reloadAfterCreate() async {
+    await loadTransactions();
+  }
+
+  // Obtiene el rango de fechas actual
+  DateTimeRange? get currentDateRange {
+    if (state.filters.from != null && state.filters.to != null) {
+      return DateTimeRange(
+        start: state.filters.from!,
+        end: state.filters.to!,
+      );
+    }
+    return null;
+  }
+
+  // Obtiene el tipo de filtro actual
+  String get currentTypeFilter {
+    final tipos = state.filters.tipos;
+    if (tipos == null || tipos.isEmpty) return 'todos';
+    return tipos.first;
+  }
+
+  // Obtiene el orden actual
+  String get currentOrder {
+    return state.filters.order;
+  }
+
+  // Obtiene el término de búsqueda actual
+  String? get currentSearchTerm {
+    return state.filters.searchTerm;
+  }
 }
+
 

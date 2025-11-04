@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/transaction_model.dart';
-import '../../core/repos/transaction_repo.dart';
+import 'controllers/transactions_controller.dart';
 import 'edit_transaction_screen.dart';
 import 'add_transaction_screen.dart';
 
-class TransactionDetailScreen extends StatefulWidget {
+class TransactionDetailScreen extends ConsumerStatefulWidget {
   final AppTransaction tx;
   const TransactionDetailScreen({super.key, required this.tx});
 
   @override
-  State<TransactionDetailScreen> createState() => _TransactionDetailScreenState();
+  ConsumerState<TransactionDetailScreen> createState() => _TransactionDetailScreenState();
 }
 
-class _TransactionDetailScreenState extends State<TransactionDetailScreen> with SingleTickerProviderStateMixin {
+class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScreen> with SingleTickerProviderStateMixin {
   late AppTransaction _tx;
-  final _repo = TransactionRepo();
   bool _dirty = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -56,15 +56,12 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
   }
 
   Future<void> _refreshTx() async {
-    if (_tx.id == null) return;
-    final updated = await _repo.getById(_tx.id!);
-    if (updated != null) {
-      setState(() {
-        _tx = updated;
-      });
-      _animationController.reset();
-      _animationController.forward();
-    }
+    // Recargamos el controlador para que la lista se actualice
+    await ref.read(transactionsControllerProvider.notifier).loadTransactions();
+
+    // Reiniciamos la animación para que se vea smooth
+    _animationController.reset();
+    _animationController.forward();
   }
 
   @override
@@ -185,8 +182,13 @@ class _TransactionDetailScreenState extends State<TransactionDetailScreen> with 
                   ),
                 );
                 if (ok == true && _tx.id != null) {
-                  await _repo.delete(_tx.id!);
-                  if (context.mounted) Navigator.pop(context, true);
+                  // Borramos usando el controlador
+                  final controller = ref.read(transactionsControllerProvider.notifier);
+                  final success = await controller.deleteTransaction(_tx.id!);
+
+                  if (context.mounted && success) {
+                    Navigator.pop(context, true);
+                  }
                 }
               },
             ),

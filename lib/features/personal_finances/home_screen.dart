@@ -216,63 +216,38 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
   @override
   void initState() {
     super.initState();
-    // El controlador ya se inicializa automáticamente y carga las transacciones
+    // El controlador ya carga las transacciones automáticamente
 
-    // Debug: Imprimir cuando el estado cambia
+    // Debug: ver cuando se carga la página
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      print('🔍 [TransactionsPage] initState completado');
+      print('🔍 [TransactionsPage] Página cargada');
     });
   }
 
-  // Getters para compatibilidad con MyHomePage
+  // Getters que usan los métodos del controlador
   String get tipoFilter {
-    final filters = ref.read(transactionsControllerProvider).filters;
-    return filters.tipos == null || filters.tipos!.isEmpty ? 'todos' : filters.tipos!.first;
+    return ref.read(transactionsControllerProvider.notifier).currentTypeFilter;
   }
 
   String get order {
-    return ref.read(transactionsControllerProvider).filters.order;
+    return ref.read(transactionsControllerProvider.notifier).currentOrder;
   }
 
   DateTimeRange? get range => _range;
 
   String? get searchTerm {
-    return ref.read(transactionsControllerProvider).filters.searchTerm;
+    return ref.read(transactionsControllerProvider.notifier).currentSearchTerm;
   }
 
-  // Para compatibilidad temporal con el FAB en MyHomePage
+  // Para cuando se crea una transacción desde el FAB
   void _loadTransactions() {
-    ref.read(transactionsControllerProvider.notifier).loadTransactions();
+    ref.read(transactionsControllerProvider.notifier).reloadAfterCreate();
   }
 
   void updateFilters(Map<String, dynamic> filters) {
+    // Ahora delega el trabajo al controlador
     final controller = ref.read(transactionsControllerProvider.notifier);
-
-    List<String>? tipos;
-    if (filters.containsKey('tipos')) {
-      tipos = List<String>.from(filters['tipos']);
-    } else if (filters.containsKey('tipo')) {
-      final tipo = filters['tipo'] as String;
-      tipos = tipo == 'todos' ? null : [tipo];
-    }
-
-    String order = 'fecha_desc';
-    if (filters.containsKey('orders')) {
-      final orders = List<String>.from(filters['orders']);
-      if (orders.isNotEmpty) order = orders.first;
-    } else if (filters.containsKey('order')) {
-      order = filters['order'] as String;
-    }
-
-    final newFilters = TransactionFilters(
-      tipos: tipos,
-      from: _range?.start,
-      to: _range?.end,
-      searchTerm: filters['searchTerm'] as String?,
-      order: order,
-    );
-
-    controller.applyFilters(newFilters);
+    controller.updateFiltersFromMap(filters);
   }
 
   Future<void> selectDateRange() async {
@@ -296,20 +271,15 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
         );
       },
     );
+
     if (picked != null) {
       setState(() {
         _range = picked;
       });
 
+      // Le decimos al controlador que filtre por esas fechas
       final controller = ref.read(transactionsControllerProvider.notifier);
-      final currentFilters = ref.read(transactionsControllerProvider).filters;
-
-      final newFilters = currentFilters.copyWith(
-        from: picked.start,
-        to: picked.end,
-      );
-
-      controller.applyFilters(newFilters);
+      controller.selectDateRange(picked.start, picked.end);
     }
   }
 
@@ -318,18 +288,17 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    // Observar el estado del controlador
+    // Observamos el estado del controlador
     final state = ref.watch(transactionsControllerProvider);
 
-    // Debug: Escuchar cambios de estado
+    // Debug: vemos cuando cambia el estado
     ref.listen<TransactionsState>(
       transactionsControllerProvider,
       (previous, next) {
         print('🔍 [TransactionsPage] Estado cambió:');
-        print('   - isLoading: ${next.isLoading}');
-        print('   - transactions: ${next.transactions.length}');
+        print('   - loading: ${next.isLoading}');
+        print('   - transacciones: ${next.transactions.length}');
         print('   - error: ${next.error}');
-        print('   - stats: ${next.stats}');
       },
     );
 
@@ -413,7 +382,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                 color: theme.scaffoldBackgroundColor,
                 child: Builder(
                   builder: (context) {
-                    // Mostrar loading
+                    // Si está cargando y no hay datos, mostramos el loading
                     if (state.isLoading && state.transactions.isEmpty) {
                       return Center(
                         child: Column(
@@ -440,7 +409,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
                       );
                     }
 
-                    // Mostrar error
+                    // Si hay error, lo mostramos
                     if (state.error != null) {
                       return Center(
                         child: Column(
@@ -476,7 +445,7 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
 
                     final transactions = state.transactions;
 
-                    // Mostrar estado vacío
+                    // Si no hay transacciones, mostramos el estado vacío
                     if (transactions.isEmpty) {
                       return Center(
                         child: Column(
