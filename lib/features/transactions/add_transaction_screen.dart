@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/transaction_model.dart';
-import '../../core/repos/transaction_repo.dart';
-import '../../core/services/auth_service.dart';
 import '../../core/utils/date_picker_theme.dart';
+import 'controllers/transactions_controller.dart';
 
-class AddTransactionScreen extends StatefulWidget {
+class AddTransactionScreen extends ConsumerStatefulWidget {
   final AppTransaction? baseTx;
   final DateTime? initialDate;
   final DateTimeRange? allowedDateRange;
@@ -18,12 +18,11 @@ class AddTransactionScreen extends StatefulWidget {
   });
 
   @override
-  State<AddTransactionScreen> createState() => _AddTransactionScreenState();
+  ConsumerState<AddTransactionScreen> createState() => _AddTransactionScreenState();
 }
 
-class _AddTransactionScreenState extends State<AddTransactionScreen> with SingleTickerProviderStateMixin {
+class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _repo = TransactionRepo();
 
   late String _tipo;
   late DateTime _fecha;
@@ -99,33 +98,34 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> with Single
   Future<void> _guardar() async {
     if (_formKey.currentState?.validate() != true) return;
 
-    final authService = AuthService();
-    final usuarioId = authService.currentUserId;
-
-    if (usuarioId == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error: Usuario no autenticado')),
-        );
-      }
-      return;
-    }
-
     final monto = double.tryParse(_montoCtrl.text.replaceAll(',', '.')) ?? 0;
-    final now = DateTime.now();
 
-    final t = AppTransaction(
-      usuarioId: usuarioId,
+    final transaction = AppTransaction(
+      usuarioId: 0, // El controlador asignará el ID correcto
       fecha: _fecha,
       tipo: _tipo,
       monto: monto,
       etiqueta: _etiquetaCtrl.text.trim().isEmpty ? null : _etiquetaCtrl.text.trim(),
       nota: _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
-      createdAt: now,
-      updatedAt: now,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
     );
-    await _repo.insert(t);
-    if (mounted) Navigator.pop(context, true);
+
+    final success = await ref.read(transactionsControllerProvider.notifier).saveTransaction(transaction);
+
+    if (mounted) {
+      if (success) {
+        Navigator.pop(context, true);
+      } else {
+        final errorMessage = ref.read(transactionsControllerProvider).error ?? 'Error al guardar transacción';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override

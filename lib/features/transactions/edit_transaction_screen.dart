@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/transaction_model.dart';
-import '../../core/repos/transaction_repo.dart';
 import '../../core/utils/date_picker_theme.dart';
+import 'controllers/transactions_controller.dart';
 
-class EditTransactionScreen extends StatefulWidget {
+class EditTransactionScreen extends ConsumerStatefulWidget {
   final AppTransaction tx;
   const EditTransactionScreen({super.key, required this.tx});
 
   @override
-  State<EditTransactionScreen> createState() => _EditTransactionScreenState();
+  ConsumerState<EditTransactionScreen> createState() => _EditTransactionScreenState();
 }
 
-class _EditTransactionScreenState extends State<EditTransactionScreen> with SingleTickerProviderStateMixin {
+class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final _repo = TransactionRepo();
 
   late String _tipo;
   late DateTime _fecha;
@@ -102,8 +102,22 @@ class _EditTransactionScreenState extends State<EditTransactionScreen> with Sing
       createdAt: widget.tx.createdAt,
       updatedAt: DateTime.now(),
     );
-    await _repo.update(updated);
-    if (mounted) Navigator.pop(context, true);
+
+    final success = await ref.read(transactionsControllerProvider.notifier).updateTransaction(updated);
+
+    if (mounted) {
+      if (success) {
+        Navigator.pop(context, true);
+      } else {
+        final errorMessage = ref.read(transactionsControllerProvider).error ?? 'Error al actualizar transacción';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override

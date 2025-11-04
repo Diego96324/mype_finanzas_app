@@ -1,63 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/account_model.dart';
-import '../../core/services/auth_service.dart';
-import '../../core/services/account_service.dart';
+import 'controllers/accounts_controller.dart';
 
-class AccountsTab extends StatefulWidget {
+class AccountsTab extends ConsumerStatefulWidget {
   const AccountsTab({super.key});
 
   @override
-  State<AccountsTab> createState() => _AccountsTabState();
+  ConsumerState<AccountsTab> createState() => _AccountsTabState();
 }
 
-class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClientMixin {
+class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
 
-  final AccountService _accountService = AccountService();
-  List<Account> _accounts = [];
-  Map<String, List<Account>> _groupedAccounts = {};
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadAccounts();
-  }
-
   Future<void> _loadAccounts() async {
-    setState(() => _isLoading = true);
-
-    try {
-      final authService = AuthService();
-      final userId = authService.currentUserId;
-
-      if (userId != null) {
-        final accounts = await _accountService.listAccounts(userId);
-        final grouped = await _accountService.getGroupedAccounts(userId);
-
-        setState(() {
-          _accounts = accounts;
-          _groupedAccounts = grouped;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al cargar cuentas: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    await ref.read(accountsControllerProvider.notifier).loadAccounts();
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
+
+    final state = ref.watch(accountsControllerProvider);
+    final accounts = state.accounts;
+    final groupedAccounts = state.groupedAccounts;
+    final isLoading = state.isLoading;
+
+    // Mostrar error si existe
+    if (state.error != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(state.error!),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      });
+    }
 
     return RefreshIndicator(
       onRefresh: _loadAccounts,
@@ -69,17 +51,17 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildNetWorthCard(),
+              _buildNetWorthCard(accounts),
               const SizedBox(height: 24),
               _buildSectionTitle('Balance General'),
               const SizedBox(height: 12),
-              _buildAssetsLiabilitiesChart(),
+              _buildAssetsLiabilitiesChart(groupedAccounts),
               const SizedBox(height: 24),
               _buildAddAccountButton(),
               const SizedBox(height: 16),
               _buildSectionTitle('Mis Cuentas'),
               const SizedBox(height: 12),
-              _isLoading ? _buildLoadingState() : _buildAccountsList(),
+              isLoading ? _buildLoadingState() : _buildAccountsList(accounts),
               const SizedBox(height: 40),
             ],
           ),
@@ -107,11 +89,11 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
     );
   }
 
-  Widget _buildNetWorthCard() {
+  Widget _buildNetWorthCard(List<Account> accounts) {
     double activos = 0;
     double pasivos = 0;
 
-    for (var account in _accounts) {
+    for (var account in accounts) {
       if (account.isPasivo) {
         pasivos += account.saldo.abs();
       } else {
@@ -214,9 +196,9 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
     );
   }
 
-  Widget _buildAssetsLiabilitiesChart() {
-    final activos = _groupedAccounts['activos'] ?? [];
-    final pasivos = _groupedAccounts['pasivos'] ?? [];
+  Widget _buildAssetsLiabilitiesChart(Map<String, List<Account>> groupedAccounts) {
+    final activos = groupedAccounts['activos'] ?? [];
+    final pasivos = groupedAccounts['pasivos'] ?? [];
 
     if (activos.isEmpty && pasivos.isEmpty) {
       return _buildEmptyState('No hay datos para mostrar');
@@ -353,8 +335,8 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
     );
   }
 
-  Widget _buildAccountsList() {
-    if (_accounts.isEmpty) {
+  Widget _buildAccountsList(List<Account> accounts) {
+    if (accounts.isEmpty) {
       return _buildEmptyState('No hay cuentas registradas');
     }
 
@@ -366,13 +348,13 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        itemCount: _accounts.length,
+        itemCount: accounts.length,
         separatorBuilder: (context, index) => Divider(
           height: 1,
           color: Colors.white.withValues(alpha: 0.1),
         ),
         itemBuilder: (context, index) {
-          final account = _accounts[index];
+          final account = accounts[index];
           final isLiability = account.isPasivo;
           final color = isLiability ? Colors.orangeAccent : const Color(0xFF13BB67);
 
@@ -794,23 +776,7 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
     String? nota,
   }) async {
     try {
-      final authService = AuthService();
-      final userId = authService.currentUserId;
-
-      if (userId == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error: Usuario no autenticado'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      final result = await _accountService.createAccount(
-        usuarioId: userId,
+      final result = await ref.read(accountsControllerProvider.notifier).createAccount(
         nombre: nombre,
         tipo: tipo,
         saldo: saldo,
@@ -826,10 +792,6 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
             backgroundColor: result.success ? const Color(0xFF13BB67) : Colors.red,
           ),
         );
-      }
-
-      if (result.success) {
-        await _loadAccounts();
       }
     } catch (e) {
       if (mounted) {
@@ -1123,7 +1085,7 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
 
   Future<void> _updateAccount({required Account account}) async {
     try {
-      final result = await _accountService.updateAccount(account: account);
+      final result = await ref.read(accountsControllerProvider.notifier).updateAccount(account);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1132,10 +1094,6 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
             backgroundColor: result.success ? const Color(0xFF13BB67) : Colors.red,
           ),
         );
-      }
-
-      if (result.success) {
-        await _loadAccounts();
       }
     } catch (e) {
       if (mounted) {
@@ -1183,7 +1141,7 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
 
   Future<void> _deleteAccount(int accountId) async {
     try {
-      final result = await _accountService.deleteAccount(accountId);
+      final result = await ref.read(accountsControllerProvider.notifier).deleteAccount(accountId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1192,10 +1150,6 @@ class _AccountsTabState extends State<AccountsTab> with AutomaticKeepAliveClient
             backgroundColor: result.success ? const Color(0xFF13BB67) : Colors.red,
           ),
         );
-      }
-
-      if (result.success) {
-        await _loadAccounts();
       }
     } catch (e) {
       if (mounted) {
