@@ -13,7 +13,6 @@ class AuthRepository {
     return values.map((e) => e.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  // hash super basico, despues hay que mejorarlo
   String _hashPassword(String password) {
     return 'hash_$password';
   }

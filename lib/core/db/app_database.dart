@@ -16,7 +16,7 @@ class AppDatabase {
     return _db!;
   }
 
-  // NO TOCAR xd
+  // NO TOCAR
   Future<void> resetDatabase() async {
     final dir = await getApplicationDocumentsDirectory();
     final path = join(dir.path, 'mype_finanzas.db');

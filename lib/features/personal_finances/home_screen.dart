@@ -251,7 +251,6 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     super.initState();
     // El controlador ya carga las transacciones automáticamente
 
-    // Debug: ver cuando se carga la página
     WidgetsBinding.instance.addPostFrameCallback((_) {
       print('🔍 [TransactionsPage] Página cargada');
     });
@@ -263,10 +262,8 @@ class _TransactionsPageState extends ConsumerState<TransactionsPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    // Observamos el estado del controlador
     final state = ref.watch(transactionsControllerProvider);
 
-    // Debug: vemos cuando cambia el estado
     ref.listen<TransactionsState>(
       transactionsControllerProvider,
       (previous, next) {

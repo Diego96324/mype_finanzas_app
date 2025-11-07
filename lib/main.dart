@@ -13,13 +13,13 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await AppDatabase().database.then(
-    (db) => debugPrint('📦 Base de datos inicializada: $db'),
+    (db) => debugPrint(' Base de datos inicializada: $db'),
   );
 
   final prefs = await SharedPreferences.getInstance();
   if (prefs.containsKey('auth_token')) {
     await prefs.remove('auth_token');
-    debugPrint('🔒 Token antiguo eliminado de SharedPreferences');
+    debugPrint('Token antiguo eliminado de SharedPreferences');
   }
 
   final container = ProviderContainer();

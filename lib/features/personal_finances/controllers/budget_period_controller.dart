@@ -4,7 +4,6 @@ import '../../../core/models/budget_period_model.dart';
 import '../../../core/services/budget_period_service.dart';
 import '../../../core/providers/providers.dart';
 
-// Estado para presupuestos por período
 class BudgetPeriodState {
   final BudgetPeriod? currentBudget;
   final bool isLoading;
@@ -31,28 +30,23 @@ class BudgetPeriodState {
   }
 }
 
-// Controlador para presupuestos dinámicos (mes/trimestre/año)
 class BudgetPeriodController extends StateNotifier<BudgetPeriodState> {
   final BudgetPeriodService _budgetService = BudgetPeriodService();
   final Ref _ref;
 
   BudgetPeriodController(this._ref) : super(const BudgetPeriodState(isLoading: false));
 
-  // Carga presupuesto para un período específico
   Future<void> loadBudgetForPeriod({
     required String periodo,
     required int mes,
     required int anio,
   }) async {
-    print('🔵 [BudgetPeriodController] Cargando presupuesto para periodo=$periodo, mes=$mes, anio=$anio');
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
       final userId = _ref.read(currentUserIdProvider);
-      print('🔵 [BudgetPeriodController] userId: $userId');
 
       if (userId == null) {
-        print('🔴 [BudgetPeriodController] Usuario no autenticado');
         state = state.copyWith(
           isLoading: false,
           error: 'Usuario no autenticado',
@@ -67,15 +61,12 @@ class BudgetPeriodController extends StateNotifier<BudgetPeriodState> {
         anio: anio,
       );
 
-      print('✅ [BudgetPeriodController] Presupuesto cargado: ${budget?.monto ?? "null"}');
-
       state = BudgetPeriodState(
         currentBudget: budget,
         isLoading: false,
         error: null,
       );
     } catch (e) {
-      print('🔴 [BudgetPeriodController] Error: $e');
       state = state.copyWith(
         isLoading: false,
         error: 'Error al cargar presupuesto: ${e.toString()}',
@@ -83,7 +74,6 @@ class BudgetPeriodController extends StateNotifier<BudgetPeriodState> {
     }
   }
 
-  // Guarda un presupuesto para el período
   Future<bool> saveBudget({
     required double monto,
     required String periodo,
@@ -103,7 +93,6 @@ class BudgetPeriodController extends StateNotifier<BudgetPeriodState> {
         return false;
       }
 
-      // Guardamos según el tipo de período
       if (periodo == 'mensual') {
         await _budgetService.saveMonthlyBudget(
           usuarioId: userId,
@@ -126,12 +115,13 @@ class BudgetPeriodController extends StateNotifier<BudgetPeriodState> {
         );
       }
 
-      // Recargamos para ver el cambio
       await loadBudgetForPeriod(
         periodo: periodo,
         mes: mes,
         anio: anio,
       );
+
+      _invalidateRelatedPeriods(periodo, mes, anio);
 
       return true;
     } catch (e) {
@@ -142,7 +132,40 @@ class BudgetPeriodController extends StateNotifier<BudgetPeriodState> {
     }
   }
 
-  // Elimina el presupuesto del período
+  void _invalidateRelatedPeriods(String periodo, int mes, int anio) {
+    if (periodo == 'mensual') {
+      final quarterStartMonth = _budgetService.getQuarterStartMonth(mes);
+      _ref.invalidate(budgetPeriodControllerProvider(
+        BudgetPeriodKey(periodo: 'trimestral', mes: quarterStartMonth, anio: anio),
+      ));
+      _ref.invalidate(budgetPeriodControllerProvider(
+        BudgetPeriodKey(periodo: 'anual', mes: 1, anio: anio),
+      ));
+    } else if (periodo == 'trimestral') {
+      final quarterStartMonth = _budgetService.getQuarterStartMonth(mes);
+      for (int i = 0; i < 3; i++) {
+        _ref.invalidate(budgetPeriodControllerProvider(
+          BudgetPeriodKey(periodo: 'mensual', mes: quarterStartMonth + i, anio: anio),
+        ));
+      }
+      _ref.invalidate(budgetPeriodControllerProvider(
+        BudgetPeriodKey(periodo: 'anual', mes: 1, anio: anio),
+      ));
+    } else if (periodo == 'anual') {
+      for (int month = 1; month <= 12; month++) {
+        _ref.invalidate(budgetPeriodControllerProvider(
+          BudgetPeriodKey(periodo: 'mensual', mes: month, anio: anio),
+        ));
+      }
+      for (int quarter = 0; quarter < 4; quarter++) {
+        final quarterStartMonth = (quarter * 3) + 1;
+        _ref.invalidate(budgetPeriodControllerProvider(
+          BudgetPeriodKey(periodo: 'trimestral', mes: quarterStartMonth, anio: anio),
+        ));
+      }
+    }
+  }
+
   Future<bool> deleteBudget({
     required String periodo,
     required int mes,
@@ -164,12 +187,13 @@ class BudgetPeriodController extends StateNotifier<BudgetPeriodState> {
         syncToOthers: true,
       );
 
-      // Recargamos para actualizar el estado
       await loadBudgetForPeriod(
         periodo: periodo,
         mes: mes,
         anio: anio,
       );
+
+      _invalidateRelatedPeriods(periodo, mes, anio);
 
       return true;
     } catch (e) {
@@ -180,7 +204,6 @@ class BudgetPeriodController extends StateNotifier<BudgetPeriodState> {
     }
   }
 
-  // Obtiene el tipo de período según el string
   String getPeriodType(String selectedPeriod) {
     switch (selectedPeriod) {
       case 'trimestre':
@@ -193,7 +216,6 @@ class BudgetPeriodController extends StateNotifier<BudgetPeriodState> {
   }
 }
 
-// Clase para identificar un presupuesto único
 class BudgetPeriodKey {
   final String periodo;
   final int mes;
@@ -221,15 +243,12 @@ class BudgetPeriodKey {
   String toString() => 'BudgetPeriodKey($periodo, $mes/$anio)';
 }
 
-// Provider con familia para crear instancias separadas por período
 final budgetPeriodControllerProvider = StateNotifierProvider.family<
     BudgetPeriodController,
     BudgetPeriodState,
     BudgetPeriodKey>((ref, key) {
-  print('🆕 [Provider] Creando controlador para $key');
   final controller = BudgetPeriodController(ref);
 
-  // Cargamos automáticamente cuando se crea el provider
   Future.microtask(() {
     controller.loadBudgetForPeriod(
       periodo: key.periodo,

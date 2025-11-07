@@ -76,7 +76,7 @@ class TransactionDetailController extends _$TransactionDetailController {
     }
   }
 
-  // Recarga la transacción (útil después de editar)
+  // Recarga la transacción
   Future<void> refresh() async {
     if (state.transaction?.id != null) {
       await loadTransaction(state.transaction!.id!);

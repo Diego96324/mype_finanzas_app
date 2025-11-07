@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+
+// EN DESARROLLO
 class ThemeService extends ChangeNotifier {
   static final ThemeService _instance = ThemeService._internal();
   factory ThemeService() => _instance;
   ThemeService._internal();
 
-  bool _isDarkMode = true; // Por defecto modo oscuro
+  bool _isDarkMode = true;
   bool get isDarkMode => _isDarkMode;
 
-  // Inicializar el tema desde SharedPreferences
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _isDarkMode = prefs.getBool('dark_mode') ?? true;
     notifyListeners();
   }
 
-  // Cambiar tema
   Future<void> toggleTheme() async {
     _isDarkMode = !_isDarkMode;
     final prefs = await SharedPreferences.getInstance();

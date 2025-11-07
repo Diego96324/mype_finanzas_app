@@ -46,7 +46,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
     final user = _userCtrl.text.trim();
     final pass = _passCtrl.text.trim();
 
-    // Usar el provider de auth en lugar del singleton
     final authNotifier = ref.read(authStateProvider.notifier);
     final result = await authNotifier.login(email: user, password: pass);
 
@@ -54,7 +53,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
 
     if (result['success'] == true) {
       // GoRouter se encargará de la navegación automáticamente
-      // cuando detecte el cambio en el estado de autenticación
       ctx.go('/');
     } else {
       setState(() => _loading = false);
@@ -74,7 +72,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
-    // Usar el provider de tema en lugar del singleton
     final isDarkModeAsync = ref.watch(themeStateProvider);
     final isDark = isDarkModeAsync.value ?? true;
 

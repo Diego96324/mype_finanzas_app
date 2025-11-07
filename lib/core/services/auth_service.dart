@@ -1,9 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
 import '../providers/providers.dart';
 
-// wrapper del auth provider de riverpod, ya casi no se usa
 class AuthService {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
@@ -63,7 +61,6 @@ class AuthService {
 
   @Deprecated('Use ref.read(authStateProvider.notifier).logout() instead')
   Future<void> logout() async {
-    // nada
   }
 
   @Deprecated('Use ref.read(authStateProvider.notifier).updateProfile() instead')

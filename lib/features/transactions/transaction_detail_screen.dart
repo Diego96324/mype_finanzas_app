@@ -56,10 +56,8 @@ class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScree
   }
 
   Future<void> _refreshTx() async {
-    // Recargamos el controlador para que la lista se actualice
     await ref.read(transactionsControllerProvider.notifier).loadTransactions();
 
-    // Reiniciamos la animación para que se vea smooth
     _animationController.reset();
     _animationController.forward();
   }
@@ -182,7 +180,6 @@ class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScree
                   ),
                 );
                 if (ok == true && _tx.id != null) {
-                  // Borramos usando el controlador
                   final controller = ref.read(transactionsControllerProvider.notifier);
                   final success = await controller.deleteTransaction(_tx.id!);
 

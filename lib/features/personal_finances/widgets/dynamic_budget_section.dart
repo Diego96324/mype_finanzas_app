@@ -40,7 +40,6 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
   @override
   void didUpdateWidget(DynamicBudgetSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Recargamos si cambió el período o el mes/año
     if (oldWidget.selectedPeriod != widget.selectedPeriod ||
         oldWidget.currentMonth != widget.currentMonth ||
         oldWidget.currentYear != widget.currentYear) {
@@ -48,7 +47,6 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
       print('   Old: periodo=${oldWidget.selectedPeriod}, mes=${oldWidget.currentMonth}, anio=${oldWidget.currentYear}');
       print('   New: periodo=${widget.selectedPeriod}, mes=${widget.currentMonth}, anio=${widget.currentYear}');
 
-      // Actualizamos la key
       setState(() {
         _budgetKey = _createBudgetKey();
         print('   Nueva budgetKey=$_budgetKey');
@@ -56,7 +54,6 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
     }
   }
 
-  // Crea una key única basada en el período actual
   BudgetPeriodKey _createBudgetKey() {
     final periodType = _getPeriodType();
     return BudgetPeriodKey(
@@ -66,7 +63,6 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
     );
   }
 
-  // Métdo helper para obtener información del período
   String _getPeriodType() {
     switch (widget.selectedPeriod) {
       case 'trimestre':
@@ -91,12 +87,10 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
 
   @override
   Widget build(BuildContext context) {
-    // Observamos el estado del controlador usando la key única
     final budgetState = ref.watch(budgetPeriodControllerProvider(_budgetKey));
 
     print('🔍 [DynamicBudgetSection] build - key=$_budgetKey, isLoading=${budgetState.isLoading}, currentBudget=${budgetState.currentBudget?.monto ?? "null"}, error=${budgetState.error}');
 
-    // Mostramos loading si está cargando (sin importar si hay presupuesto previo)
     if (budgetState.isLoading) {
       print('   → Mostrando loading');
       return AnalyticsDesignSystem.buildCard(

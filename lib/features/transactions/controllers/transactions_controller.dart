@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
 import '../../../core/models/transaction_model.dart';
 import '../../../core/repos/transaction_repo.dart';
 import '../../../core/services/auth_service.dart';
@@ -8,12 +7,11 @@ import '../../../core/services/transaction_cache_service.dart';
 
 part 'transactions_controller.g.dart';
 
-// Aquí va toda la info de las transacciones (ingresos y egresos)
 class TransactionsState {
   final List<AppTransaction> transactions; // lista de movimientos
   final Map<String, double>? stats; // totales de ingresos/egresos
-  final bool isLoading; // para el spinner de carga
-  final String? error; // si algo falla
+  final bool isLoading;
+  final String? error; // nunca se sabe
   final TransactionFilters filters; // filtros activos (fecha, tipo, etc)
 
   const TransactionsState({
@@ -43,7 +41,7 @@ class TransactionsState {
 
 // Para filtrar las transacciones por fecha, tipo, búsqueda, etc
 class TransactionFilters {
-  final List<String>? tipos; // ingreso, egreso, o ambos
+  final List<String>? tipos; // ingreso, egreso
   final DateTime? from; // desde qué fecha
   final DateTime? to; // hasta qué fecha
   final String? searchTerm; // texto para buscar
@@ -74,7 +72,7 @@ class TransactionFilters {
   }
 }
 
-// Controlador que maneja todos los movimientos de plata
+// Controlador que maneja todos los movimientos de efectivo
 @riverpod
 class TransactionsController extends _$TransactionsController {
   final TransactionRepo _transactionRepo = TransactionRepo();
@@ -83,12 +81,10 @@ class TransactionsController extends _$TransactionsController {
 
   @override
   TransactionsState build() {
-    // Al crear el controlador, cargamos las transacciones de una
     Future.microtask(() => loadTransactions());
     return const TransactionsState(isLoading: true);
   }
 
-  // Carga las transacciones con los filtros que tengas activos
   Future<void> loadTransactions() async {
     print('🔵 [TransactionsController] Cargando transacciones...');
     state = state.copyWith(isLoading: true, error: null);
@@ -106,7 +102,6 @@ class TransactionsController extends _$TransactionsController {
         return;
       }
 
-      // Traemos las transacciones según los filtros
       final filters = state.filters;
       print('🔵 [TransactionsController] Filtros: tipos=${filters.tipos}, from=${filters.from}, to=${filters.to}, order=${filters.order}');
 
@@ -116,12 +111,11 @@ class TransactionsController extends _$TransactionsController {
         from: filters.from,
         to: filters.to,
         searchTerm: filters.searchTerm,
-        orders: [filters.order], // Pasamos como lista para que use la lógica correcta
+        orders: [filters.order],
       );
 
       print('✅ [TransactionsController] ${transactions.length} transacciones');
 
-      // También calculamos los totales
       final stats = await _transactionRepo.getStats(usuarioId: userId);
       print('✅ [TransactionsController] Stats: $stats');
 
@@ -144,7 +138,6 @@ class TransactionsController extends _$TransactionsController {
     }
   }
 
-  // Aplica filtros nuevos y se recarga
   Future<void> applyFilters(TransactionFilters filters) async {
     state = state.copyWith(filters: filters);
     await loadTransactions();
@@ -166,7 +159,6 @@ class TransactionsController extends _$TransactionsController {
         return false;
       }
 
-      // Checkeamos que el monto tenga sentido
       if (transaction.monto <= 0) {
         state = state.copyWith(error: 'El monto debe ser mayor a cero');
         return false;
@@ -182,7 +174,6 @@ class TransactionsController extends _$TransactionsController {
 
       await _transactionRepo.insert(newTransaction);
 
-      // Limpiamos el caché y recargamos para ver el cambio
       _cacheService.invalidateUser(userId);
       await loadTransactions();
 
