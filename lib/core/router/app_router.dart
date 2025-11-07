@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../providers/providers.dart';
 import '../../presentation/features/auth/views/login_view.dart';
 import '../../presentation/features/auth/views/register_view.dart';
+import '../../presentation/features/auth/views/forgot_password_view.dart';
+import '../../presentation/features/auth/views/reset_password_view.dart';
 import '../../presentation/features/home/views/home_screen.dart';
 import '../../presentation/features/transactions/views/add_transaction_view.dart';
 import '../../presentation/features/analytics/views/analytics_view.dart';
@@ -22,19 +24,23 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final isGoingToLogin = state.matchedLocation == '/login';
       final isGoingToRegister = state.matchedLocation == '/register';
+      final isGoingToForgotPassword = state.matchedLocation == '/forgot-password';
+      final isGoingToResetPassword = state.matchedLocation == '/reset-password';
 
       // Si está cargando, mantener en la ruta actual
       if (isAuthStateLoading) {
         return null;
       }
 
-      // Si no está autenticado y no va a login/register, redirigir a login
-      if (!isAuthenticated && !isGoingToLogin && !isGoingToRegister) {
+      // Si no está autenticado y no va a rutas públicas, redirigir a login
+      if (!isAuthenticated && !isGoingToLogin && !isGoingToRegister &&
+          !isGoingToForgotPassword && !isGoingToResetPassword) {
         return '/login';
       }
 
-      // Si está autenticado y va a login/register, redirigir a home
-      if (isAuthenticated && (isGoingToLogin || isGoingToRegister)) {
+      // Si está autenticado y va a rutas públicas, redirigir a home
+      if (isAuthenticated && (isGoingToLogin || isGoingToRegister ||
+          isGoingToForgotPassword || isGoingToResetPassword)) {
         return '/';
       }
 
@@ -51,6 +57,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/register',
         name: 'register',
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        name: 'forgot-password',
+        builder: (context, state) => const ForgotPasswordView(),
+      ),
+      GoRoute(
+        path: '/reset-password',
+        name: 'reset-password',
+        builder: (context, state) {
+          final email = state.uri.queryParameters['email'] ?? '';
+          return ResetPasswordView(email: email);
+        },
       ),
       GoRoute(
         path: '/',

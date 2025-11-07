@@ -30,7 +30,7 @@ class AppDatabase {
     final path = join(dir.path, 'mype_finanzas.db');
     return openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -66,6 +66,20 @@ class AppDatabase {
         fecha_expiracion TEXT NOT NULL,
         activa INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE password_reset_tokens(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        email TEXT NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        fecha_creacion TEXT NOT NULL,
+        fecha_expiracion TEXT NOT NULL,
+        usado INTEGER NOT NULL DEFAULT 0,
+        ip_address TEXT,
         FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
       )
     ''');
@@ -237,6 +251,9 @@ class AppDatabase {
     await db.execute('CREATE INDEX idx_usuarios_email ON usuarios(email)');
     await db.execute('CREATE INDEX idx_sesiones_usuario ON sesiones(usuario_id)');
     await db.execute('CREATE INDEX idx_sesiones_token ON sesiones(token)');
+    await db.execute('CREATE INDEX idx_password_reset_tokens_usuario ON password_reset_tokens(usuario_id)');
+    await db.execute('CREATE INDEX idx_password_reset_tokens_token ON password_reset_tokens(token)');
+    await db.execute('CREATE INDEX idx_password_reset_tokens_email ON password_reset_tokens(email)');
     await db.execute('CREATE INDEX idx_categorias_usuario ON categorias(usuario_id)');
     await db.execute('CREATE INDEX idx_transacciones_usuario ON transacciones(usuario_id)');
     await db.execute('CREATE INDEX idx_transacciones_fecha ON transacciones(fecha)');
@@ -496,6 +513,33 @@ class AppDatabase {
         debugPrint('✅ Transacciones de apertura marcadas');
       } catch (e) {
         debugPrint('⚠️ Error al marcar transacciones de apertura: $e');
+      }
+    }
+
+    // Versión 8: Agregar tabla de tokens de recuperación de contraseña
+    if (oldVersion < 8) {
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS password_reset_tokens(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL,
+            email TEXT NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            fecha_creacion TEXT NOT NULL,
+            fecha_expiracion TEXT NOT NULL,
+            usado INTEGER NOT NULL DEFAULT 0,
+            ip_address TEXT,
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+          )
+        ''');
+
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_usuario ON password_reset_tokens(usuario_id)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_email ON password_reset_tokens(email)');
+
+        debugPrint('✅ Tabla password_reset_tokens creada');
+      } catch (e) {
+        debugPrint('⚠️ Error al crear tabla password_reset_tokens: $e');
       }
     }
   }

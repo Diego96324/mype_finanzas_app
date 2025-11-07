@@ -5,6 +5,7 @@ import '../../../../../data/models/transaction_model.dart';
 import '../controllers/transactions_controller.dart';
 import 'edit_transaction_view.dart';
 import 'add_transaction_view.dart';
+import '../../../shared/utils/currency_formatter.dart';
 
 class TransactionDetailScreen extends ConsumerStatefulWidget {
   final AppTransaction tx;
@@ -22,8 +23,7 @@ class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScree
   late Animation<Offset> _slideAnimation;
 
   String _fmtFecha(DateTime d) => DateFormat('dd/MM/yyyy', 'es_PE').format(d);
-  String _fmtMoneda(num v) =>
-      NumberFormat.currency(locale: 'es_PE', symbol: 'S/ ').format(v);
+  String _fmtMoneda(num v) => 'S/ ${CurrencyFormatter.formatAmount(v.toDouble())}';
 
   @override
   void initState() {
@@ -57,6 +57,17 @@ class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScree
 
   Future<void> _refreshTx() async {
     await ref.read(transactionsControllerProvider.notifier).loadTransactions();
+
+    // Buscar la transacción actualizada en el estado
+    final transactionsState = ref.read(transactionsControllerProvider);
+    final updatedTx = transactionsState.transactions.firstWhere(
+      (t) => t.id == _tx.id,
+      orElse: () => _tx,
+    );
+
+    setState(() {
+      _tx = updatedTx;
+    });
 
     _animationController.reset();
     _animationController.forward();

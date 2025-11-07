@@ -255,4 +255,226 @@ class AuthRepository {
       return false;
     }
   }
+
+  // ========== RECUPERACIÓN DE CONTRASEÑA ==========
+
+  /// Genera un token de 6 dígitos para recuperación de contraseña
+  String _generateResetToken() {
+    final random = Random.secure();
+    final code = random.nextInt(900000) + 100000; // 6 dígitos entre 100000-999999
+    return code.toString();
+  }
+
+  /// Crea un token de recuperación de contraseña
+  Future<Map<String, dynamic>> createPasswordResetToken({
+    required String email,
+    String? ipAddress,
+  }) async {
+    try {
+      final database = await _db.database;
+      final now = DateTime.now();
+
+      // Verificar si el email existe
+      final users = await database.query(
+        'usuarios',
+        where: 'email = ? AND activo = 1',
+        whereArgs: [email.toLowerCase()],
+      );
+
+      if (users.isEmpty) {
+        return {
+          'success': false,
+          'message': 'No existe una cuenta con ese email',
+        };
+      }
+
+      final user = User.fromMap(users.first);
+
+      // Invalidar tokens anteriores no usados
+      await database.update(
+        'password_reset_tokens',
+        {'usado': 1},
+        where: 'usuario_id = ? AND usado = 0',
+        whereArgs: [user.id],
+      );
+
+      // Generar nuevo token
+      final token = _generateResetToken();
+      final expiracion = now.add(const Duration(minutes: 15)); // Expira en 15 minutos
+
+      await database.insert('password_reset_tokens', {
+        'usuario_id': user.id,
+        'email': email.toLowerCase(),
+        'token': token,
+        'fecha_creacion': now.toIso8601String(),
+        'fecha_expiracion': expiracion.toIso8601String(),
+        'usado': 0,
+        'ip_address': ipAddress,
+      });
+
+      debugPrint('✅ Token de recuperación creado: $token para ${user.email}');
+
+      return {
+        'success': true,
+        'token': token,
+        'email': user.email,
+        'expiracion': expiracion,
+      };
+    } catch (e) {
+      debugPrint('❌ Error al crear token de recuperación: $e');
+      return {
+        'success': false,
+        'message': 'Error al generar token de recuperación',
+      };
+    }
+  }
+
+  /// Valida un token de recuperación
+  Future<Map<String, dynamic>> validateResetToken({
+    required String email,
+    required String token,
+  }) async {
+    try {
+      final database = await _db.database;
+      final now = DateTime.now();
+
+      debugPrint('🔍 Validando token:');
+      debugPrint('   Email: ${email.toLowerCase()}');
+      debugPrint('   Token: $token');
+
+      final tokens = await database.query(
+        'password_reset_tokens',
+        where: 'email = ? AND token = ? AND usado = 0',
+        whereArgs: [email.toLowerCase(), token],
+      );
+
+      debugPrint('   Tokens encontrados: ${tokens.length}');
+
+      if (tokens.isEmpty) {
+        // Verificar qué tokens existen para este email
+        final allTokens = await database.query(
+          'password_reset_tokens',
+          where: 'email = ?',
+          whereArgs: [email.toLowerCase()],
+          orderBy: 'fecha_creacion DESC',
+          limit: 5,
+        );
+
+        debugPrint('❌ Token no encontrado. Tokens en BD para este email:');
+        for (var t in allTokens) {
+          debugPrint('   - Token: ${t['token']}, Usado: ${t['usado']}, Expiración: ${t['fecha_expiracion']}');
+        }
+
+        return {
+          'success': false,
+          'message': 'Token inválido o ya utilizado',
+        };
+      }
+
+      final tokenData = tokens.first;
+      final expiracion = DateTime.parse(tokenData['fecha_expiracion'] as String);
+
+      debugPrint('   Expiración: $expiracion');
+      debugPrint('   Ahora: $now');
+
+      if (now.isAfter(expiracion)) {
+        debugPrint('❌ Token expirado');
+        return {
+          'success': false,
+          'message': 'El token ha expirado. Solicita uno nuevo.',
+        };
+      }
+
+      debugPrint('✅ Token válido');
+      return {
+        'success': true,
+        'userId': tokenData['usuario_id'],
+        'tokenId': tokenData['id'],
+      };
+    } catch (e) {
+      debugPrint('❌ Error al validar token: $e');
+      return {
+        'success': false,
+        'message': 'Error al validar token',
+      };
+    }
+  }
+
+  /// Resetea la contraseña usando un token válido
+  Future<Map<String, dynamic>> resetPasswordWithToken({
+    required String email,
+    required String token,
+    required String newPassword,
+  }) async {
+    try {
+      final database = await _db.database;
+
+      // Validar token
+      final validation = await validateResetToken(email: email, token: token);
+      if (validation['success'] != true) {
+        return validation;
+      }
+
+      final userId = validation['userId'] as int;
+      final tokenId = validation['tokenId'] as int;
+
+      // Actualizar contraseña
+      await database.update(
+        'usuarios',
+        {
+          'password_hash': _hashPassword(newPassword),
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [userId],
+      );
+
+      // Marcar token como usado
+      await database.update(
+        'password_reset_tokens',
+        {'usado': 1},
+        where: 'id = ?',
+        whereArgs: [tokenId],
+      );
+
+      // Cerrar todas las sesiones activas por seguridad
+      await database.update(
+        'sesiones',
+        {'activa': 0},
+        where: 'usuario_id = ?',
+        whereArgs: [userId],
+      );
+
+      debugPrint('✅ Contraseña reseteada exitosamente para usuario $userId');
+
+      return {
+        'success': true,
+        'message': 'Contraseña actualizada correctamente',
+      };
+    } catch (e) {
+      debugPrint('❌ Error al resetear contraseña: $e');
+      return {
+        'success': false,
+        'message': 'Error al resetear contraseña',
+      };
+    }
+  }
+
+  /// Limpia tokens expirados (mantenimiento)
+  Future<void> cleanExpiredTokens() async {
+    try {
+      final database = await _db.database;
+      final now = DateTime.now().toIso8601String();
+
+      await database.delete(
+        'password_reset_tokens',
+        where: 'fecha_expiracion < ?',
+        whereArgs: [now],
+      );
+
+      debugPrint('✅ Tokens expirados limpiados');
+    } catch (e) {
+      debugPrint('❌ Error al limpiar tokens: $e');
+    }
+  }
 }

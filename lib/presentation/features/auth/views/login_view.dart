@@ -230,6 +230,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                       contentPadding: EdgeInsets.zero,
                       activeColor: primaryColor,
                     ),
+
+                    // Enlace de olvidé mi contraseña
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => context.push('/forgot-password'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: primaryColor,
+                        ),
+                        child: Text(
+                          '¿Olvidaste tu contraseña?',
+                          style: TextStyle(
+                            color: primaryColor,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 20),
 
                     // Botón de login

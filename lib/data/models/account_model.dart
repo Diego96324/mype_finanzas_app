@@ -146,7 +146,11 @@ class Account {
   String get saldoFormateado {
     final simbolo = moneda == 'PEN' ? 'S/' :
     moneda == 'USD' ? '\$' : moneda;
-    return '$simbolo ${saldo.toStringAsFixed(2)}';
+    // Mostrar decimales solo si son necesarios
+    final formatted = saldo == saldo.roundToDouble()
+        ? saldo.round().toString()
+        : saldo.toStringAsFixed(2);
+    return '$simbolo $formatted';
   }
 
   String? get numeroEnmascarado {

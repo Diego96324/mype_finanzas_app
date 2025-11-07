@@ -328,7 +328,7 @@ class AnalyticsDesignSystem {
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              'S/ ${value.toStringAsFixed(2)}',
+              'S/ ${_formatAmount(value)}',
               style: kpiSmall.copyWith(color: color),
               textAlign: TextAlign.center,
             ),
@@ -357,7 +357,7 @@ class AnalyticsDesignSystem {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'S/ ${displayValue.toStringAsFixed(2)}',
+                'S/ ${_formatAmount(displayValue)}',
                 style: bodyBold.copyWith(color: color),
               ),
               if (previousValue != null && currentValue != null) ...[
@@ -400,6 +400,14 @@ class AnalyticsDesignSystem {
       height: spacing16,
       thickness: 1,
     );
+  }
+
+  /// Formatea un monto para mostrar decimales solo cuando sean necesarios
+  static String _formatAmount(double amount) {
+    if (amount == amount.roundToDouble()) {
+      return amount.round().toString();
+    }
+    return amount.toStringAsFixed(2);
   }
 }
 

@@ -199,6 +199,66 @@ class AuthState extends _$AuthState {
       };
     }
   }
+
+  // ========== RECUPERACIÓN DE CONTRASEÑA ==========
+
+  Future<Map<String, dynamic>> requestPasswordReset({
+    required String email,
+  }) async {
+    try {
+      final authRepo = ref.read(authRepositoryProvider);
+      final result = await authRepo.createPasswordResetToken(email: email);
+
+      return result;
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error al solicitar recuperación de contraseña',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> validateResetToken({
+    required String email,
+    required String token,
+  }) async {
+    try {
+      final authRepo = ref.read(authRepositoryProvider);
+      final result = await authRepo.validateResetToken(
+        email: email,
+        token: token,
+      );
+
+      return result;
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error al validar token',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String token,
+    required String newPassword,
+  }) async {
+    try {
+      final authRepo = ref.read(authRepositoryProvider);
+      final result = await authRepo.resetPasswordWithToken(
+        email: email,
+        token: token,
+        newPassword: newPassword,
+      );
+
+      return result;
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error al resetear contraseña',
+      };
+    }
+  }
 }
 
 @riverpod
