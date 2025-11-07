@@ -2,9 +2,9 @@
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/user_model.dart';
-import '../repos/auth_repo.dart';
-import '../services/secure_storage_service.dart';
+import '../../../data/models/user_model.dart';
+import '../../data/repositories/auth_repo.dart';
+import '../../domain/services/secure_storage_service.dart';
 
 part 'providers.g.dart';
 

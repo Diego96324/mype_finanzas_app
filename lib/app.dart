@@ -3,7 +3,7 @@ import 'package:flutter/material.dart' hide ThemeMode;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'routes/app_router.dart';
+import 'core/router/app_router.dart';
 import 'core/providers/providers.dart';
 
 class MyApp extends ConsumerWidget {
