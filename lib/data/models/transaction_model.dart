@@ -17,6 +17,9 @@ class AppTransaction {
   final bool esAperturaCuenta;
   final bool confirmada;
   final String? frecuenciaRecurrencia;
+  final int? recurrenceIntervalDays; // intervalo personalizado en días
+  final DateTime? recurrenceEndDate; // fecha fin de recurrencia
+  final DateTime? nextOccurrence;    // próxima generación programada
   final bool sincronizado;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -40,6 +43,9 @@ class AppTransaction {
     this.esAperturaCuenta = false,
     this.confirmada = true,
     this.frecuenciaRecurrencia,
+    this.recurrenceIntervalDays,
+    this.recurrenceEndDate,
+    this.nextOccurrence,
     this.sincronizado = false,
     required this.createdAt,
     required this.updatedAt,
@@ -64,6 +70,9 @@ class AppTransaction {
         'es_apertura_cuenta': esAperturaCuenta ? 1 : 0,
         'confirmada': confirmada ? 1 : 0,
         'frecuencia_recurrencia': frecuenciaRecurrencia,
+        'recurrence_interval_days': recurrenceIntervalDays,
+        'recurrence_end_date': recurrenceEndDate?.toIso8601String(),
+        'next_occurrence': nextOccurrence?.toIso8601String(),
         'sincronizado': sincronizado ? 1 : 0,
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
@@ -88,6 +97,9 @@ class AppTransaction {
         esAperturaCuenta: (map['es_apertura_cuenta'] as int?) == 1,
         confirmada: (map['confirmada'] as int?) == 1,
         frecuenciaRecurrencia: map['frecuencia_recurrencia'] as String?,
+        recurrenceIntervalDays: map['recurrence_interval_days'] as int?,
+        recurrenceEndDate: (map['recurrence_end_date'] as String?) != null ? DateTime.parse(map['recurrence_end_date'] as String) : null,
+        nextOccurrence: (map['next_occurrence'] as String?) != null ? DateTime.parse(map['next_occurrence'] as String) : null,
         sincronizado: (map['sincronizado'] as int?) == 1,
         createdAt: DateTime.parse(map['created_at'] as String),
         updatedAt: DateTime.parse(map['updated_at'] as String),
@@ -112,6 +124,9 @@ class AppTransaction {
     bool? esAperturaCuenta,
     bool? confirmada,
     String? frecuenciaRecurrencia,
+    int? recurrenceIntervalDays,
+    DateTime? recurrenceEndDate,
+    DateTime? nextOccurrence,
     bool? sincronizado,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -135,6 +150,9 @@ class AppTransaction {
       esAperturaCuenta: esAperturaCuenta ?? this.esAperturaCuenta,
       confirmada: confirmada ?? this.confirmada,
       frecuenciaRecurrencia: frecuenciaRecurrencia ?? this.frecuenciaRecurrencia,
+      recurrenceIntervalDays: recurrenceIntervalDays ?? this.recurrenceIntervalDays,
+      recurrenceEndDate: recurrenceEndDate ?? this.recurrenceEndDate,
+      nextOccurrence: nextOccurrence ?? this.nextOccurrence,
       sincronizado: sincronizado ?? this.sincronizado,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

@@ -16,17 +16,48 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String _searchQuery = '';
+  // Estado de paginación
+  static const int _pageSize = 30;
+  int _loaded = 0;
+  bool _isLoadingMore = false;
+  final ScrollController _scrollController = ScrollController();
+  bool _reorderMode = false;
+  List<Category> _reorderList = [];
+  bool _initializedPaged = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _scrollController.addListener(_onScrollLoadMore);
+    // iniciar paginación con primer lote
+    _loaded = _pageSize;
+    _initializedPaged = true;
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScrollLoadMore() async {
+    if (_isLoadingMore) return;
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 200) {
+      final repo = ref.read(categoryRepositoryProvider);
+      final total = await repo.countUserPrincipalCategories();
+      if (!mounted) return; // mounted check tras await
+      if (_loaded < total) {
+        setState(() => _isLoadingMore = true);
+        final next = _loaded + _pageSize;
+        final newLoaded = next > total ? total : next;
+        setState(() => _loaded = newLoaded);
+        setState(() => _isLoadingMore = false);
+      }
+    }
   }
 
   @override
@@ -38,19 +69,40 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
       appBar: AppBar(
         backgroundColor: const Color(0xFF2D2D2D),
         elevation: 0,
-        title: const Text(
-          'Gestionar Categorías',
-          style: TextStyle(
+        title: Text(
+          _reorderMode ? 'Reordenar Categorías' : 'Gestionar Categorías',
+          style: const TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.white,
           ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.business, color: Color(0xFF13BB67)),
-            onPressed: _showBusinessTemplateSelector,
-            tooltip: 'Plantillas de negocio',
-          ),
+          if (!_reorderMode) ...[
+            IconButton(
+              icon: const Icon(Icons.business, color: Color(0xFF13BB67)),
+              onPressed: _showBusinessTemplateSelector,
+              tooltip: 'Plantillas de negocio',
+            ),
+            IconButton(
+              icon: const Icon(Icons.swap_vert, color: Colors.white),
+              tooltip: 'Reordenar (en pestaña Todas)',
+              onPressed: () => setState(() {
+                _reorderMode = true;
+              }),
+            ),
+          ] else ...[
+            TextButton(
+              onPressed: () => setState(() {
+                _reorderMode = false;
+              }),
+              child: const Text('Cancelar'),
+            ),
+            IconButton(
+              icon: const Icon(Icons.check, color: Color(0xFF13BB67)),
+              tooltip: 'Guardar orden',
+              onPressed: _saveReorder,
+            ),
+          ],
         ],
         bottom: TabBar(
           controller: _tabController,
@@ -149,10 +201,90 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
   }
 
   Widget _buildCategoryList(List<Category> allCategories, String? tipo) {
+    // Si estamos en modo reordenar, solo funciona en pestaña 'Todas'
+    if (_reorderMode && tipo == null) {
+      // construir lista de principales
+      if (_reorderList.isEmpty) {
+        _reorderList = allCategories.where((c) => c.esPrincipal).toList();
+      }
+      // filtro búsqueda
+      final filtered = _searchQuery.isNotEmpty
+          ? _reorderList.where((c) => c.nombre.toLowerCase().contains(_searchQuery.toLowerCase())).toList()
+          : _reorderList;
+
+      return ReorderableListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: filtered.length,
+        onReorder: (oldIndex, newIndex) {
+          setState(() {
+            if (newIndex > oldIndex) newIndex -= 1;
+            final item = filtered.removeAt(oldIndex);
+            filtered.insert(newIndex, item);
+            // reflejar en _reorderList el nuevo orden global
+            _reorderList = filtered;
+          });
+        },
+        itemBuilder: (context, index) {
+          final category = filtered[index];
+          return ListTile(
+            key: ValueKey('reorder_${category.id}'),
+            tileColor: const Color(0xFF2D2D2D),
+            leading: Icon(category.iconAsIconData, color: category.colorAsColor),
+            title: Text(category.nombre, style: const TextStyle(color: Colors.white)),
+            subtitle: Text(category.tipoDisplay, style: TextStyle(color: Colors.grey[400])),
+            trailing: const Icon(Icons.drag_handle, color: Colors.white54),
+          );
+        },
+      );
+    }
+
     // Filtrar por tipo si es necesario
     List<Category> categories = tipo != null
         ? allCategories.where((c) => c.tipo == tipo).toList()
         : allCategories;
+
+    // Si pestaña 'Todas' y no reordenando, usar paginación de principales, subcategorías lazy
+    if (tipo == null && !_reorderMode) {
+      if (!_initializedPaged) {
+        _loaded = _pageSize;
+        _initializedPaged = true;
+      }
+      final repo = ref.read(categoryRepositoryProvider);
+      final future = repo.getUserCategoriesPaged(limit: _loaded, offset: 0);
+      return FutureBuilder<List<Category>>(
+        key: ValueKey('paged_$_loaded'),
+        future: future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Color(0xFF13BB67)));
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          final pagedCategories = snapshot.data ?? const [];
+          var list = _searchQuery.isNotEmpty
+              ? pagedCategories.where((c) => c.nombre.toLowerCase().contains(_searchQuery.toLowerCase())).toList()
+              : pagedCategories;
+
+          return ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(16),
+            itemCount: list.length + (_isLoadingMore ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index == list.length) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: CircularProgressIndicator(color: Color(0xFF13BB67)),
+                  ),
+                );
+              }
+              return _buildCategoryTileLazy(list[index]);
+            },
+          );
+        },
+      );
+    }
 
     // Filtrar por búsqueda
     if (_searchQuery.isNotEmpty) {
@@ -199,13 +331,134 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
     }
 
     return ListView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.all(16),
-      itemCount: categories.length,
+      itemCount: categories.length + (_isLoadingMore ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index == categories.length) {
+          // Indicador de carga
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: CircularProgressIndicator(
+                color: Color(0xFF13BB67),
+              ),
+            ),
+          );
+        }
+
         final category = categories[index];
         return _buildCategoryTile(category);
       },
     );
+  }
+
+  Widget _buildCategoryTileLazy(Category category) {
+    return Card(
+      color: const Color(0xFF2D2D2D),
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: category.colorAsColor.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              category.iconAsIconData,
+              color: category.colorAsColor,
+              size: 24,
+            ),
+          ),
+          title: Text(
+            category.nombre,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+            ),
+          ),
+          subtitle: category.descripcion != null
+              ? Text(
+                  category.descripcion!,
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 13,
+                  ),
+                )
+              : null,
+          children: [
+            Builder(
+              builder: (context) {
+                final repo = ref.read(categoryRepositoryProvider);
+                return FutureBuilder<List<Category>>(
+                  future: repo.getSubcategories(category.id!),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Padding(
+                        padding: EdgeInsets.all(12.0),
+                        child: LinearProgressIndicator(minHeight: 2),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Text('Error cargando subcategorías', style: TextStyle(color: Colors.red[300])),
+                      );
+                    }
+                    final subcats = snapshot.data ?? const [];
+                    return Column(
+                      children: subcats.map((s) => _buildSubcategoryTile(s, category)).toList(),
+                    );
+                  },
+                );
+              },
+            ),
+            if (!category.esPredeterminada)
+              ListTile(
+                leading: const SizedBox(width: 40),
+                title: TextButton.icon(
+                  onPressed: () => _showCategoryForm(category.tipo, parentCategory: category),
+                  icon: const Icon(Icons.add, size: 18, color: Color(0xFF13BB67)),
+                  label: Text(
+                    'Agregar subcategoría',
+                    style: TextStyle(color: Colors.grey[400]),
+                  ),
+                  style: TextButton.styleFrom(
+                    alignment: Alignment.centerLeft,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveReorder() async {
+    if (_reorderList.isEmpty) {
+      setState(() => _reorderMode = false);
+      return;
+    }
+    final ids = _reorderList.map((e) => e.id!).toList();
+    final ok = await ref.read(categoriesStateProvider.notifier).reorderCategories(ids);
+    if (!mounted) return;
+    if (ok) {
+      ref.invalidate(categoriesStateProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Orden actualizado'), backgroundColor: Color(0xFF13BB67)),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo actualizar el orden'), backgroundColor: Colors.red),
+      );
+    }
+    setState(() => _reorderMode = false);
   }
 
   Widget _buildCategoryTile(Category category) {
@@ -242,12 +495,12 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
           ),
           subtitle: category.descripcion != null
               ? Text(
-            category.descripcion!,
-            style: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 13,
-            ),
-          )
+                  category.descripcion!,
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 13,
+                  ),
+                )
               : null,
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
@@ -269,14 +522,12 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
                   ),
                 ),
               const SizedBox(width: 8),
-              _buildCategoryMenu(category),
+              _buildCategoryMenu(category, hasSubcategories: hasSubcategories),
             ],
           ),
           children: [
             if (hasSubcategories) ...[
-              ...category.subcategorias!.map((subcat) =>
-                  _buildSubcategoryTile(subcat, category)
-              ),
+              ...category.subcategorias!.map((subcat) => _buildSubcategoryTile(subcat, category)),
             ],
             // Botón para agregar subcategoría
             if (!category.esPredeterminada)
@@ -319,7 +570,7 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
     );
   }
 
-  Widget _buildCategoryMenu(Category category) {
+  Widget _buildCategoryMenu(Category category, {bool hasSubcategories = false}) {
     return PopupMenuButton<String>(
       icon: Icon(Icons.more_vert, color: Colors.grey[400]),
       color: const Color(0xFF3A3A3A),
@@ -338,6 +589,17 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
               ],
             ),
           ),
+          if (hasSubcategories && (category.subcategorias?.length ?? 0) > 1)
+            const PopupMenuItem(
+              value: 'reorder_sub',
+              child: Row(
+                children: [
+                  Icon(Icons.sort, color: Colors.white, size: 20),
+                  SizedBox(width: 12),
+                  Text('Reordenar subcategorías', style: TextStyle(color: Colors.white)),
+                ],
+              ),
+            ),
           const PopupMenuItem(
             value: 'delete',
             child: Row(
@@ -372,9 +634,109 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
           case 'info':
             _showSystemCategoryInfo();
             break;
+          case 'reorder_sub':
+            _showReorderSubcategories(category);
+            break;
         }
       },
     );
+  }
+
+  void _showReorderSubcategories(Category parent) async {
+    // Capturar referencias antes de awaits
+    final messenger = ScaffoldMessenger.of(context);
+    final repo = ref.read(categoryRepositoryProvider);
+    final subcats = await repo.getSubcategories(parent.id!);
+    if (!mounted) return; // tras await
+    if (subcats.length < 2) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('No hay suficientes subcategorías para reordenar'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    List<Category> workingList = List.of(subcats);
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF2D2D2D),
+              title: Row(
+                children: [
+                  const Icon(Icons.sort, color: Color(0xFF13BB67)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Reordenar subcategorías de "${parent.nombre}"',
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 400,
+                height: 400,
+                child: ReorderableListView.builder(
+                  itemCount: workingList.length,
+                  buildDefaultDragHandles: false,
+                  onReorder: (oldIndex, newIndex) {
+                    setStateDialog(() {
+                      if (newIndex > oldIndex) newIndex -= 1;
+                      final item = workingList.removeAt(oldIndex);
+                      workingList.insert(newIndex, item);
+                    });
+                  },
+                  itemBuilder: (ctx, index) {
+                    final sub = workingList[index];
+                    return ListTile(
+                      key: ValueKey('sub_${sub.id}'),
+                      leading: ReorderableDragStartListener(
+                        index: index,
+                        child: Icon(sub.iconAsIconData, color: sub.colorAsColor),
+                      ),
+                      title: Text(sub.nombre, style: const TextStyle(color: Colors.white)),
+                      subtitle: sub.descripcion != null
+                          ? Text(sub.descripcion!, style: TextStyle(color: Colors.grey[400]))
+                          : null,
+                      trailing: Text('#${index + 1}', style: TextStyle(color: Colors.grey[500])),
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (!mounted) return; // tras await showDialog
+    if (saved == true) {
+      final ids = workingList.map((c) => c.id!).toList();
+      final ok = await ref.read(categoriesStateProvider.notifier).reorderCategories(ids);
+      if (!mounted) return; // tras await
+      if (ok) {
+        ref.invalidate(categoriesStateProvider);
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Subcategorías reordenadas'), backgroundColor: Color(0xFF13BB67)),
+        );
+      } else {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Error al reordenar subcategorías'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   void _showCategoryForm(String? tipo, {Category? editingCategory, Category? parentCategory}) async {
@@ -386,15 +748,17 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
         parentCategory: parentCategory,
       ),
     );
-
-    if (result == true && mounted) {
-      // Refrescar la lista de categorías
+    if (!mounted) return; // tras await showDialog
+    if (result == true) {
       ref.invalidate(categoriesStateProvider);
     }
   }
 
   void _showBusinessTemplateSelector() async {
-    // Primero mostrar advertencia
+    // Capturar context dependencias antes de awaits
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
     final confirmReplace = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -434,57 +798,51 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
         ],
       ),
     );
+    if (!mounted) return;
+    if (confirmReplace != true) return;
 
-    if (confirmReplace != true || !mounted) return;
-
-    // Si confirma, mostrar selector de plantillas
     final templateId = await showDialog<String>(
       context: context,
       builder: (context) => const BusinessTemplateSelector(),
     );
+    if (!mounted) return;
+    if (templateId == null) return;
 
-    if (templateId != null && mounted) {
-      // Mostrar indicador de carga
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(
-            color: Color(0xFF13BB67),
-          ),
+    // Mostrar loader sin await
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFF13BB67)),
+      ),
+    );
+
+    final success = await ref.read(categoriesStateProvider.notifier)
+        .applyBusinessTemplate(templateId);
+    if (!mounted) return;
+
+    navigator.pop(); // cerrar loader
+    if (success) {
+      ref.invalidate(categoriesStateProvider);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Plantilla aplicada exitosamente'),
+          backgroundColor: Color(0xFF13BB67),
         ),
       );
-
-      final success = await ref.read(categoriesStateProvider.notifier)
-          .applyBusinessTemplate(templateId);
-
-      if (mounted) {
-        // Cerrar indicador de carga
-        Navigator.pop(context);
-
-        if (success) {
-          // Invalidar provider después de aplicar plantilla exitosamente
-          ref.invalidate(categoriesStateProvider);
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Plantilla aplicada exitosamente'),
-              backgroundColor: Color(0xFF13BB67),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Error al aplicar la plantilla'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
+    } else {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Error al aplicar la plantilla'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   void _confirmDelete(Category category) {
+    // Capturar messenger antes de async
+    final messenger = ScaffoldMessenger.of(context);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -504,34 +862,34 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context);
+              navigatorPopSafe(context); // función helper segura (definida abajo)
               final success = await ref.read(categoriesStateProvider.notifier)
                   .deleteCategory(category.id!);
-
-              if (mounted) {
-                if (success) {
-                  // Invalidar provider después de eliminar exitosamente
-                  ref.invalidate(categoriesStateProvider);
-                }
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(success
-                        ? 'Categoría eliminada'
-                        : 'No se pudo eliminar la categoría'),
-                    backgroundColor: success ? const Color(0xFF13BB67) : Colors.red,
-                  ),
-                );
+              if (!mounted) return;
+              if (success) {
+                ref.invalidate(categoriesStateProvider);
               }
+              messenger.showSnackBar(
+                SnackBar(
+                  content: Text(success
+                      ? 'Categoría eliminada'
+                      : 'No se pudo eliminar la categoría'),
+                  backgroundColor: success ? const Color(0xFF13BB67) : Colors.red,
+                ),
+              );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Eliminar'),
           ),
         ],
       ),
     );
+  }
+
+  void navigatorPopSafe(BuildContext ctx) {
+    if (Navigator.of(ctx).canPop()) {
+      Navigator.of(ctx).pop();
+    }
   }
 
   void _showSystemCategoryInfo() {

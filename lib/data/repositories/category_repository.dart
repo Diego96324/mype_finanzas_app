@@ -114,26 +114,43 @@ class CategoryRepository {
       final database = await _db.database;
       final now = DateTime.now();
 
-      // Verificar si ya existe una categoría con el mismo nombre
-      final existing = await database.query(
+      // Validación de duplicados dentro del mismo padre y tipo (case-insensitive)
+      String duplicateWhere;
+      List<dynamic> duplicateArgs;
+      if (categoriaPadreId == null) {
+        duplicateWhere = 'usuario_id = ? AND tipo = ? AND categoria_padre_id IS NULL AND LOWER(nombre) = LOWER(?) AND activa = 1';
+        duplicateArgs = [userId, tipo, nombre];
+      } else {
+        duplicateWhere = 'usuario_id = ? AND tipo = ? AND categoria_padre_id = ? AND LOWER(nombre) = LOWER(?) AND activa = 1';
+        duplicateArgs = [userId, tipo, categoriaPadreId, nombre];
+      }
+      final existingDup = await database.query(
         'categorias',
-        where: 'usuario_id = ? AND nombre = ? AND tipo = ? AND activa = 1',
-        whereArgs: [userId, nombre, tipo],
+        where: duplicateWhere,
+        whereArgs: duplicateArgs,
+        limit: 1,
       );
-
-      if (existing.isNotEmpty) {
-        debugPrint('❌ Ya existe una categoría con ese nombre');
+      if (existingDup.isNotEmpty) {
+        debugPrint('❌ Ya existe una categoría con ese nombre en el mismo nivel');
         return null;
       }
 
-      // Obtener el siguiente orden
+      // Obtener el siguiente orden entre hermanos
+      String ordenWhere;
+      List<dynamic> ordenArgs;
+      if (categoriaPadreId == null) {
+        ordenWhere = 'usuario_id = ? AND categoria_padre_id IS NULL';
+        ordenArgs = [userId];
+      } else {
+        ordenWhere = 'usuario_id = ? AND categoria_padre_id = ?';
+        ordenArgs = [userId, categoriaPadreId];
+      }
       final maxOrden = await database.rawQuery(
-        'SELECT MAX(orden) as max_orden FROM categorias WHERE usuario_id = ?',
-        [userId],
+        'SELECT MAX(orden) as max_orden FROM categorias WHERE ' + ordenWhere,
+        ordenArgs,
       );
       final orden = ((maxOrden.first['max_orden'] as int?) ?? -1) + 1;
 
-      // Insertar nueva categoría
       final categoryId = await database.insert('categorias', {
         'usuario_id': userId,
         'categoria_padre_id': categoriaPadreId,
@@ -470,6 +487,67 @@ class CategoryRepository {
       return categories.map((c) => models.Category.fromMap(c)).toList();
     } catch (e) {
       debugPrint('❌ Error al buscar categorías: $e');
+      return [];
+    }
+  }
+
+  // Obtener categorías paginadas (solo principales, sin subcategorías)
+  Future<List<models.Category>> getUserCategoriesPaged({
+    int limit = 50,
+    int offset = 0,
+    bool incluirInactivas = false,
+  }) async {
+    try {
+      final userId = _auth.currentUserId;
+      final database = await _db.database;
+      final whereClause = incluirInactivas
+          ? '(usuario_id = ? OR usuario_id IS NULL) AND categoria_padre_id IS NULL'
+          : '(usuario_id = ? OR usuario_id IS NULL) AND activa = 1 AND categoria_padre_id IS NULL';
+      final result = await database.query(
+        'categorias',
+        where: whereClause,
+        whereArgs: [userId],
+        orderBy: 'tipo, orden, nombre',
+        limit: limit,
+        offset: offset,
+      );
+      return result.map((m) => models.Category.fromMap(m)).toList();
+    } catch (e) {
+      debugPrint('❌ Error en paginación de categorías: $e');
+      return [];
+    }
+  }
+
+  // Contar categorías principales del usuario (para paginación)
+  Future<int> countUserPrincipalCategories({bool incluirInactivas = false}) async {
+    try {
+      final userId = _auth.currentUserId;
+      final database = await _db.database;
+      final whereClause = incluirInactivas
+          ? '(usuario_id = ? OR usuario_id IS NULL) AND categoria_padre_id IS NULL'
+          : '(usuario_id = ? OR usuario_id IS NULL) AND activa = 1 AND categoria_padre_id IS NULL';
+      final result = await database.rawQuery('SELECT COUNT(*) as total FROM categorias WHERE ' + whereClause, [userId]);
+      return (result.first['total'] as int?) ?? 0;
+    } catch (e) {
+      debugPrint('❌ Error contando categorías: $e');
+      return 0;
+    }
+  }
+
+  // Obtener subcategorías de una categoría padre
+  Future<List<models.Category>> getSubcategories(int parentId, {bool incluirInactivas = false}) async {
+    try {
+      final database = await _db.database;
+      final whereClause = incluirInactivas ? 'categoria_padre_id = ?' : 'categoria_padre_id = ? AND activa = 1';
+      final rows = await database.query(
+        'categorias',
+        where: whereClause,
+        whereArgs: [parentId],
+        orderBy: 'orden, nombre',
+      );
+      return rows.map((m) => models.Category.fromMap(m)).toList();
+    } catch (e) {
+      debugPrint('❌ Error obteniendo subcategorías: $e');
       return [];
     }
   }

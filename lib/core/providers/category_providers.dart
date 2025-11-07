@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../data/repositories/category_repository.dart';
 import '../../data/models/category_model.dart';
@@ -6,7 +7,7 @@ part 'category_providers.g.dart';
 
 // Repository provider
 @riverpod
-CategoryRepository categoryRepository(CategoryRepositoryRef ref) {
+CategoryRepository categoryRepository(Ref ref) {
   return CategoryRepository();
 }
 
@@ -25,6 +26,13 @@ class CategoriesState extends _$CategoriesState {
     } catch (e) {
       return [];
     }
+  }
+
+  // Permite refrescar manualmente desde la UI si se requiere
+  Future<void> refresh() async {
+    state = const AsyncLoading();
+    final data = await _loadCategories();
+    state = AsyncData(data);
   }
 
   // Crear nueva categoría
@@ -48,6 +56,12 @@ class CategoriesState extends _$CategoriesState {
         color: color,
         tipoNegocio: tipoNegocio,
       );
+
+      if (category != null) {
+        // Refrescamos el estado
+        final updated = await _loadCategories();
+        state = AsyncData(updated);
+      }
 
       return category != null;
     } catch (e) {
@@ -77,17 +91,27 @@ class CategoriesState extends _$CategoriesState {
         activa: activa,
       );
 
+      if (success) {
+        final updated = await _loadCategories();
+        state = AsyncData(updated);
+      }
+
       return success;
     } catch (e) {
       return false;
     }
   }
 
-  // Eliminar categoría
+  // Eliminar categoría (puede desactivar si tiene transacciones)
   Future<bool> deleteCategory(int categoryId) async {
     try {
       final repo = ref.read(categoryRepositoryProvider);
       final success = await repo.deleteCategory(categoryId);
+
+      if (success) {
+        final updated = await _loadCategories();
+        state = AsyncData(updated);
+      }
 
       return success;
     } catch (e) {
@@ -101,6 +125,11 @@ class CategoriesState extends _$CategoriesState {
       final repo = ref.read(categoryRepositoryProvider);
       final success = await repo.reorderCategories(categoryIds);
 
+      if (success) {
+        final updated = await _loadCategories();
+        state = AsyncData(updated);
+      }
+
       return success;
     } catch (e) {
       return false;
@@ -113,6 +142,11 @@ class CategoriesState extends _$CategoriesState {
       final repo = ref.read(categoryRepositoryProvider);
       final success = await repo.applyBusinessTemplate(tipoNegocio);
 
+      if (success) {
+        final updated = await _loadCategories();
+        state = AsyncData(updated);
+      }
+
       return success;
     } catch (e) {
       return false;
@@ -122,44 +156,43 @@ class CategoriesState extends _$CategoriesState {
 
 // Provider para categorías por tipo
 @riverpod
-Future<List<Category>> categoriesByType(CategoriesByTypeRef ref, String tipo) async {
+Future<List<Category>> categoriesByType(Ref ref, String tipo) async {
   final categories = await ref.watch(categoriesStateProvider.future);
   return categories.where((cat) => cat.tipo == tipo).toList();
 }
 
 // Provider para categorías de ingreso
 @riverpod
-Future<List<Category>> incomeCategories(IncomeCategoriesRef ref) async {
+Future<List<Category>> incomeCategories(Ref ref) async {
   return ref.watch(categoriesByTypeProvider('ingreso').future);
 }
 
 // Provider para categorías de egreso
 @riverpod
-Future<List<Category>> expenseCategories(ExpenseCategoriesRef ref) async {
+Future<List<Category>> expenseCategories(Ref ref) async {
   return ref.watch(categoriesByTypeProvider('egreso').future);
 }
 
 // Provider para buscar categorías
 @riverpod
-Future<List<Category>> searchCategories(SearchCategoriesRef ref, String query) async {
+Future<List<Category>> searchCategories(Ref ref, String query) async {
   if (query.isEmpty) {
     return ref.watch(categoriesStateProvider.future);
   }
-
   final repo = ref.read(categoryRepositoryProvider);
   return await repo.searchCategories(query);
 }
 
 // Provider para estadísticas de uso
 @riverpod
-Future<Map<int, int>> categoryUsageStats(CategoryUsageStatsRef ref) async {
+Future<Map<int, int>> categoryUsageStats(Ref ref) async {
   final repo = ref.read(categoryRepositoryProvider);
   return await repo.getCategoryUsageStats();
 }
 
 // Provider para plantillas de negocio disponibles
 @riverpod
-List<BusinessTemplate> businessTemplates(BusinessTemplatesRef ref) {
+List<BusinessTemplate> businessTemplates(Ref ref) {
   return [
     BusinessTemplate(
       id: 'bodega',
@@ -221,4 +254,22 @@ class BusinessTemplate {
     required this.icono,
     required this.color,
   });
+}
+
+@riverpod
+Future<List<Category>> pagedCategories(Ref ref, {int limit = 50, int offset = 0}) async {
+  final repo = ref.read(categoryRepositoryProvider);
+  return await repo.getUserCategoriesPaged(limit: limit, offset: offset);
+}
+
+@riverpod
+Future<int> totalPrincipalCategories(Ref ref) async {
+  final repo = ref.read(categoryRepositoryProvider);
+  return await repo.countUserPrincipalCategories();
+}
+
+@riverpod
+Future<List<Category>> subcategories(Ref ref, int parentId) async {
+  final repo = ref.read(categoryRepositoryProvider);
+  return await repo.getSubcategories(parentId);
 }

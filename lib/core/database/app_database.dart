@@ -30,7 +30,7 @@ class AppDatabase {
     final path = join(dir.path, 'mype_finanzas.db');
     return openDatabase(
       path,
-      version: 9,
+      version: 10, // incrementado de 9 a 10 para nuevas columnas de recurrencia avanzada
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -84,6 +84,7 @@ class AppDatabase {
       )
     ''');
 
+    // Tabla categorias ya con soporte de jerarquía y plantillas (versión 9 consolidada)
     await db.execute('''
       CREATE TABLE categorias(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,6 +96,9 @@ class AppDatabase {
         color TEXT,
         activa INTEGER NOT NULL DEFAULT 1,
         es_predeterminada INTEGER NOT NULL DEFAULT 0,
+        categoria_padre_id INTEGER REFERENCES categorias(id) ON DELETE CASCADE,
+        orden INTEGER DEFAULT 0,
+        tipo_negocio TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
@@ -121,6 +125,9 @@ class AppDatabase {
         es_apertura_cuenta INTEGER NOT NULL DEFAULT 0,
         confirmada INTEGER NOT NULL DEFAULT 1,
         frecuencia_recurrencia TEXT,
+        recurrence_interval_days INTEGER,          -- intervalo para personalizada (en días)
+        recurrence_end_date TEXT,                  -- fecha fin de recurrencia
+        next_occurrence TEXT,                      -- próxima generación programada
         sincronizado INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
@@ -248,6 +255,23 @@ class AppDatabase {
       )
     ''');
 
+    // Tabla de plantillas de categorías por tipo de negocio (versión 9)
+    await db.execute('''
+      CREATE TABLE plantillas_categorias(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tipo_negocio TEXT NOT NULL,
+        nombre TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        descripcion TEXT,
+        icono TEXT,
+        color TEXT,
+        es_principal INTEGER NOT NULL DEFAULT 1,
+        categoria_padre_nombre TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
     await db.execute('CREATE INDEX idx_usuarios_email ON usuarios(email)');
     await db.execute('CREATE INDEX idx_sesiones_usuario ON sesiones(usuario_id)');
     await db.execute('CREATE INDEX idx_sesiones_token ON sesiones(token)');
@@ -255,7 +279,10 @@ class AppDatabase {
     await db.execute('CREATE INDEX idx_password_reset_tokens_token ON password_reset_tokens(token)');
     await db.execute('CREATE INDEX idx_password_reset_tokens_email ON password_reset_tokens(email)');
     await db.execute('CREATE INDEX idx_categorias_usuario ON categorias(usuario_id)');
+    await db.execute('CREATE INDEX idx_categorias_tipo ON categorias(tipo)');
+    await db.execute('CREATE INDEX idx_categorias_padre ON categorias(categoria_padre_id)');
     await db.execute('CREATE INDEX idx_transacciones_usuario ON transacciones(usuario_id)');
+    await db.execute('CREATE INDEX idx_transacciones_cuenta ON transacciones(cuenta_id)');
     await db.execute('CREATE INDEX idx_transacciones_fecha ON transacciones(fecha)');
     await db.execute('CREATE INDEX idx_transacciones_tipo ON transacciones(tipo)');
     await db.execute('CREATE INDEX idx_presupuestos_usuario ON presupuestos(usuario_id)');
@@ -294,6 +321,53 @@ class AppDatabase {
         'color': cat['color'],
         'activa': 1,
         'es_predeterminada': 1,
+        'categoria_padre_id': null,
+        'orden': 0,
+        'tipo_negocio': null,
+        'created_at': now,
+        'updated_at': now,
+      });
+    }
+
+    // Insertar plantillas de categorías por tipo de negocio (versión 9 consolidada)
+    final plantillasBodega = [
+      {'tipo_negocio': 'bodega', 'nombre': 'Venta de Productos', 'tipo': 'ingreso', 'icono': 'shopping_cart', 'color': '#4CAF50', 'es_principal': 1, 'categoria_padre': null},
+      {'tipo_negocio': 'bodega', 'nombre': 'Venta de Bebidas', 'tipo': 'ingreso', 'icono': 'local_drink', 'color': '#8BC34A', 'es_principal': 0, 'categoria_padre': 'Venta de Productos'},
+      {'tipo_negocio': 'bodega', 'nombre': 'Venta de Abarrotes', 'tipo': 'ingreso', 'icono': 'kitchen', 'color': '#8BC34A', 'es_principal': 0, 'categoria_padre': 'Venta de Productos'},
+      {'tipo_negocio': 'bodega', 'nombre': 'Compra de Mercadería', 'tipo': 'egreso', 'icono': 'inventory', 'color': '#FF5722', 'es_principal': 1, 'categoria_padre': null},
+      {'tipo_negocio': 'bodega', 'nombre': 'Alquiler de Local', 'tipo': 'egreso', 'icono': 'store', 'color': '#F44336', 'es_principal': 1, 'categoria_padre': null},
+      {'tipo_negocio': 'bodega', 'nombre': 'Servicios Básicos', 'tipo': 'egreso', 'icono': 'receipt', 'color': '#E91E63', 'es_principal': 1, 'categoria_padre': null},
+    ];
+
+    final plantillasRestaurante = [
+      {'tipo_negocio': 'restaurante', 'nombre': 'Ventas del Día', 'tipo': 'ingreso', 'icono': 'restaurant', 'color': '#4CAF50', 'es_principal': 1, 'categoria_padre': null},
+      {'tipo_negocio': 'restaurante', 'nombre': 'Delivery', 'tipo': 'ingreso', 'icono': 'delivery_dining', 'color': '#8BC34A', 'es_principal': 0, 'categoria_padre': 'Ventas del Día'},
+      {'tipo_negocio': 'restaurante', 'nombre': 'Mesa', 'tipo': 'ingreso', 'icono': 'table_restaurant', 'color': '#8BC34A', 'es_principal': 0, 'categoria_padre': 'Ventas del Día'},
+      {'tipo_negocio': 'restaurante', 'nombre': 'Compra de Ingredientes', 'tipo': 'egreso', 'icono': 'shopping_basket', 'color': '#FF5722', 'es_principal': 1, 'categoria_padre': null},
+      {'tipo_negocio': 'restaurante', 'nombre': 'Carnes y Pescados', 'tipo': 'egreso', 'icono': 'set_meal', 'color': '#FF9800', 'es_principal': 0, 'categoria_padre': 'Compra de Ingredientes'},
+      {'tipo_negocio': 'restaurante', 'nombre': 'Verduras', 'tipo': 'egreso', 'icono': 'eco', 'color': '#FF9800', 'es_principal': 0, 'categoria_padre': 'Compra de Ingredientes'},
+      {'tipo_negocio': 'restaurante', 'nombre': 'Sueldos Personal', 'tipo': 'egreso', 'icono': 'groups', 'color': '#9C27B0', 'es_principal': 1, 'categoria_padre': null},
+    ];
+
+    final plantillasServicios = [
+      {'tipo_negocio': 'servicios', 'nombre': 'Honorarios', 'tipo': 'ingreso', 'icono': 'work', 'color': '#4CAF50', 'es_principal': 1, 'categoria_padre': null},
+      {'tipo_negocio': 'servicios', 'nombre': 'Consultoría', 'tipo': 'ingreso', 'icono': 'support_agent', 'color': '#8BC34A', 'es_principal': 0, 'categoria_padre': 'Honorarios'},
+      {'tipo_negocio': 'servicios', 'nombre': 'Proyectos', 'tipo': 'ingreso', 'icono': 'assignment', 'color': '#2196F3', 'es_principal': 1, 'categoria_padre': null},
+      {'tipo_negocio': 'servicios', 'nombre': 'Material de Oficina', 'tipo': 'egreso', 'icono': 'description', 'color': '#FF5722', 'es_principal': 1, 'categoria_padre': null},
+      {'tipo_negocio': 'servicios', 'nombre': 'Software y Licencias', 'tipo': 'egreso', 'icono': 'computer', 'color': '#673AB7', 'es_principal': 1, 'categoria_padre': null},
+      {'tipo_negocio': 'servicios', 'nombre': 'Marketing', 'tipo': 'egreso', 'icono': 'campaign', 'color': '#E91E63', 'es_principal': 1, 'categoria_padre': null},
+    ];
+
+    for (var plantilla in [...plantillasBodega, ...plantillasRestaurante, ...plantillasServicios]) {
+      await db.insert('plantillas_categorias', {
+        'tipo_negocio': plantilla['tipo_negocio'],
+        'nombre': plantilla['nombre'],
+        'tipo': plantilla['tipo'],
+        'descripcion': 'Plantilla para ${plantilla['tipo_negocio']}',
+        'icono': plantilla['icono'],
+        'color': plantilla['color'],
+        'es_principal': plantilla['es_principal'],
+        'categoria_padre_nombre': plantilla['categoria_padre'],
         'created_at': now,
         'updated_at': now,
       });
@@ -650,6 +724,28 @@ class AppDatabase {
         debugPrint('✅ Plantillas de categorías insertadas exitosamente');
       } catch (e) {
         debugPrint('⚠️ Error al insertar plantillas: $e');
+      }
+    }
+
+    if (oldVersion < 10) {
+      // Versión 10: columnas adicionales para recurrencia avanzada
+      try {
+        await db.execute('ALTER TABLE transacciones ADD COLUMN recurrence_interval_days INTEGER');
+        debugPrint('✅ Columna recurrence_interval_days agregada');
+      } catch (e) {
+        debugPrint('⚠️ Columna recurrence_interval_days ya existe: $e');
+      }
+      try {
+        await db.execute('ALTER TABLE transacciones ADD COLUMN recurrence_end_date TEXT');
+        debugPrint('✅ Columna recurrence_end_date agregada');
+      } catch (e) {
+        debugPrint('⚠️ Columna recurrence_end_date ya existe: $e');
+      }
+      try {
+        await db.execute('ALTER TABLE transacciones ADD COLUMN next_occurrence TEXT');
+        debugPrint('✅ Columna next_occurrence agregada');
+      } catch (e) {
+        debugPrint('⚠️ Columna next_occurrence ya existe: $e');
       }
     }
   }

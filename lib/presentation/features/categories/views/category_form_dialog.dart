@@ -27,26 +27,7 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
   String _iconoSeleccionado = 'category';
   Color _colorSeleccionado = Colors.blue;
 
-  final List<String> _iconosDisponibles = [
-    'category',
-    'shopping_cart',
-    'restaurant',
-    'local_shipping',
-    'store',
-    'home',
-    'work',
-    'school',
-    'local_hospital',
-    'fitness_center',
-    'movie',
-    'music_note',
-    'flight',
-    'hotel',
-    'local_gas_station',
-    'phone',
-    'computer',
-    'credit_card',
-  ];
+  final List<String> _iconosDisponibles = CategoryIcons.getAllIconNames();
 
   final List<Color> _coloresDisponibles = [
     Colors.red,
@@ -121,177 +102,177 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
             key: _formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Categoría padre (si es subcategoría)
-              if (widget.parentCategory != null) ...[
-                Text(
-                  'Categoría Padre:',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 4),
-                Chip(
-                  avatar: Icon(
-                    _getIconData(widget.parentCategory!.icono),
-                    size: 16,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Categoría padre (si es subcategoría)
+                if (widget.parentCategory != null) ...[
+                  Text(
+                    'Categoría Padre:',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  label: Text(widget.parentCategory!.nombre),
-                ),
-                const SizedBox(height: 16),
-              ],
+                  const SizedBox(height: 4),
+                  Chip(
+                    avatar: Icon(
+                      _getIconData(widget.parentCategory!.icono),
+                      size: 16,
+                    ),
+                    label: Text(widget.parentCategory!.nombre),
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
-              // Nombre
-              TextFormField(
-                controller: _nombreController,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.label),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Por favor ingrese un nombre';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Tipo (solo si no es subcategoría)
-              if (!isSubcategory) ...[
-                DropdownButtonFormField<String>(
-                  initialValue: _tipoSeleccionado,
+                // Nombre
+                TextFormField(
+                  controller: _nombreController,
                   decoration: const InputDecoration(
-                    labelText: 'Tipo',
+                    labelText: 'Nombre',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.swap_vert),
+                    prefixIcon: Icon(Icons.label),
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'ingreso', child: Text('Ingreso')),
-                    DropdownMenuItem(value: 'egreso', child: Text('Egreso')),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _tipoSeleccionado = value;
-                    });
-                  },
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Por favor seleccione un tipo';
+                      return 'Por favor ingrese un nombre';
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
-              ],
 
-              // Descripción
-              TextFormField(
-                controller: _descripcionController,
-                decoration: const InputDecoration(
-                  labelText: 'Descripción (opcional)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.description),
+                // Tipo (solo si no es subcategoría)
+                if (!isSubcategory) ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: _tipoSeleccionado,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipo',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.swap_vert),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'ingreso', child: Text('Ingreso')),
+                      DropdownMenuItem(value: 'egreso', child: Text('Egreso')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _tipoSeleccionado = value;
+                      });
+                    },
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Por favor seleccione un tipo';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // Descripción
+                TextFormField(
+                  controller: _descripcionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Descripción (opcional)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.description),
+                  ),
+                  maxLines: 2,
                 ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-              // Icono
-              Text(
-                'Icono:',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 60,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _iconosDisponibles.length,
-                  itemBuilder: (context, index) {
-                    final icono = _iconosDisponibles[index];
-                    final isSelected = icono == _iconoSeleccionado;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: InkWell(
-                        onTap: () {
-                          setState(() {
-                            _iconoSeleccionado = icono;
-                          });
-                        },
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? _colorSeleccionado.withValues(alpha: 0.3)
-                                : Colors.grey.withValues(alpha: 0.1),
-                            border: Border.all(
+                // Icono
+                Text(
+                  'Icono:',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 60,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _iconosDisponibles.length,
+                    itemBuilder: (context, index) {
+                      final icono = _iconosDisponibles[index];
+                      final isSelected = icono == _iconoSeleccionado;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _iconoSeleccionado = icono;
+                            });
+                          },
+                          child: Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
                               color: isSelected
-                                  ? _colorSeleccionado
-                                  : Colors.grey.withValues(alpha: 0.3),
-                              width: isSelected ? 2 : 1,
+                                  ? _colorSeleccionado.withValues(alpha: 0.3)
+                                  : Colors.grey.withValues(alpha: 0.1),
+                              border: Border.all(
+                                color: isSelected
+                                    ? _colorSeleccionado
+                                    : Colors.grey.withValues(alpha: 0.3),
+                                width: isSelected ? 2 : 1,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            _getIconData(icono),
-                            color: isSelected ? _colorSeleccionado : Colors.grey,
+                            child: Icon(
+                              _getIconData(icono),
+                              color: isSelected ? _colorSeleccionado : Colors.grey,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-              // Color
-              Text(
-                'Color:',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 50,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _coloresDisponibles.length,
-                  itemBuilder: (context, index) {
-                    final color = _coloresDisponibles[index];
-                    final isSelected = color == _colorSeleccionado;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: InkWell(
-                        onTap: () {
-                          setState(() {
-                            _colorSeleccionado = color;
-                          });
-                        },
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: color,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isSelected ? Colors.black : Colors.transparent,
-                              width: 3,
-                            ),
-                          ),
-                          child: isSelected
-                              ? const Icon(Icons.check, color: Colors.white)
-                              : null,
-                        ),
-                      ),
-                    );
-                  },
+                // Color
+                Text(
+                  'Color:',
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 50,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _coloresDisponibles.length,
+                    itemBuilder: (context, index) {
+                      final color = _coloresDisponibles[index];
+                      final isSelected = color == _colorSeleccionado;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: InkWell(
+                          onTap: () {
+                            setState(() {
+                              _colorSeleccionado = color;
+                            });
+                          },
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected ? Colors.black : Colors.transparent,
+                                width: 3,
+                              ),
+                            ),
+                            child: isSelected
+                                ? const Icon(Icons.check, color: Colors.white)
+                                : null,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
       ),
       actions: [
         TextButton(
@@ -307,27 +288,7 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
   }
 
   IconData _getIconData(String iconName) {
-    final iconMap = <String, IconData>{
-      'category': Icons.category,
-      'shopping_cart': Icons.shopping_cart,
-      'restaurant': Icons.restaurant,
-      'local_shipping': Icons.local_shipping,
-      'store': Icons.store,
-      'home': Icons.home,
-      'work': Icons.work,
-      'school': Icons.school,
-      'local_hospital': Icons.local_hospital,
-      'fitness_center': Icons.fitness_center,
-      'movie': Icons.movie,
-      'music_note': Icons.music_note,
-      'flight': Icons.flight,
-      'hotel': Icons.hotel,
-      'local_gas_station': Icons.local_gas_station,
-      'phone': Icons.phone,
-      'computer': Icons.computer,
-      'credit_card': Icons.credit_card,
-    };
-    return iconMap[iconName] ?? Icons.category;
+    return CategoryIcons.getIcon(iconName);
   }
 
   Future<void> _guardarCategoria() async {
@@ -335,7 +296,10 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
       return;
     }
 
-    final colorHex = '#${_colorSeleccionado.toARGB32().toRadixString(16).substring(2)}';
+    // Construir HEX sin canal alpha usando toARGB32
+    final argb = _colorSeleccionado.toARGB32();
+    final hexFull = argb.toRadixString(16).padLeft(8, '0');
+    final colorHex = '#${hexFull.substring(2)}';
     final notifier = ref.read(categoriesStateProvider.notifier);
 
     bool success;
@@ -391,4 +355,3 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
     }
   }
 }
-

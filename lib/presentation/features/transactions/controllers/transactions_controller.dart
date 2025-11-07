@@ -50,6 +50,10 @@ class TransactionFilters {
   final DateTime? to; // hasta qué fecha
   final String? searchTerm; // texto para buscar
   final String order; // cómo ordenar (fecha, monto)
+  final List<int>? categoriaIds; // nuevas: categorías
+  final double? minAmount; // monto mínimo
+  final double? maxAmount; // monto máximo
+  final bool tagOnly; // buscar solo en etiqueta
 
   const TransactionFilters({
     this.tipos,
@@ -57,6 +61,10 @@ class TransactionFilters {
     this.to,
     this.searchTerm,
     this.order = 'fecha_desc',
+    this.categoriaIds,
+    this.minAmount,
+    this.maxAmount,
+    this.tagOnly = false,
   });
 
   TransactionFilters copyWith({
@@ -65,6 +73,10 @@ class TransactionFilters {
     DateTime? to,
     String? searchTerm,
     String? order,
+    List<int>? categoriaIds,
+    double? minAmount,
+    double? maxAmount,
+    bool? tagOnly,
   }) {
     return TransactionFilters(
       tipos: tipos ?? this.tipos,
@@ -72,6 +84,10 @@ class TransactionFilters {
       to: to ?? this.to,
       searchTerm: searchTerm ?? this.searchTerm,
       order: order ?? this.order,
+      categoriaIds: categoriaIds ?? this.categoriaIds,
+      minAmount: minAmount ?? this.minAmount,
+      maxAmount: maxAmount ?? this.maxAmount,
+      tagOnly: tagOnly ?? this.tagOnly,
     );
   }
 }
@@ -116,6 +132,10 @@ class TransactionsController extends _$TransactionsController {
         to: filters.to,
         searchTerm: filters.searchTerm,
         orders: [filters.order],
+        categoriaIds: filters.categoriaIds,
+        minAmount: filters.minAmount,
+        maxAmount: filters.maxAmount,
+        tagOnly: filters.tagOnly,
       );
 
       debugPrint('✅ [TransactionsController] ${transactions.length} transacciones');
@@ -168,10 +188,14 @@ class TransactionsController extends _$TransactionsController {
         return false;
       }
 
-      // Guardamos la transacción con el usuario correcto
+      // Calcular nextOccurrence si es recurrente y no viene
+      final isRecurrent = transaction.recurrente && transaction.frecuenciaRecurrencia != null && transaction.frecuenciaRecurrencia != 'una_vez';
+      final next = transaction.nextOccurrence ?? (isRecurrent ? _calculateNextOccurrence(transaction) : null);
+
       final now = DateTime.now();
       final newTransaction = transaction.copyWith(
         usuarioId: userId,
+        nextOccurrence: next,
         createdAt: now,
         updatedAt: now,
       );
@@ -332,6 +356,10 @@ class TransactionsController extends _$TransactionsController {
       to: state.filters.to,
       searchTerm: filtersMap['searchTerm'] as String?,
       order: order,
+      categoriaIds: (filtersMap['categoriaIds'] as List?)?.map((e) => e as int).toList(),
+      minAmount: filtersMap['minAmount'] as double?,
+      maxAmount: filtersMap['maxAmount'] as double?,
+      tagOnly: (filtersMap['tagOnly'] as bool?) ?? false,
     );
 
     await applyFilters(newFilters);
@@ -391,5 +419,25 @@ class TransactionsController extends _$TransactionsController {
   // Obtiene el término de búsqueda actual
   String? get currentSearchTerm {
     return state.filters.searchTerm;
+  }
+
+  // Calcula próxima ocurrencia para una transacción recurrente
+  DateTime? _calculateNextOccurrence(AppTransaction tx) {
+    if (tx.frecuenciaRecurrencia == null) return null;
+    final base = tx.fecha;
+    switch (tx.frecuenciaRecurrencia) {
+      case 'semanal':
+        return base.add(const Duration(days: 7));
+      case 'quincenal':
+        return base.add(const Duration(days: 15));
+      case 'mensual':
+        return DateTime(base.year, base.month + 1, base.day, base.hour, base.minute, base.second);
+      case 'personalizada':
+        final interval = tx.recurrenceIntervalDays ?? 0;
+        if (interval <= 0) return null;
+        return base.add(Duration(days: interval));
+      default:
+        return null;
+    }
   }
 }

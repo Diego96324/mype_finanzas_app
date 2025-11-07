@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../../../../../data/models/transaction_model.dart';
 import '../../../../core/theme/components/date_picker_theme.dart';
+import '../../../../core/utils/form_validators.dart';
+import '../../../../core/utils/attachments_helper.dart';
 import '../controllers/transactions_controller.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
@@ -30,9 +34,17 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
   final _etiquetaCtrl = TextEditingController();
   final _notaCtrl = TextEditingController();
 
+  bool _recurrente = false;
+  String _frecuencia = 'una_vez'; // una_vez | semanal | quincenal | mensual | personalizada
+  final _intervaloCtrl = TextEditingController();
+  DateTime? _fechaFinRecurrencia;
+
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+
+  String? _comprobantePath;
+  bool _isPicking = false;
 
   @override
   void initState() {
@@ -68,8 +80,27 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
     _montoCtrl.dispose();
     _etiquetaCtrl.dispose();
     _notaCtrl.dispose();
+    _intervaloCtrl.dispose();
     _animationController.dispose();
     super.dispose();
+  }
+
+  // Helper para calcular próxima ocurrencia
+  DateTime? _computeNextOccurrence(DateTime base) {
+    switch (_frecuencia) {
+      case 'semanal':
+        return base.add(const Duration(days: 7));
+      case 'quincenal':
+        return base.add(const Duration(days: 15));
+      case 'mensual':
+        return DateTime(base.year, base.month + 1, base.day, base.hour, base.minute, base.second);
+      case 'personalizada':
+        final n = int.tryParse(_intervaloCtrl.text.trim());
+        if (n == null || n <= 0) return null;
+        return base.add(Duration(days: n));
+      default:
+        return null;
+    }
   }
 
   Future<void> _pickFecha() async {
@@ -95,10 +126,38 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
     if (picked != null) setState(() => _fecha = picked);
   }
 
+  Future<void> _pickComprobante(ImageSource source) async {
+    if (_isPicking) return; // evitar doble tap
+    setState(() => _isPicking = true);
+    final old = _comprobantePath;
+    final path = await AttachmentsHelper.pickAndSave(source: source);
+    if (mounted) {
+      setState(() {
+        _comprobantePath = path;
+        _isPicking = false;
+      });
+    }
+    if (path != null && old != null && old != path) {
+      await AttachmentsHelper.deleteAttachment(old);
+    }
+  }
+
+  void _removeComprobante() async {
+    final old = _comprobantePath;
+    setState(() => _comprobantePath = null);
+    await AttachmentsHelper.deleteAttachment(old);
+  }
+
   Future<void> _guardar() async {
     if (_formKey.currentState?.validate() != true) return;
 
     final monto = double.tryParse(_montoCtrl.text.replaceAll(',', '.')) ?? 0;
+
+    final frecuencia = _recurrente && _frecuencia != 'una_vez' ? _frecuencia : null;
+    final int? intervalo = (_recurrente && _frecuencia == 'personalizada')
+        ? int.tryParse(_intervaloCtrl.text.trim())
+        : null;
+    final next = (_recurrente && frecuencia != null) ? _computeNextOccurrence(_fecha) : null;
 
     final transaction = AppTransaction(
       usuarioId: 0, // El controlador asignará el ID correcto
@@ -107,8 +166,15 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
       monto: monto,
       etiqueta: _etiquetaCtrl.text.trim().isEmpty ? null : _etiquetaCtrl.text.trim(),
       nota: _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
+      recurrente: _recurrente,
+      esRecurrente: false,
+      frecuenciaRecurrencia: frecuencia,
+      recurrenceIntervalDays: intervalo,
+      recurrenceEndDate: _fechaFinRecurrencia,
+      nextOccurrence: next,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
+      comprobanteUri: _comprobantePath,
     );
 
     final success = await ref.read(transactionsControllerProvider.notifier).saveTransaction(transaction);
@@ -244,10 +310,11 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
                     hint: 'Ej: Ventas, Compras, Delivery…',
                     icon: Icons.label_rounded,
                     color: Colors.purpleAccent,
-                    maxLength: 30,
+                    maxLength: 40,
                     inputFormatters: [
-                      LengthLimitingTextInputFormatter(30),
+                      LengthLimitingTextInputFormatter(40),
                     ],
+                    validator: FormValidators.validateTag,
                   ),
 
                   const SizedBox(height: 16),
@@ -260,10 +327,17 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
                     icon: Icons.note_rounded,
                     color: Colors.orangeAccent,
                     maxLines: null,
+                    validator: FormValidators.validateNote,
                   ),
 
                   const SizedBox(height: 20),
 
+                  // Sección de comprobante
+                  _buildComprobanteSection(context),
+
+                  const SizedBox(height: 20),
+
+                  // Fecha de la transacción
                   InkWell(
                     onTap: _pickFecha,
                     borderRadius: BorderRadius.circular(16),
@@ -325,6 +399,11 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
                       ),
                     ),
                   ),
+
+                  const SizedBox(height: 20),
+
+                  // Sección de recurrencia
+                  _buildRecurrenceSection(context),
 
                   const SizedBox(height: 32),
 
@@ -505,5 +584,241 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
       ),
     );
   }
-}
 
+  Widget _buildComprobanteSection(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.dividerColor, width: 1),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.receipt_long, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              const Text('Comprobante (opcional)', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Spacer(),
+              if (_comprobantePath != null)
+                IconButton(
+                  icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+                  tooltip: 'Eliminar',
+                  onPressed: _removeComprobante,
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (_comprobantePath == null)
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickComprobante(ImageSource.camera),
+                    icon: const Icon(Icons.photo_camera),
+                    label: const Text('Cámara'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickComprobante(ImageSource.gallery),
+                    icon: const Icon(Icons.photo_library),
+                    label: const Text('Galería'),
+                  ),
+                ),
+              ],
+            )
+          else
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Stack(
+                children: [
+                  Image.file(
+                    File(_comprobantePath!),
+                    height: 180,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.refresh, color: Colors.white),
+                        onPressed: () => _pickComprobante(ImageSource.gallery),
+                        tooltip: 'Reemplazar',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (_isPicking) const Padding(
+            padding: EdgeInsets.only(top: 12.0),
+            child: LinearProgressIndicator(minHeight: 3),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecurrenceSection(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.dividerColor, width: 1),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.autorenew_rounded, color: colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Transacción recurrente',
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              Switch(
+                value: _recurrente,
+                onChanged: (v) => setState(() {
+                  _recurrente = v;
+                  if (!v) {
+                    _frecuencia = 'una_vez';
+                    _intervaloCtrl.clear();
+                    _fechaFinRecurrencia = null;
+                  }
+                }),
+              ),
+            ],
+          ),
+
+          if (_recurrente) const SizedBox(height: 12),
+
+          if (_recurrente)
+            DropdownButtonFormField<String>(
+              initialValue: _frecuencia,
+              decoration: InputDecoration(
+                labelText: 'Frecuencia',
+                border: const OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'una_vez', child: Text('Una vez')),
+                DropdownMenuItem(value: 'semanal', child: Text('Semanal')),
+                DropdownMenuItem(value: 'quincenal', child: Text('Quincenal')),
+                DropdownMenuItem(value: 'mensual', child: Text('Mensual')),
+                DropdownMenuItem(value: 'personalizada', child: Text('Personalizada (en días)')),
+              ],
+              onChanged: (val) => setState(() => _frecuencia = val ?? 'una_vez'),
+            ),
+
+          if (_recurrente && _frecuencia == 'personalizada') const SizedBox(height: 12),
+
+          if (_recurrente && _frecuencia == 'personalizada')
+            TextFormField(
+              controller: _intervaloCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Intervalo (días)',
+                border: OutlineInputBorder(),
+              ),
+              validator: (val) {
+                if (!_recurrente || _frecuencia != 'personalizada') return null;
+                return FormValidators.validateRecurrenceInterval(val);
+              },
+            ),
+
+          if (_recurrente) const SizedBox(height: 12),
+
+          if (_recurrente)
+            InkWell(
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _fechaFinRecurrencia ?? _fecha,
+                  firstDate: _fecha,
+                  lastDate: DateTime(2100),
+                  helpText: 'Fecha fin (opcional)',
+                );
+                if (picked != null) setState(() => _fechaFinRecurrencia = picked);
+              },
+              child: Row(
+                children: [
+                  Icon(Icons.event, color: colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Fecha fin (opcional)',
+                          style: TextStyle(
+                            color: colorScheme.onSurface.withValues(alpha: 0.6),
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _fechaFinRecurrencia == null
+                              ? 'Sin fecha fin'
+                              : '${_fechaFinRecurrencia!.day.toString().padLeft(2, '0')}/${_fechaFinRecurrencia!.month.toString().padLeft(2, '0')}/${_fechaFinRecurrencia!.year}',
+                          style: TextStyle(
+                            color: colorScheme.onSurface,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_fechaFinRecurrencia != null)
+                    IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () => setState(() => _fechaFinRecurrencia = null),
+                    ),
+                ],
+              ),
+            ),
+
+          if (_recurrente)
+            Builder(
+              builder: (context) {
+                final err = FormValidators.validateRecurrenceEnd(_fecha, _fechaFinRecurrencia);
+                if (err == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    err,
+                    style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}

@@ -90,6 +90,10 @@ class TransactionRepo {
     String order = 'fecha_desc',
     String? searchTerm,
     List<String>? orders,
+    List<int>? categoriaIds,
+    double? minAmount,
+    double? maxAmount,
+    bool tagOnly = false,
   }) async {
     final db = await _dbFuture;
 
@@ -114,11 +118,34 @@ class TransactionRepo {
       where.add('fecha <= ?');
       args.add(inclusive.toIso8601String());
     }
+    if (categoriaIds != null && categoriaIds.isNotEmpty) {
+      if (categoriaIds.length == 1) {
+        where.add('categoria_id = ?');
+        args.add(categoriaIds.first);
+      } else {
+        final placeholders = List.filled(categoriaIds.length, '?').join(',');
+        where.add('categoria_id IN ($placeholders)');
+        args.addAll(categoriaIds);
+      }
+    }
+    if (minAmount != null) {
+      where.add('monto >= ?');
+      args.add(minAmount);
+    }
+    if (maxAmount != null) {
+      where.add('monto <= ?');
+      args.add(maxAmount);
+    }
     if (searchTerm != null && searchTerm.isNotEmpty) {
-      where.add('(etiqueta LIKE ? OR nota LIKE ?)');
       final searchPattern = '%$searchTerm%';
-      args.add(searchPattern);
-      args.add(searchPattern);
+      if (tagOnly) {
+        where.add('etiqueta LIKE ?');
+        args.add(searchPattern);
+      } else {
+        where.add('(etiqueta LIKE ? OR nota LIKE ?)');
+        args.add(searchPattern);
+        args.add(searchPattern);
+      }
     }
 
     String orderBy;

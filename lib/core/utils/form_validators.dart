@@ -99,6 +99,44 @@ class FormValidators {
 
     return validateMaxLength(value, maxLength, fieldName: fieldName);
   }
+
+  // Validador intervalo de recurrencia personalizada
+  static String? validateRecurrenceInterval(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Ingrese intervalo en días';
+    }
+    final n = int.tryParse(value.trim());
+    if (n == null || n <= 0) {
+      return 'Intervalo debe ser un número > 0';
+    }
+    if (n > 365) {
+      return 'Intervalo máximo 365 días';
+    }
+    return null;
+  }
+
+  // Fecha fin de recurrencia (debe ser posterior a fecha inicio)
+  static String? validateRecurrenceEnd(DateTime start, DateTime? end) {
+    if (end == null) return null; // opcional
+    if (!end.isAfter(start)) {
+      return 'La fecha fin debe ser posterior a la inicial';
+    }
+    return null;
+  }
+
+  // Etiqueta opcional con máximo
+  static String? validateTag(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    if (value.trim().length > 40) return 'Etiqueta máximo 40 caracteres';
+    return null;
+  }
+
+  // Nota opcional con máximo
+  static String? validateNote(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    if (value.trim().length > 500) return 'Nota máximo 500 caracteres';
+    return null;
+  }
 }
 
 /// Estado de validación de un campo
@@ -143,4 +181,3 @@ class ValidationController extends ChangeNotifier {
     notifyListeners();
   }
 }
-

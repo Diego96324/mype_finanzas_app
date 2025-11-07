@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../../../data/repositories/category_repository.dart' as catrepo;
+import '../../../../data/models/category_model.dart' as models;
 
 class SearchFilterScreen extends StatefulWidget {
   final Map<String, dynamic> initialFilters;
@@ -14,6 +16,16 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
   late List<String> _orders;
   late TextEditingController _searchTermController;
 
+  DateTime? _fromDate;
+  DateTime? _toDate;
+  List<models.Category> _allCategories = [];
+  final Set<int> _selectedCategoryIds = {};
+  final _minAmountCtrl = TextEditingController();
+  final _maxAmountCtrl = TextEditingController();
+  bool _tagOnly = false;
+
+  final TextEditingController _categorySearchCtrl = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -21,6 +33,355 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
     _tipos = initialTipo == 'todos' ? ['todos'] : [initialTipo];
     _orders = [];
     _searchTermController = TextEditingController(text: widget.initialFilters['searchTerm']);
+
+    _fromDate = widget.initialFilters['from'] as DateTime?;
+    _toDate = widget.initialFilters['to'] as DateTime?;
+    final lista = widget.initialFilters['categoriaIds'] as List<int>?;
+    if (lista != null) _selectedCategoryIds.addAll(lista);
+    final minAmount = widget.initialFilters['minAmount'] as double?;
+    final maxAmount = widget.initialFilters['maxAmount'] as double?;
+    if (minAmount != null) _minAmountCtrl.text = minAmount.toString();
+    if (maxAmount != null) _maxAmountCtrl.text = maxAmount.toString();
+    _tagOnly = (widget.initialFilters['tagOnly'] as bool?) ?? false;
+
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    final repo = catrepo.CategoryRepository();
+    final categories = await repo.getUserCategories();
+    setState(() => _allCategories = categories);
+  }
+
+  @override
+  void dispose() {
+    _minAmountCtrl.dispose();
+    _maxAmountCtrl.dispose();
+    _categorySearchCtrl.dispose();
+    super.dispose();
+  }
+
+  // --- NUEVO: Apertura modal de selección de categorías ---
+  Future<void> _openCategorySelector() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setModalState) {
+          List<models.Category> visibles = _allCategories;
+          final query = _categorySearchCtrl.text.trim().toLowerCase();
+          if (query.isNotEmpty) {
+            visibles = _allCategories.where((c) {
+              final matchPrincipal = c.nombre.toLowerCase().contains(query);
+              final matchSub = c.subcategorias?.any((s) => s.nombre.toLowerCase().contains(query)) ?? false;
+              return matchPrincipal || matchSub;
+            }).toList();
+          }
+
+          // IDs seleccionables (excluye transferencia y nulos)
+          final allSelectableIds = _allCategories
+              .expand((c) => [c, ...?c.subcategorias])
+              .where((c) => c.tipo != 'transferencia' && c.id != null)
+              .map((c) => c.id!)
+              .toSet();
+          final allSelected = allSelectableIds.isNotEmpty && allSelectableIds.every((id) => _selectedCategoryIds.contains(id));
+
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              top: 12,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  height: 5,
+                  width: 60,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(ctx).dividerColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.category_outlined),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Seleccionar categorías',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setModalState(() {
+                            _selectedCategoryIds.clear();
+                          });
+                        },
+                        child: const Text('Limpiar'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setModalState(() {
+                            if (allSelected) {
+                              // Deseleccionar todo
+                              _selectedCategoryIds.removeWhere((id) => allSelectableIds.contains(id));
+                            } else {
+                              // Seleccionar todo
+                              _selectedCategoryIds.addAll(allSelectableIds);
+                            }
+                          });
+                        },
+                        child: Text(allSelected ? 'Quitar todo' : 'Seleccionar todo'),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: TextField(
+                    controller: _categorySearchCtrl,
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.search),
+                      hintText: 'Buscar categoría...',
+                      isDense: true,
+                      filled: true,
+                      fillColor: Theme.of(ctx).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                    ),
+                    onChanged: (_) => setModalState(() {}),
+                  ),
+                ),
+                if (_allCategories.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(24.0),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else
+                  Flexible(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      itemCount: visibles.length,
+                      itemBuilder: (ctx, i) {
+                        final cat = visibles[i];
+                        final subcats = cat.subcategorias ?? [];
+                        final allChecked = subcats.isNotEmpty && subcats.every((s) => _selectedCategoryIds.contains(s.id));
+                        return ExpansionTile(
+                          title: Row(
+                            children: [
+                              Checkbox(
+                                value: cat.id != null && _selectedCategoryIds.contains(cat.id),
+                                onChanged: (v) {
+                                  setModalState(() {
+                                    if (v == true) {
+                                      if (cat.id != null) _selectedCategoryIds.add(cat.id!);
+                                    } else {
+                                      if (cat.id != null) _selectedCategoryIds.remove(cat.id!);
+                                    }
+                                  });
+                                },
+                              ),
+                              Expanded(
+                                child: Text(
+                                  cat.nombre,
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              if (subcats.isNotEmpty)
+                                IconButton(
+                                  icon: Icon(
+                                    allChecked ? Icons.checklist_rtl : Icons.playlist_add_check,
+                                    color: Theme.of(ctx).colorScheme.primary,
+                                  ),
+                                  onPressed: () {
+                                    setModalState(() {
+                                      if (allChecked) {
+                                        for (final s in subcats) {
+                                          if (s.id != null) _selectedCategoryIds.remove(s.id!);
+                                        }
+                                      } else {
+                                        for (final s in subcats) {
+                                          if (s.id != null) _selectedCategoryIds.add(s.id!);
+                                        }
+                                      }
+                                    });
+                                  },
+                                  tooltip: allChecked ? 'Quitar subcategorías' : 'Seleccionar todas las subcategorías',
+                                ),
+                            ],
+                          ),
+                          children: subcats.map((s) {
+                            final checked = s.id != null && _selectedCategoryIds.contains(s.id!);
+                            return ListTile(
+                              dense: true,
+                              visualDensity: VisualDensity.compact,
+                              leading: Checkbox(
+                                value: checked,
+                                onChanged: (v) {
+                                  setModalState(() {
+                                    if (s.id == null) return;
+                                    if (v == true) {
+                                      _selectedCategoryIds.add(s.id!);
+                                    } else {
+                                      _selectedCategoryIds.remove(s.id!);
+                                    }
+                                  });
+                                },
+                              ),
+                              title: Text(s.nombre),
+                            );
+                          }).toList(),
+                        );
+                      },
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            setState(() {});
+                          },
+                          child: const Text('Cerrar'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            setState(() {});
+                          },
+                          icon: const Icon(Icons.check),
+                          label: const Text('Aplicar'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  // --- NUEVO: Rediseño del panel compacto de categorías ---
+  Widget _buildCategories(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final seleccionadas = _selectedCategoryIds.length;
+    final textoResumen = seleccionadas == 0
+        ? 'Ninguna seleccionada'
+        : seleccionadas == 1
+            ? '1 categoría'
+            : '$seleccionadas categorías';
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colorScheme.onSurface.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.category_outlined, color: colorScheme.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Categorías',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      textoResumen,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: _openCategorySelector,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Elegir'),
+              ),
+            ],
+          ),
+          if (seleccionadas > 0) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: _allCategories
+                  .expand((c) => [c, ...?c.subcategorias])
+                  .where((c) => c.id != null && _selectedCategoryIds.contains(c.id!))
+                  .take(8) // mostrar solo primeras 8
+                  .map((c) => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
+                        ),
+                        child: Text(
+                          c.nombre,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ))
+                  .toList(),
+            ),
+            if (seleccionadas > 8)
+              Padding(
+                padding: const EdgeInsets.only(top: 6.0),
+                child: Text(
+                  '+${seleccionadas - 8} más',
+                  style: TextStyle(fontSize: 11, color: colorScheme.onSurface.withValues(alpha: 0.55)),
+                ),
+              )
+          ],
+        ],
+      ),
+    );
   }
 
   @override
@@ -118,6 +479,18 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                 ),
               ),
               const SizedBox(height: 32),
+              _buildDateRange(context),
+              const SizedBox(height: 28),
+              _buildCategories(context),
+              const SizedBox(height: 28),
+              _buildAmountRange(context),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                title: const Text('Buscar solo en etiqueta'),
+                value: _tagOnly,
+                onChanged: (v) => setState(() => _tagOnly = v),
+              ),
+              const SizedBox(height: 28),
               _buildMultiFilterSection(
                 context,
                 'Tipo de transacción',
@@ -147,6 +520,12 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                           _tipos = ['todos'];
                           _orders = [];
                           _searchTermController.clear();
+                          _fromDate = null;
+                          _toDate = null;
+                          _selectedCategoryIds.clear();
+                          _minAmountCtrl.clear();
+                          _maxAmountCtrl.clear();
+                          _tagOnly = false;
                         });
                       },
                       icon: const Icon(Icons.refresh_rounded, size: 20),
@@ -180,6 +559,12 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                           'tipos': finalTipos,
                           'orders': _orders,
                           'searchTerm': _searchTermController.text,
+                          'from': _fromDate,
+                          'to': _toDate,
+                          'categoriaIds': _selectedCategoryIds.toList(),
+                          'minAmount': double.tryParse(_minAmountCtrl.text.replaceAll(',', '.')),
+                          'maxAmount': double.tryParse(_maxAmountCtrl.text.replaceAll(',', '.')),
+                          'tagOnly': _tagOnly,
                         });
                       },
                       icon: const Icon(Icons.check_rounded, size: 20),
@@ -430,5 +815,103 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
         return value;
     }
   }
-}
 
+  Widget _buildDateRange(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildDateTile(
+            context,
+            label: 'Desde',
+            date: _fromDate,
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _fromDate ?? DateTime.now(),
+                firstDate: DateTime(2010),
+                lastDate: DateTime(2100),
+              );
+              if (picked != null) setState(() => _fromDate = picked);
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildDateTile(
+            context,
+            label: 'Hasta',
+            date: _toDate,
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _toDate ?? DateTime.now(),
+                firstDate: DateTime(2010),
+                lastDate: DateTime(2100),
+              );
+              if (picked != null) setState(() => _toDate = picked);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateTile(BuildContext context, {required String label, DateTime? date, required VoidCallback onTap}) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: colorScheme.onSurface.withValues(alpha: 0.1)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.date_range),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(fontSize: 12, color: colorScheme.onSurface.withValues(alpha: 0.6))),
+                  const SizedBox(height: 4),
+                  Text(
+                    date == null ? 'Cualquier fecha' : '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colorScheme.onSurface),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: colorScheme.onSurface.withValues(alpha: 0.4)),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildAmountRange(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _minAmountCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: 'Monto mínimo'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: TextField(
+            controller: _maxAmountCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(labelText: 'Monto máximo'),
+          ),
+        ),
+      ],
+    );
+  }
+}
