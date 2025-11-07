@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/components/analytics_design_system.dart';
+import '../../../shared/utils/currency_formatter.dart';
 import '../controllers/budget_period_controller.dart';
 
 class DynamicBudgetSection extends ConsumerStatefulWidget {
@@ -216,7 +217,7 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
         FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            'S/ ${budgetAmount.toStringAsFixed(2)}',
+            'S/ ${CurrencyFormatter.formatAmount(budgetAmount)}',
             style: AnalyticsDesignSystem.kpiLarge.copyWith(
               fontSize: 36,
               fontWeight: FontWeight.bold,
@@ -355,7 +356,7 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
-              'S/ ${amount.toStringAsFixed(2)}',
+              'S/ ${CurrencyFormatter.formatAmount(amount)}',
               style: AnalyticsDesignSystem.kpiMedium.copyWith(
                 color: color,
                 fontSize: 20,

@@ -150,7 +150,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                           shape: BoxShape.circle,
                         ),
                         child: SvgPicture.asset(
-                          'assets/logo_numeria2.svg',
+                          'assets/icons/logo_numeria2.svg',
                           height: 120,
                           colorFilter: ColorFilter.mode(
                             primaryColor,

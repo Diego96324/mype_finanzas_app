@@ -1,6 +1,8 @@
 class AppTransaction {
   final int? id;
   final int usuarioId;
+  final int? cuentaId;
+  final int? cuentaDestinoId;
   final int? categoriaId;
   final String tipo;
   final double monto;
@@ -11,6 +13,9 @@ class AppTransaction {
   final String? comprobanteUri;
   final String? ubicacion;
   final bool recurrente;
+  final bool esRecurrente;
+  final bool esAperturaCuenta;
+  final bool confirmada;
   final String? frecuenciaRecurrencia;
   final bool sincronizado;
   final DateTime createdAt;
@@ -19,6 +24,8 @@ class AppTransaction {
   AppTransaction({
     this.id,
     required this.usuarioId,
+    this.cuentaId,
+    this.cuentaDestinoId,
     this.categoriaId,
     required this.tipo,
     required this.monto,
@@ -29,6 +36,9 @@ class AppTransaction {
     this.comprobanteUri,
     this.ubicacion,
     this.recurrente = false,
+    this.esRecurrente = false,
+    this.esAperturaCuenta = false,
+    this.confirmada = true,
     this.frecuenciaRecurrencia,
     this.sincronizado = false,
     required this.createdAt,
@@ -38,6 +48,8 @@ class AppTransaction {
   Map<String, dynamic> toMap() => {
         'id': id,
         'usuario_id': usuarioId,
+        'cuenta_id': cuentaId,
+        'cuenta_destino_id': cuentaDestinoId,
         'categoria_id': categoriaId,
         'tipo': tipo,
         'monto': monto,
@@ -48,6 +60,9 @@ class AppTransaction {
         'comprobante_uri': comprobanteUri,
         'ubicacion': ubicacion,
         'recurrente': recurrente ? 1 : 0,
+        'es_recurrente': esRecurrente ? 1 : 0,
+        'es_apertura_cuenta': esAperturaCuenta ? 1 : 0,
+        'confirmada': confirmada ? 1 : 0,
         'frecuencia_recurrencia': frecuenciaRecurrencia,
         'sincronizado': sincronizado ? 1 : 0,
         'created_at': createdAt.toIso8601String(),
@@ -57,6 +72,8 @@ class AppTransaction {
   factory AppTransaction.fromMap(Map<String, dynamic> map) => AppTransaction(
         id: map['id'] as int?,
         usuarioId: map['usuario_id'] as int,
+        cuentaId: map['cuenta_id'] as int?,
+        cuentaDestinoId: map['cuenta_destino_id'] as int?,
         categoriaId: map['categoria_id'] as int?,
         tipo: map['tipo'] as String,
         monto: (map['monto'] as num).toDouble(),
@@ -66,9 +83,12 @@ class AppTransaction {
         descripcion: map['descripcion'] as String?,
         comprobanteUri: map['comprobante_uri'] as String?,
         ubicacion: map['ubicacion'] as String?,
-        recurrente: (map['recurrente'] as int) == 1,
+        recurrente: (map['recurrente'] as int?) == 1,
+        esRecurrente: (map['es_recurrente'] as int?) == 1,
+        esAperturaCuenta: (map['es_apertura_cuenta'] as int?) == 1,
+        confirmada: (map['confirmada'] as int?) == 1,
         frecuenciaRecurrencia: map['frecuencia_recurrencia'] as String?,
-        sincronizado: (map['sincronizado'] as int) == 1,
+        sincronizado: (map['sincronizado'] as int?) == 1,
         createdAt: DateTime.parse(map['created_at'] as String),
         updatedAt: DateTime.parse(map['updated_at'] as String),
       );
@@ -76,6 +96,8 @@ class AppTransaction {
   AppTransaction copyWith({
     int? id,
     int? usuarioId,
+    int? cuentaId,
+    int? cuentaDestinoId,
     int? categoriaId,
     String? tipo,
     double? monto,
@@ -86,6 +108,9 @@ class AppTransaction {
     String? comprobanteUri,
     String? ubicacion,
     bool? recurrente,
+    bool? esRecurrente,
+    bool? esAperturaCuenta,
+    bool? confirmada,
     String? frecuenciaRecurrencia,
     bool? sincronizado,
     DateTime? createdAt,
@@ -94,6 +119,8 @@ class AppTransaction {
     return AppTransaction(
       id: id ?? this.id,
       usuarioId: usuarioId ?? this.usuarioId,
+      cuentaId: cuentaId ?? this.cuentaId,
+      cuentaDestinoId: cuentaDestinoId ?? this.cuentaDestinoId,
       categoriaId: categoriaId ?? this.categoriaId,
       tipo: tipo ?? this.tipo,
       monto: monto ?? this.monto,
@@ -104,6 +131,9 @@ class AppTransaction {
       comprobanteUri: comprobanteUri ?? this.comprobanteUri,
       ubicacion: ubicacion ?? this.ubicacion,
       recurrente: recurrente ?? this.recurrente,
+      esRecurrente: esRecurrente ?? this.esRecurrente,
+      esAperturaCuenta: esAperturaCuenta ?? this.esAperturaCuenta,
+      confirmada: confirmada ?? this.confirmada,
       frecuenciaRecurrencia: frecuenciaRecurrencia ?? this.frecuenciaRecurrencia,
       sincronizado: sincronizado ?? this.sincronizado,
       createdAt: createdAt ?? this.createdAt,

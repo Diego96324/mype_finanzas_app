@@ -6,6 +6,7 @@ import '../../../../../../data/models/transaction_model.dart';
 import '../../../../core/theme/components/date_picker_theme.dart';
 import '../../transactions/views/add_transaction_view.dart';
 import '../controllers/analytics_controller.dart';
+import '../../../shared/utils/currency_formatter.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});
@@ -516,7 +517,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> with SingleTi
   }
 
   Widget _buildSummaryCard(String title, double amount, IconData icon, Color color, {bool isLarge = false}) {
-    final formatter = NumberFormat.currency(symbol: 'S/ ', decimalDigits: 2);
 
     return Container(
       padding: EdgeInsets.all(isLarge ? 20 : 16),
@@ -555,7 +555,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> with SingleTi
             ),
             const SizedBox(height: 8),
             Text(
-              formatter.format(amount),
+              'S/ ${CurrencyFormatter.formatAmount(amount)}',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -588,7 +588,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> with SingleTi
             ),
             const SizedBox(height: 8),
             Text(
-              formatter.format(amount),
+              'S/ ${CurrencyFormatter.formatAmount(amount)}',
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -682,14 +682,13 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> with SingleTi
                     getTooltipItem: (group, groupIndex, rod, rodIndex) {
                       final day = displayDays[group.x.toInt()];
                       final formatter = DateFormat('dd/MM', 'es');
-                      final amount = NumberFormat.currency(symbol: 'S/ ', decimalDigits: 2);
 
                       return BarTooltipItem(
                         '${formatter.format(day)}\n',
                         const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                         children: [
                           TextSpan(
-                            text: amount.format(rod.toY),
+                            text: 'S/ ${CurrencyFormatter.formatAmount(rod.toY)}',
                             style: TextStyle(
                               color: rodIndex == 0 ? const Color(0xFF13BB67) : Colors.red,
                               fontWeight: FontWeight.w500,
@@ -976,7 +975,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> with SingleTi
   }
 
   Widget _buildCompactTransactionItem(AppTransaction transaction) {
-    final formatter = NumberFormat.currency(symbol: 'S/ ', decimalDigits: 2);
     final isIngreso = transaction.tipo == 'ingreso';
     final color = isIngreso ? const Color(0xFF13BB67) : Colors.red;
     final etiqueta = transaction.etiqueta ?? (isIngreso ? 'Ingreso' : 'Egreso');
@@ -1003,7 +1001,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> with SingleTi
               ),
               const SizedBox(width: 12),
               Text(
-                formatter.format(transaction.monto),
+                'S/ ${CurrencyFormatter.formatAmount(transaction.monto)}',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,

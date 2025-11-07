@@ -112,7 +112,9 @@ class AccountsController extends _$AccountsController {
     required double saldo,
     required String moneda,
     String? institucion,
-    String? nota,
+    String? numeroFin,
+    String? color,
+    String? icono,
   }) async {
     final userId = _authService.currentUserId;
 
@@ -130,7 +132,9 @@ class AccountsController extends _$AccountsController {
       saldo: saldo,
       moneda: moneda,
       institucion: institucion,
-      nota: nota,
+      numeroFin: numeroFin,
+      color: color,
+      icono: icono,
     );
 
     // Si salió bien, actualizamos la lista
@@ -143,7 +147,25 @@ class AccountsController extends _$AccountsController {
 
   // Edita una cuenta que ya existe
   Future<AccountOperationResult> updateAccount(Account account) async {
-    final result = await _accountService.updateAccount(account: account);
+    if (account.id == null) {
+      return AccountOperationResult(
+        success: false,
+        message: 'Cuenta sin ID',
+      );
+    }
+
+    final result = await _accountService.updateAccount(
+      accountId: account.id!,
+      nombre: account.nombre,
+      tipo: account.tipo,
+      saldo: account.saldo,
+      moneda: account.moneda,
+      institucion: account.institucion,
+      numeroFin: account.numeroFin,
+      color: account.color,
+      icono: account.icono,
+      incluirEnTotal: account.incluirEnTotal,
+    );
 
     // Recargamos para ver los cambios
     if (result.success) {

@@ -4,6 +4,7 @@ import '../../../../../data/models/transaction_model.dart';
 import '../../../../data/repositories/transaction_repo.dart';
 import '../../../../core/providers/providers.dart';
 import '../../../../core/theme/components/analytics_design_system.dart';
+import '../../../shared/utils/currency_formatter.dart';
 
 class DynamicComparisonSection extends ConsumerStatefulWidget {
   final String selectedPeriod;
@@ -369,14 +370,14 @@ class _DynamicComparisonSectionState extends ConsumerState<DynamicComparisonSect
 
         // Valor Actual
         _buildTableCell(
-          'S/ ${currentValue.toStringAsFixed(0)}',
+          'S/ ${CurrencyFormatter.formatAmount(currentValue)}',
           align: TextAlign.center,
           color: color,
         ),
 
         // Valor Anterior
         _buildTableCell(
-          'S/ ${previousValue.toStringAsFixed(0)}',
+          'S/ ${CurrencyFormatter.formatAmount(previousValue)}',
           align: TextAlign.center,
           color: AnalyticsDesignSystem.textSecondary,
         ),

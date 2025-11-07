@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/providers/providers.dart';
+import '../../../shared/utils/currency_formatter.dart';
 import '../../transactions/controllers/transactions_controller.dart';
 import '../../auth/views/change_password_view.dart';
 
@@ -317,7 +318,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
                 child: _buildStatItem(
                   icon: Icons.trending_up,
                   label: 'Ingresos',
-                  value: 'S/ ${ingresos.toStringAsFixed(2)}',
+                  value: 'S/ ${CurrencyFormatter.formatAmount(ingresos)}',
                   color: const Color(0xFF13BB67),
                 ),
               ),
@@ -330,7 +331,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
                 child: _buildStatItem(
                   icon: Icons.trending_down,
                   label: 'Gastos',
-                  value: 'S/ ${gastos.toStringAsFixed(2)}',
+                  value: 'S/ ${CurrencyFormatter.formatAmount(gastos)}',
                   color: Colors.redAccent,
                 ),
               ),
@@ -339,7 +340,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
                 child: _buildStatItem(
                   icon: Icons.account_balance_wallet,
                   label: 'Balance',
-                  value: 'S/ ${balance.toStringAsFixed(2)}',
+                  value: 'S/ ${CurrencyFormatter.formatAmount(balance)}',
                   color: balance >= 0
                       ? const Color(0xFF13BB67)
                       : Colors.redAccent,

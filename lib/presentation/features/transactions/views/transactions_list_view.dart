@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../data/models/transaction_model.dart';
+import '../../accounts/widgets/edit_account_dialog.dart';
+import '../../../shared/utils/currency_formatter.dart';
 import 'transaction_detail_view.dart';
 import '../controllers/transactions_controller.dart';
 
@@ -22,6 +24,7 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
       debugPrint('🔍 [TransactionsListView] Página cargada');
     });
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -280,23 +283,50 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
     ThemeData theme,
     ColorScheme colorScheme,
   ) {
+    // Si es una transacción de apertura de cuenta, usar color azul
     final Color typeColor;
 
-    switch (t.tipo) {
-      case 'ingreso':
-        typeColor = Colors.greenAccent;
-        break;
-      case 'egreso':
-        typeColor = Colors.redAccent;
-        break;
-      default:
-        typeColor = Colors.blueAccent;
+    if (t.esAperturaCuenta) {
+      typeColor = Colors.blueAccent;
+    } else {
+      switch (t.tipo) {
+        case 'ingreso':
+          typeColor = Colors.greenAccent;
+          break;
+        case 'egreso':
+          typeColor = Colors.redAccent;
+          break;
+        default:
+          typeColor = Colors.blueAccent;
+      }
     }
 
     return Dismissible(
       key: Key('transaction_${t.id}'),
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.endToStart) {
+          // Verificar si es una transacción de apertura de cuenta
+          if (t.esAperturaCuenta && t.cuentaId != null) {
+            // Mostrar diálogo especial para transacciones de apertura
+            final result = await _showDeleteAccountOpeningDialog(context, t);
+            if (result == true && context.mounted) {
+              final controller = ref.read(transactionsControllerProvider.notifier);
+              final success = await controller.deleteAccountWithTransaction(t.cuentaId!);
+
+              if (success && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Cuenta y transacciones eliminadas'),
+                    backgroundColor: Color(0xFF13BB67),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            }
+            return false;
+          }
+
+          // Diálogo normal para transacciones regulares
           final confirm = await showDialog<bool>(
             context: context,
             builder: (BuildContext dialogContext) {
@@ -341,12 +371,18 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
           }
           return false;
         } else if (direction == DismissDirection.startToEnd) {
-          await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => TransactionDetailScreen(tx: t),
-            ),
-          );
+          // Si es una transacción de apertura, ir a la configuración de la cuenta
+          if (t.esAperturaCuenta && t.cuentaId != null) {
+            await _navigateToAccountSettings(context, t.cuentaId!);
+          } else {
+            // Para transacciones normales, ir a los detalles de la transacción
+            await Navigator.push<bool>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TransactionDetailScreen(tx: t),
+              ),
+            );
+          }
           // El controlador se actualiza automáticamente
           return false;
         }
@@ -424,12 +460,18 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () async {
-                await Navigator.push<bool>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => TransactionDetailScreen(tx: t),
-                  ),
-                );
+                // Si es una transacción de apertura, ir a la configuración de la cuenta
+                if (t.esAperturaCuenta && t.cuentaId != null) {
+                  await _navigateToAccountSettings(context, t.cuentaId!);
+                } else {
+                  // Para transacciones normales, ir a los detalles
+                  await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => TransactionDetailScreen(tx: t),
+                    ),
+                  );
+                }
                 // El controlador se actualiza automáticamente
               },
               child: Padding(
@@ -448,9 +490,11 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
                         ),
                       ),
                       child: Icon(
-                        t.tipo == 'ingreso'
-                            ? Icons.trending_up_rounded
-                            : Icons.trending_down_rounded,
+                        t.esAperturaCuenta
+                            ? Icons.account_balance_wallet_rounded
+                            : t.tipo == 'ingreso'
+                                ? Icons.trending_up_rounded
+                                : Icons.trending_down_rounded,
                         color: typeColor,
                         size: 22,
                       ),
@@ -496,7 +540,7 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerRight,
                         child: Text(
-                          'S/. ${t.monto.toStringAsFixed(2)}',
+                          'S/. ${CurrencyFormatter.formatAmount(t.monto)}',
                           style: TextStyle(
                             color: typeColor,
                             fontSize: 15,
@@ -599,7 +643,7 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
-              'S/. ${amount.toStringAsFixed(2)}',
+              'S/. ${CurrencyFormatter.formatAmount(amount)}',
               style: TextStyle(
                 color: color,
                 fontSize: isHighlighted ? 16 : 13,
@@ -791,7 +835,7 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
                                     fit: BoxFit.scaleDown,
                                     alignment: Alignment.centerLeft,
                                     child: Text(
-                                      'S/. ${dayEgresos.toStringAsFixed(2)}',
+                                      'S/. ${CurrencyFormatter.formatAmount(dayEgresos)}',
                                       style: TextStyle(
                                         color: Colors.redAccent.withValues(alpha: 0.85),
                                         fontSize: 10,
@@ -834,7 +878,7 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
                                     fit: BoxFit.scaleDown,
                                     alignment: Alignment.centerLeft,
                                     child: Text(
-                                      'S/. ${dayIngresos.toStringAsFixed(2)}',
+                                      'S/. ${CurrencyFormatter.formatAmount(dayIngresos)}',
                                       style: TextStyle(
                                         color: Colors.greenAccent.withValues(alpha: 0.85),
                                         fontSize: 10,
@@ -859,6 +903,294 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _navigateToAccountSettings(BuildContext context, int accountId) async {
+    // Obtener la cuenta del repositorio
+    final accountRepo = ref.read(accountRepositoryProvider);
+    final account = await accountRepo.getAccountById(accountId);
+
+    if (account == null || !context.mounted) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo cargar la cuenta'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    // Navegar a la pantalla de cuentas mostrando el detalle de esta cuenta
+    // Necesitamos importar AccountsTab o la vista de cuentas
+    // Por ahora, mostramos un diálogo con los detalles de la cuenta
+    await showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2D2D2D),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet,
+                  color: Colors.blue,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  account.nombre,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildAccountDetailRow('Tipo', account.tipoDisplay),
+              _buildAccountDetailRow('Saldo', '${account.moneda} ${CurrencyFormatter.formatAmount(account.saldo)}'),
+              _buildAccountDetailRow('Saldo Inicial', '${account.moneda} ${CurrencyFormatter.formatAmount(account.saldoInicial)}'),
+              if (account.institucion != null && account.institucion!.isNotEmpty)
+                _buildAccountDetailRow('Institución', account.institucion!),
+              if (account.numeroFin != null && account.numeroFin!.isNotEmpty)
+                _buildAccountDetailRow('Número', account.numeroEnmascarado ?? ''),
+              _buildAccountDetailRow('Incluir en Total', account.incluirEnTotal ? 'Sí' : 'No'),
+              _buildAccountDetailRow('Estado', account.activa ? 'Activa' : 'Inactiva'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text(
+                'Cerrar',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                // Abrir el diálogo de edición de cuenta
+                final result = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => EditAccountDialog(
+                    account: account,
+                    onAccountUpdated: () {
+                      // Recargar las transacciones cuando se actualice la cuenta
+                      ref.read(transactionsControllerProvider.notifier).reloadAfterAccountUpdate();
+                    },
+                  ),
+                );
+
+                if (result == true && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Cuenta actualizada correctamente'),
+                      backgroundColor: Color(0xFF13BB67),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              icon: const Icon(Icons.edit_rounded, size: 18),
+              label: const Text('Editar'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildAccountDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _showDeleteAccountOpeningDialog(BuildContext context, AppTransaction transaction) async {
+    return showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2D2D2D),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.warning_rounded,
+                  color: Colors.orange,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Cuenta Vinculada',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.blue.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.account_balance_wallet,
+                      color: Colors.blue,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        transaction.etiqueta ?? 'Cuenta sin nombre',
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Esta transacción representa la apertura de una cuenta.',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Al eliminarla, se borrará la cuenta y TODAS sus transacciones asociadas.',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '¿Deseas continuar?',
+                style: TextStyle(
+                  color: Colors.grey.shade400,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            // Botón para ir a la cuenta
+            TextButton.icon(
+              onPressed: () async {
+                Navigator.pop(dialogContext, false);
+                // Navegar a la configuración de la cuenta
+                await _navigateToAccountSettings(context, transaction.cuentaId!);
+              },
+              icon: const Icon(Icons.visibility_rounded, size: 18),
+              label: const Text('Ver Cuenta'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.blueAccent,
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(color: Colors.grey),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              icon: const Icon(Icons.delete_rounded, size: 18),
+              label: const Text('Eliminar Cuenta'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

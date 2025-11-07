@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/components/analytics_design_system.dart';
+import '../../../shared/utils/currency_formatter.dart';
 
 /// Widgets reutilizables para la pantalla de informes
 
@@ -52,7 +53,7 @@ class ReportsWidgets {
             Text(label, style: AnalyticsDesignSystem.kpiLabel),
             const SizedBox(height: AnalyticsDesignSystem.spacing2),
             Text(
-              'S/ ${amount.toStringAsFixed(2)}',
+              'S/ ${CurrencyFormatter.formatAmount(amount)}',
               style: AnalyticsDesignSystem.kpiSmall.copyWith(color: color),
             ),
           ],

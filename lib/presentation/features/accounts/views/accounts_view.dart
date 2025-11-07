@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../data/models/account_model.dart';
+import '../../../shared/utils/currency_formatter.dart';
 import '../controllers/accounts_controller.dart';
 
 class AccountsTab extends ConsumerStatefulWidget {
@@ -138,7 +139,7 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
           ),
           const SizedBox(height: 16),
           Text(
-            'S/ ${netWorth.toStringAsFixed(2)}',
+            'S/ ${CurrencyFormatter.formatAmount(netWorth)}',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 36,
@@ -181,7 +182,7 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
                   ),
                 ),
                 Text(
-                  'S/ ${amount.toStringAsFixed(0)}',
+                  'S/ ${CurrencyFormatter.formatAmount(amount)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
@@ -256,7 +257,7 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
         ),
         const Spacer(),
         Text(
-          'S/ ${total.toStringAsFixed(2)}',
+          'S/ ${CurrencyFormatter.formatAmount(total)}',
           style: TextStyle(
             color: color,
             fontSize: 16,
@@ -303,7 +304,7 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
             ),
           ),
           Text(
-            '${account.moneda} ${account.saldo.abs().toStringAsFixed(2)}',
+            '${account.moneda} ${CurrencyFormatter.formatAmount(account.saldo.abs())}',
             style: TextStyle(
               color: color.withValues(alpha: 0.8),
               fontSize: 14,
@@ -391,7 +392,7 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  '${account.moneda} ${account.saldo.abs().toStringAsFixed(2)}',
+                  '${account.moneda} ${CurrencyFormatter.formatAmount(account.saldo.abs())}',
                   style: TextStyle(
                     color: color,
                     fontWeight: FontWeight.bold,
@@ -731,9 +732,6 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
                                 institucion: institucionController.text.trim().isEmpty
                                     ? null
                                     : institucionController.text.trim(),
-                                nota: notaController.text.trim().isEmpty
-                                    ? null
-                                    : notaController.text.trim(),
                               );
 
                               if (dialogContext.mounted) {
@@ -773,7 +771,6 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
     required double saldo,
     required String moneda,
     String? institucion,
-    String? nota,
   }) async {
     try {
       final result = await ref.read(accountsControllerProvider.notifier).createAccount(
@@ -782,7 +779,6 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
         saldo: saldo,
         moneda: moneda,
         institucion: institucion,
-        nota: nota,
       );
 
       if (mounted) {
@@ -841,16 +837,12 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
                 const SizedBox(height: 20),
                 _buildDetailRow('Tipo', account.tipoDisplay),
                 _buildDetailRow('Moneda', account.moneda),
-                _buildDetailRow('Balance', '${account.moneda} ${account.saldo.toStringAsFixed(2)}'),
+                _buildDetailRow('Balance', '${account.moneda} ${CurrencyFormatter.formatAmount(account.saldo)}'),
                 if (account.institucion != null)
                   _buildDetailRow('Institución', account.institucion!),
-                if (account.nota != null)
-                  _buildDetailRow('Nota', account.nota!),
                 _buildDetailRow(
                   'Última actualización',
-                  account.fechaActualizacion != null
-                      ? _formatDate(account.fechaActualizacion!)
-                      : 'Sin actualizar'
+                  _formatDate(account.updatedAt)
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -914,7 +906,6 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
     final nombreController = TextEditingController(text: account.nombre);
     final saldoController = TextEditingController(text: account.saldo.toStringAsFixed(2));
     final institucionController = TextEditingController(text: account.institucion ?? '');
-    final notaController = TextEditingController(text: account.nota ?? '');
 
     String tipoSeleccionado = account.tipo;
     String monedaSeleccionada = account.moneda;
@@ -1030,15 +1021,6 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
                             ),
                           ],
                         ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: notaController,
-                          decoration: const InputDecoration(
-                            labelText: 'Nota (opcional)',
-                            border: OutlineInputBorder(),
-                          ),
-                          maxLines: 2,
-                        ),
                       ],
                     ),
                   ),
@@ -1061,9 +1043,6 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
                             institucion: institucionController.text.trim().isEmpty
                                 ? null
                                 : institucionController.text,
-                            nota: notaController.text.trim().isEmpty
-                                ? null
-                                : notaController.text,
                           ),
                         );
                       }

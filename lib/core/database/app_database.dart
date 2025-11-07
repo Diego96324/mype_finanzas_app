@@ -30,7 +30,7 @@ class AppDatabase {
     final path = join(dir.path, 'mype_finanzas.db');
     return openDatabase(
       path,
-      version: 5,
+      version: 7,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -91,6 +91,8 @@ class AppDatabase {
       CREATE TABLE transacciones(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         usuario_id INTEGER NOT NULL,
+        cuenta_id INTEGER,
+        cuenta_destino_id INTEGER,
         categoria_id INTEGER,
         tipo TEXT NOT NULL,
         monto REAL NOT NULL,
@@ -101,11 +103,16 @@ class AppDatabase {
         comprobante_uri TEXT,
         ubicacion TEXT,
         recurrente INTEGER NOT NULL DEFAULT 0,
+        es_recurrente INTEGER NOT NULL DEFAULT 0,
+        es_apertura_cuenta INTEGER NOT NULL DEFAULT 0,
+        confirmada INTEGER NOT NULL DEFAULT 1,
         frecuencia_recurrencia TEXT,
         sincronizado INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        FOREIGN KEY(cuenta_id) REFERENCES cuentas(id) ON DELETE CASCADE,
+        FOREIGN KEY(cuenta_destino_id) REFERENCES cuentas(id) ON DELETE SET NULL,
         FOREIGN KEY(categoria_id) REFERENCES categorias(id) ON DELETE SET NULL
       )
     ''');
@@ -180,6 +187,28 @@ class AppDatabase {
     ''');
 
     await db.execute('''
+      CREATE TABLE cuentas(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        nombre TEXT NOT NULL,
+        tipo TEXT NOT NULL,
+        saldo REAL NOT NULL DEFAULT 0,
+        saldo_inicial REAL NOT NULL DEFAULT 0,
+        numero_fin TEXT,
+        institucion TEXT,
+        moneda TEXT NOT NULL DEFAULT 'PEN',
+        color TEXT NOT NULL,
+        icono TEXT NOT NULL,
+        activa INTEGER NOT NULL DEFAULT 1,
+        incluir_en_total INTEGER NOT NULL DEFAULT 1,
+        orden INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
       CREATE TABLE budgets(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         usuario_id INTEGER NOT NULL,
@@ -215,6 +244,7 @@ class AppDatabase {
     await db.execute('CREATE INDEX idx_presupuestos_usuario ON presupuestos(usuario_id)');
     await db.execute('CREATE INDEX idx_metas_usuario ON metas_financieras(usuario_id)');
     await db.execute('CREATE INDEX idx_accounts_usuario ON accounts(usuario_id)');
+    await db.execute('CREATE INDEX idx_cuentas_usuario ON cuentas(usuario_id)');
     await db.execute('CREATE INDEX idx_budgets_usuario_mes ON budgets(usuario_id, mes, anio)');
     await db.execute('CREATE INDEX idx_budget_periods_usuario ON budget_periods(usuario_id, periodo, mes, anio)');
 
@@ -390,6 +420,82 @@ class AppDatabase {
         await db.execute('ALTER TABLE accounts ADD COLUMN activa INTEGER NOT NULL DEFAULT 1');
       } catch (e) {
         debugPrint('⚠️ Columna activa ya existe o error al agregar: $e');
+      }
+    }
+
+    if (oldVersion < 6) {
+      // Crear la nueva tabla cuentas con todas las columnas necesarias
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS cuentas(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          usuario_id INTEGER NOT NULL,
+          nombre TEXT NOT NULL,
+          tipo TEXT NOT NULL,
+          saldo REAL NOT NULL DEFAULT 0,
+          saldo_inicial REAL NOT NULL DEFAULT 0,
+          numero_fin TEXT,
+          institucion TEXT,
+          moneda TEXT NOT NULL DEFAULT 'PEN',
+          color TEXT NOT NULL,
+          icono TEXT NOT NULL,
+          activa INTEGER NOT NULL DEFAULT 1,
+          incluir_en_total INTEGER NOT NULL DEFAULT 1,
+          orden INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+        )
+      ''');
+
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_cuentas_usuario ON cuentas(usuario_id)');
+
+      // Agregar columnas a transacciones para soportar cuentas
+      try {
+        await db.execute('ALTER TABLE transacciones ADD COLUMN cuenta_id INTEGER');
+      } catch (e) {
+        debugPrint('⚠️ Columna cuenta_id ya existe: $e');
+      }
+
+      try {
+        await db.execute('ALTER TABLE transacciones ADD COLUMN cuenta_destino_id INTEGER');
+      } catch (e) {
+        debugPrint('⚠️ Columna cuenta_destino_id ya existe: $e');
+      }
+
+      try {
+        await db.execute('ALTER TABLE transacciones ADD COLUMN es_recurrente INTEGER NOT NULL DEFAULT 0');
+      } catch (e) {
+        debugPrint('⚠️ Columna es_recurrente ya existe: $e');
+      }
+
+      try {
+        await db.execute('ALTER TABLE transacciones ADD COLUMN confirmada INTEGER NOT NULL DEFAULT 1');
+      } catch (e) {
+        debugPrint('⚠️ Columna confirmada ya existe: $e');
+      }
+
+      debugPrint('✅ Tabla cuentas creada exitosamente');
+    }
+
+    if (oldVersion < 7) {
+      // Agregar columna para identificar transacciones de apertura de cuenta
+      try {
+        await db.execute('ALTER TABLE transacciones ADD COLUMN es_apertura_cuenta INTEGER NOT NULL DEFAULT 0');
+        debugPrint('✅ Columna es_apertura_cuenta agregada');
+      } catch (e) {
+        debugPrint('⚠️ Columna es_apertura_cuenta ya existe: $e');
+      }
+
+      // Marcar las transacciones existentes de "Saldo inicial" como apertura de cuenta
+      try {
+        await db.execute('''
+          UPDATE transacciones 
+          SET es_apertura_cuenta = 1 
+          WHERE descripcion = 'Saldo inicial'
+        ''');
+        debugPrint('✅ Transacciones de apertura marcadas');
+      } catch (e) {
+        debugPrint('⚠️ Error al marcar transacciones de apertura: $e');
       }
     }
   }

@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../../data/models/transaction_model.dart';
 import '../../../../data/repositories/transaction_repo.dart';
+import '../../../../data/repositories/account_repository.dart';
 import '../../../../domain/services/auth_service.dart';
 import '../../../../domain/services/transaction_cache_service.dart';
 
 part 'transactions_controller.g.dart';
+
+// Provider para el repositorio de cuentas
+final accountRepositoryProvider = Provider<AccountRepository>((ref) => AccountRepository());
 
 class TransactionsState {
   final List<AppTransaction> transactions; // lista de movimientos
@@ -240,6 +244,33 @@ class TransactionsController extends _$TransactionsController {
     }
   }
 
+  // Borra una cuenta desde una transacción de apertura
+  Future<bool> deleteAccountWithTransaction(int accountId) async {
+    try {
+      final userId = _authService.currentUserId;
+
+      if (userId == null) {
+        state = state.copyWith(error: 'Usuario no autenticado');
+        return false;
+      }
+
+      // Importar el repositorio de cuentas
+      final accountRepo = ref.read(accountRepositoryProvider);
+      final success = await accountRepo.deleteAccountFromTransaction(accountId);
+
+      if (success) {
+        // Actualizamos la lista de transacciones
+        _cacheService.invalidateUser(userId);
+        await loadTransactions();
+      }
+
+      return success;
+    } catch (e) {
+      state = state.copyWith(error: 'Error al eliminar cuenta: ${e.toString()}');
+      return false;
+    }
+  }
+
   // Busca una transacción específica por ID
   Future<AppTransaction?> getTransactionById(int transactionId) async {
     try {
@@ -329,6 +360,11 @@ class TransactionsController extends _$TransactionsController {
     await loadTransactions();
   }
 
+  // Recarga después de editar una cuenta (llamado desde el diálogo de edición)
+  Future<void> reloadAfterAccountUpdate() async {
+    await loadTransactions();
+  }
+
   // Obtiene el rango de fechas actual
   DateTimeRange? get currentDateRange {
     if (state.filters.from != null && state.filters.to != null) {
@@ -357,5 +393,3 @@ class TransactionsController extends _$TransactionsController {
     return state.filters.searchTerm;
   }
 }
-
-
