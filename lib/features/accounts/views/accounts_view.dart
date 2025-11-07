@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/models/account_model.dart';
-import 'controllers/accounts_controller.dart';
+import '../../../core/models/account_model.dart';
+import '../controllers/accounts_controller.dart';
 
 class AccountsTab extends ConsumerStatefulWidget {
   const AccountsTab({super.key});
@@ -1106,7 +1106,6 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
       }
     }
   }
-
   void _confirmDeleteAccount(Account account) {
     showDialog(
       context: context,

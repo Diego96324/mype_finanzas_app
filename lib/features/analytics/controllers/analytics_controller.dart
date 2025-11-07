@@ -65,7 +65,7 @@ class AnalyticsController extends _$AnalyticsController {
 
   // Carga las transacciones para un rango de fechas
   Future<void> loadTransactions(DateTimeRange range) async {
-    print('🔵 [AnalyticsController] Rango: ${range.start} - ${range.end}');
+    debugPrint('🔵 [AnalyticsController] Rango: ${range.start} - ${range.end}');
     state = state.copyWith(
       isLoading: true,
       error: null,
@@ -74,10 +74,10 @@ class AnalyticsController extends _$AnalyticsController {
 
     try {
       final userId = _authService.currentUserId;
-      print('🔵 [AnalyticsController] User: $userId');
+      debugPrint('🔵 [AnalyticsController] User: $userId');
 
       if (userId == null) {
-        print('🔴 [AnalyticsController] Sin usuario');
+        debugPrint('🔴 [AnalyticsController] Sin usuario');
         state = state.copyWith(
           isLoading: false,
           error: 'Usuario no autenticado',
@@ -93,11 +93,11 @@ class AnalyticsController extends _$AnalyticsController {
         order: 'fecha_desc',
       );
 
-      print('✅ [AnalyticsController] ${transactions.length} transacciones');
+      debugPrint('✅ [AnalyticsController] ${transactions.length} transacciones');
 
       // Calculamos stats
       final stats = await _transactionRepo.getStats(usuarioId: userId);
-      print('✅ [AnalyticsController] Stats: $stats');
+      debugPrint('✅ [AnalyticsController] Stats: $stats');
 
       state = AnalyticsState(
         transactions: transactions,
@@ -107,10 +107,10 @@ class AnalyticsController extends _$AnalyticsController {
         error: null,
       );
 
-      print('✅ [AnalyticsController] Listo');
+      debugPrint('✅ [AnalyticsController] Listo');
     } catch (e, stackTrace) {
-      print('🔴 [AnalyticsController] Error: $e');
-      print('🔴 [AnalyticsController] StackTrace: $stackTrace');
+      debugPrint('🔴 [AnalyticsController] Error: $e');
+      debugPrint('🔴 [AnalyticsController] StackTrace: $stackTrace');
       state = state.copyWith(
         isLoading: false,
         error: 'Error al cargar: ${e.toString()}',

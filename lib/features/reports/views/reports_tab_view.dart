@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/utils/date_picker_theme.dart';
-import '../../core/utils/analytics_design_system.dart';
-import 'widgets/reports_widgets.dart';
-import 'widgets/dynamic_budget_section.dart';
-import 'widgets/dynamic_trends_section.dart';
-import 'widgets/dynamic_comparison_section.dart';
-import 'controllers/reports_controller.dart';
+import '../../../core/theme/date_picker_theme.dart';
+import '../../../core/theme/analytics_design_system.dart';
+import '../widgets/reports_widgets.dart';
+import '../widgets/dynamic_budget_section.dart';
+import '../widgets/dynamic_trends_section.dart';
+import '../widgets/dynamic_comparison_section.dart';
+import '../controllers/reports_controller.dart';
 
 class ReportsTab extends ConsumerStatefulWidget {
   const ReportsTab({super.key});
@@ -19,11 +19,6 @@ class _ReportsTabState extends ConsumerState<ReportsTab> with AutomaticKeepAlive
   @override
   bool get wantKeepAlive => true;
 
-  @override
-  void initState() {
-    super.initState();
-    // El controlador ya carga las transacciones automáticamente
-  }
 
   void _changePeriod(String period) {
     // Delegamos al controlador

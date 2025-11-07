@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/utils/analytics_design_system.dart';
+import '../../../core/theme/analytics_design_system.dart';
 import '../controllers/budget_period_controller.dart';
 
 class DynamicBudgetSection extends ConsumerStatefulWidget {
@@ -30,11 +30,11 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
   @override
   void initState() {
     super.initState();
-    print('🔵 [DynamicBudgetSection] initState - selectedPeriod=${widget.selectedPeriod}, mes=${widget.currentMonth}, anio=${widget.currentYear}');
+    debugPrint('🔵 [DynamicBudgetSection] initState - selectedPeriod=${widget.selectedPeriod}, mes=${widget.currentMonth}, anio=${widget.currentYear}');
 
     // Creamos la key inicial
     _budgetKey = _createBudgetKey();
-    print('   budgetKey=$_budgetKey');
+    debugPrint('   budgetKey=$_budgetKey');
   }
 
   @override
@@ -43,13 +43,13 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
     if (oldWidget.selectedPeriod != widget.selectedPeriod ||
         oldWidget.currentMonth != widget.currentMonth ||
         oldWidget.currentYear != widget.currentYear) {
-      print('🔵 [DynamicBudgetSection] didUpdateWidget - Cambio detectado');
-      print('   Old: periodo=${oldWidget.selectedPeriod}, mes=${oldWidget.currentMonth}, anio=${oldWidget.currentYear}');
-      print('   New: periodo=${widget.selectedPeriod}, mes=${widget.currentMonth}, anio=${widget.currentYear}');
+      debugPrint('🔵 [DynamicBudgetSection] didUpdateWidget - Cambio detectado');
+      debugPrint('   Old: periodo=${oldWidget.selectedPeriod}, mes=${oldWidget.currentMonth}, anio=${oldWidget.currentYear}');
+      debugPrint('   New: periodo=${widget.selectedPeriod}, mes=${widget.currentMonth}, anio=${widget.currentYear}');
 
       setState(() {
         _budgetKey = _createBudgetKey();
-        print('   Nueva budgetKey=$_budgetKey');
+        debugPrint('   Nueva budgetKey=$_budgetKey');
       });
     }
   }
@@ -89,10 +89,10 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
   Widget build(BuildContext context) {
     final budgetState = ref.watch(budgetPeriodControllerProvider(_budgetKey));
 
-    print('🔍 [DynamicBudgetSection] build - key=$_budgetKey, isLoading=${budgetState.isLoading}, currentBudget=${budgetState.currentBudget?.monto ?? "null"}, error=${budgetState.error}');
+    debugPrint('🔍 [DynamicBudgetSection] build - key=$_budgetKey, isLoading=${budgetState.isLoading}, currentBudget=${budgetState.currentBudget?.monto ?? "null"}, error=${budgetState.error}');
 
     if (budgetState.isLoading) {
-      print('   → Mostrando loading');
+      debugPrint('   → Mostrando loading');
       return AnalyticsDesignSystem.buildCard(
         child: const Center(
           child: Padding(
@@ -107,7 +107,7 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
 
     // Si hay error, mostrarlo
     if (budgetState.error != null) {
-      print('   → Mostrando error: ${budgetState.error}');
+      debugPrint('   → Mostrando error: ${budgetState.error}');
       return AnalyticsDesignSystem.buildCard(
         child: Center(
           child: Padding(
@@ -129,7 +129,7 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
       );
     }
 
-    print('   → Renderizando presupuesto');
+    debugPrint('   → Renderizando presupuesto');
     final double budgetAmount = budgetState.currentBudget?.monto ?? 0.0;
     final double spent = widget.summary['gastos'] ?? 0.0;
     final double remaining = budgetAmount - spent;
@@ -615,4 +615,3 @@ class _DynamicBudgetSectionState extends ConsumerState<DynamicBudgetSection> {
     }
   }
 }
-

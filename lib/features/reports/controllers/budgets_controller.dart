@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/budget_model.dart';
@@ -41,22 +42,22 @@ class BudgetsController extends StateNotifier<BudgetsState> {
 
   // Carga el presupuesto del mes actual
   Future<void> loadCurrentMonthBudget() async {
-    print('🔵 [BudgetsController] Cargando presupuesto...');
+    debugPrint('🔵 [BudgetsController] Cargando presupuesto...');
     final now = DateTime.now();
     await loadBudgetForMonth(now.month, now.year);
   }
 
   // Trae el presupuesto de un mes específico
   Future<void> loadBudgetForMonth(int mes, int anio) async {
-    print('🔵 [BudgetsController] Mes: $mes/$anio');
+    debugPrint('🔵 [BudgetsController] Mes: $mes/$anio');
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       final userId = _authService.currentUserId;
-      print('🔵 [BudgetsController] User: $userId');
+      debugPrint('🔵 [BudgetsController] User: $userId');
 
       if (userId == null) {
-        print('🔴 [BudgetsController] No hay usuario');
+        debugPrint('🔴 [BudgetsController] No hay usuario');
         state = state.copyWith(
           isLoading: false,
           error: 'Usuario no autenticado',
@@ -70,7 +71,7 @@ class BudgetsController extends StateNotifier<BudgetsState> {
         anio: anio,
       );
 
-      print('✅ [BudgetsController] Presupuesto: ${budget?.monto ?? "ninguno"}');
+      debugPrint('✅ [BudgetsController] Presupuesto: ${budget?.monto ?? "ninguno"}');
 
       state = BudgetsState(
         currentBudget: budget,
@@ -78,10 +79,10 @@ class BudgetsController extends StateNotifier<BudgetsState> {
         error: null,
       );
 
-      print('✅ [BudgetsController] Listo');
+      debugPrint('✅ [BudgetsController] Listo');
     } catch (e, stackTrace) {
-      print('🔴 [BudgetsController] Error: $e');
-      print('🔴 [BudgetsController] StackTrace: $stackTrace');
+      debugPrint('🔴 [BudgetsController] Error: $e');
+      debugPrint('🔴 [BudgetsController] StackTrace: $stackTrace');
       state = state.copyWith(
         isLoading: false,
         error: 'Error al cargar presupuesto: ${e.toString()}',
@@ -191,5 +192,3 @@ class BudgetsController extends StateNotifier<BudgetsState> {
 final budgetsControllerProvider = StateNotifierProvider<BudgetsController, BudgetsState>((ref) {
   return BudgetsController();
 });
-
-

@@ -4,9 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 
-import '../../core/providers/providers.dart';
-import '../transactions/controllers/transactions_controller.dart';
-import '../auth/change_password_screen.dart';
+import '../../../core/providers/providers.dart';
+import '../../transactions/controllers/transactions_controller.dart';
+import '../../auth/views/change_password_view.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});

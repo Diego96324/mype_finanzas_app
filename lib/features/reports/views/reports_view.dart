@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../core/utils/analytics_design_system.dart';
-import 'reports_tab.dart';
-import 'accounts_tab.dart';
+import '../../../core/theme/analytics_design_system.dart';
+import 'reports_tab_view.dart';
+import '../../accounts/views/accounts_view.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});

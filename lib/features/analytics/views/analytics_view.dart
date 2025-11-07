@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import '../../core/models/transaction_model.dart';
-import '../../core/utils/date_picker_theme.dart';
-import '../transactions/add_transaction_screen.dart';
-import 'controllers/analytics_controller.dart';
+import '../../../core/models/transaction_model.dart';
+import '../../../core/theme/date_picker_theme.dart';
+import '../../transactions/views/add_transaction_view.dart';
+import '../controllers/analytics_controller.dart';
 
 class AnalyticsScreen extends ConsumerStatefulWidget {
   const AnalyticsScreen({super.key});

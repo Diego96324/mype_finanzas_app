@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../../../core/models/transaction_model.dart';
-import '../../../core/utils/analytics_design_system.dart';
+import '../../../core/theme/analytics_design_system.dart';
 
 class DynamicTrendsSection extends StatelessWidget {
   final String selectedPeriod;

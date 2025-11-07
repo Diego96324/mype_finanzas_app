@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/transaction_model.dart';
 import '../../../core/repos/transaction_repo.dart';
 import '../../../core/providers/providers.dart';
-import '../../../core/utils/analytics_design_system.dart';
+import '../../../core/theme/analytics_design_system.dart';
 
 class DynamicComparisonSection extends ConsumerStatefulWidget {
   final String selectedPeriod;

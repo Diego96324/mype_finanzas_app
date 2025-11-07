@@ -66,15 +66,15 @@ class ReportsController extends _$ReportsController {
 
   // Carga las transacciones del rango actual
   Future<void> loadTransactions() async {
-    print('🔵 [ReportsController] Cargando transacciones...');
+    debugPrint('🔵 [ReportsController] Cargando transacciones...');
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       final userId = _authService.currentUserId;
-      print('🔵 [ReportsController] User: $userId');
+      debugPrint('🔵 [ReportsController] User: $userId');
 
       if (userId == null) {
-        print('🔴 [ReportsController] Sin usuario');
+        debugPrint('🔴 [ReportsController] Sin usuario');
         state = state.copyWith(
           isLoading: false,
           error: 'Usuario no autenticado',
@@ -88,7 +88,7 @@ class ReportsController extends _$ReportsController {
         to: state.dateRange.end,
       );
 
-      print('✅ [ReportsController] ${transactions.length} transacciones');
+      debugPrint('✅ [ReportsController] ${transactions.length} transacciones');
 
       state = state.copyWith(
         transactions: transactions,
@@ -96,10 +96,10 @@ class ReportsController extends _$ReportsController {
         error: null,
       );
 
-      print('✅ [ReportsController] Listo');
+      debugPrint('✅ [ReportsController] Listo');
     } catch (e, stackTrace) {
-      print('🔴 [ReportsController] Error: $e');
-      print('🔴 [ReportsController] StackTrace: $stackTrace');
+      debugPrint('🔴 [ReportsController] Error: $e');
+      debugPrint('🔴 [ReportsController] StackTrace: $stackTrace');
       state = state.copyWith(
         isLoading: false,
         error: 'Error al cargar: ${e.toString()}',

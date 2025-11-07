@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/models/transaction_model.dart';
@@ -44,21 +45,21 @@ class TransactionDetailController extends _$TransactionDetailController {
 
   // Carga los detalles de la transacción
   Future<void> loadTransaction(int id) async {
-    print('🔵 [TransactionDetailController] ID: $id');
+    debugPrint('🔵 [TransactionDetailController] ID: $id');
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       final transaction = await _transactionRepo.getById(id);
 
       if (transaction != null) {
-        print('✅ [TransactionDetailController] Transacción: ${transaction.etiqueta}');
+        debugPrint('✅ [TransactionDetailController] Transacción: ${transaction.etiqueta}');
         state = TransactionDetailState(
           transaction: transaction,
           isLoading: false,
           error: null,
         );
       } else {
-        print('🔴 [TransactionDetailController] No encontrada');
+        debugPrint('🔴 [TransactionDetailController] No encontrada');
         state = TransactionDetailState(
           transaction: null,
           isLoading: false,
@@ -66,8 +67,8 @@ class TransactionDetailController extends _$TransactionDetailController {
         );
       }
     } catch (e, stackTrace) {
-      print('🔴 [TransactionDetailController] Error: $e');
-      print('🔴 [TransactionDetailController] StackTrace: $stackTrace');
+      debugPrint('🔴 [TransactionDetailController] Error: $e');
+      debugPrint('🔴 [TransactionDetailController] StackTrace: $stackTrace');
       state = TransactionDetailState(
         transaction: null,
         isLoading: false,
@@ -134,4 +135,3 @@ class TransactionDetailController extends _$TransactionDetailController {
     }
   }
 }
-

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/utils/analytics_design_system.dart';
+import '../../../core/theme/analytics_design_system.dart';
 
 /// Widgets reutilizables para la pantalla de informes
 

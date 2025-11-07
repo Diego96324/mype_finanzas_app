@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/providers/providers.dart';
-import '../../core/widgets/animated_form_field.dart';
-import '../../core/utils/form_validators.dart';
+import '../../../core/providers/providers.dart';
+import '../../../core/widgets/animated_form_field.dart';
+import '../../../core/utils/form_validators.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});

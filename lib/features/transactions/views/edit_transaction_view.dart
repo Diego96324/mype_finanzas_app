@@ -1,27 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/models/transaction_model.dart';
-import '../../core/utils/date_picker_theme.dart';
-import 'controllers/transactions_controller.dart';
+import '../../../core/models/transaction_model.dart';
+import '../../../core/theme/date_picker_theme.dart';
+import '../controllers/transactions_controller.dart';
 
-class AddTransactionScreen extends ConsumerStatefulWidget {
-  final AppTransaction? baseTx;
-  final DateTime? initialDate;
-  final DateTimeRange? allowedDateRange;
-
-  const AddTransactionScreen({
-    super.key,
-    this.baseTx,
-    this.initialDate,
-    this.allowedDateRange,
-  });
+class EditTransactionScreen extends ConsumerStatefulWidget {
+  final AppTransaction tx;
+  const EditTransactionScreen({super.key, required this.tx});
 
   @override
-  ConsumerState<AddTransactionScreen> createState() => _AddTransactionScreenState();
+  ConsumerState<EditTransactionScreen> createState() => _EditTransactionScreenState();
 }
 
-class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> with SingleTickerProviderStateMixin {
+class _EditTransactionScreenState extends ConsumerState<EditTransactionScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
 
   late String _tipo;
@@ -37,12 +29,11 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
   @override
   void initState() {
     super.initState();
-    final base = widget.baseTx;
-    _tipo = base?.tipo ?? 'egreso';
-    _fecha = widget.initialDate ?? DateTime.now();
-    _montoCtrl.text = base?.monto.toStringAsFixed(2) ?? '';
-    _etiquetaCtrl.text = base?.etiqueta ?? '';
-    _notaCtrl.text = base?.nota ?? '';
+    _tipo = widget.tx.tipo;
+    _fecha = widget.tx.fecha;
+    _montoCtrl.text = widget.tx.monto.toStringAsFixed(2);
+    _etiquetaCtrl.text = widget.tx.etiqueta ?? '';
+    _notaCtrl.text = widget.tx.nota ?? '';
 
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 500),
@@ -73,17 +64,12 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
   }
 
   Future<void> _pickFecha() async {
-    final firstDate = widget.allowedDateRange?.start ?? DateTime(2010);
-    final lastDate = widget.allowedDateRange?.end ?? DateTime(2100);
-
     final picked = await showDatePicker(
       context: context,
       initialDate: _fecha,
-      firstDate: firstDate,
-      lastDate: lastDate,
-      helpText: widget.allowedDateRange != null
-          ? 'Selecciona fecha del período'
-          : 'Selecciona la fecha',
+      firstDate: DateTime(2010),
+      lastDate: DateTime(2100),
+      helpText: 'Selecciona la fecha',
       locale: const Locale('es', 'PE'),
       builder: (context, child) {
         return Theme(
@@ -97,27 +83,33 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
 
   Future<void> _guardar() async {
     if (_formKey.currentState?.validate() != true) return;
-
     final monto = double.tryParse(_montoCtrl.text.replaceAll(',', '.')) ?? 0;
-
-    final transaction = AppTransaction(
-      usuarioId: 0, // El controlador asignará el ID correcto
+    final updated = AppTransaction(
+      id: widget.tx.id,
+      usuarioId: widget.tx.usuarioId,
+      categoriaId: widget.tx.categoriaId,
       fecha: _fecha,
       tipo: _tipo,
       monto: monto,
       etiqueta: _etiquetaCtrl.text.trim().isEmpty ? null : _etiquetaCtrl.text.trim(),
       nota: _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
-      createdAt: DateTime.now(),
+      descripcion: widget.tx.descripcion,
+      comprobanteUri: widget.tx.comprobanteUri,
+      ubicacion: widget.tx.ubicacion,
+      recurrente: widget.tx.recurrente,
+      frecuenciaRecurrencia: widget.tx.frecuenciaRecurrencia,
+      sincronizado: widget.tx.sincronizado,
+      createdAt: widget.tx.createdAt,
       updatedAt: DateTime.now(),
     );
 
-    final success = await ref.read(transactionsControllerProvider.notifier).saveTransaction(transaction);
+    final success = await ref.read(transactionsControllerProvider.notifier).updateTransaction(updated);
 
     if (mounted) {
       if (success) {
         Navigator.pop(context, true);
       } else {
-        final errorMessage = ref.read(transactionsControllerProvider).error ?? 'Error al guardar transacción';
+        final errorMessage = ref.read(transactionsControllerProvider).error ?? 'Error al actualizar transacción';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
@@ -143,7 +135,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          'Registrar transacción',
+          'Editar transacción',
           style: TextStyle(
             color: colorScheme.onSurface,
             fontSize: 20,
@@ -355,10 +347,10 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.add_rounded, color: typeColor == Colors.greenAccent ? Colors.black : Colors.white),
+                              Icon(Icons.save_rounded, color: typeColor == Colors.greenAccent ? Colors.black : Colors.white),
                               const SizedBox(width: 8),
                               Text(
-                                'Agregar Transacción',
+                                'Guardar cambios',
                                 style: TextStyle(
                                   color: typeColor == Colors.greenAccent ? Colors.black : Colors.white,
                                   fontSize: 16,
@@ -506,4 +498,3 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
     );
   }
 }
-

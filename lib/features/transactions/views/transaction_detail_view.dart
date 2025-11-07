@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../../core/models/transaction_model.dart';
-import 'controllers/transactions_controller.dart';
-import 'edit_transaction_screen.dart';
-import 'add_transaction_screen.dart';
+import '../../../core/models/transaction_model.dart';
+import '../controllers/transactions_controller.dart';
+import 'edit_transaction_view.dart';
+import 'add_transaction_view.dart';
 
 class TransactionDetailScreen extends ConsumerStatefulWidget {
   final AppTransaction tx;

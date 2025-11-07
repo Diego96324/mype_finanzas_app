@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/models/account_model.dart';
@@ -54,15 +55,15 @@ class AccountsController extends _$AccountsController {
 
   // Trae todas las cuentas desde la BD
   Future<void> loadAccounts() async {
-    print('🔵 [AccountsController] Cargando cuentas...');
+    debugPrint('🔵 [AccountsController] Cargando cuentas...');
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       final userId = _authService.currentUserId;
-      print('🔵 [AccountsController] User: $userId');
+      debugPrint('🔵 [AccountsController] User: $userId');
 
       if (userId == null) {
-        print('🔴 [AccountsController] No hay usuario logueado');
+        debugPrint('🔴 [AccountsController] No hay usuario logueado');
         state = state.copyWith(
           isLoading: false,
           error: 'Usuario no autenticado',
@@ -70,7 +71,7 @@ class AccountsController extends _$AccountsController {
         return;
       }
 
-      print('🔵 [AccountsController] Trayendo cuentas de la BD...');
+      debugPrint('🔵 [AccountsController] Trayendo cuentas de la BD...');
       // Traemos todas las cuentas junto para que sea más rápido
       final results = await Future.wait([
         _accountService.listAccounts(userId),
@@ -82,8 +83,8 @@ class AccountsController extends _$AccountsController {
       final grouped = results[1] as Map<String, List<Account>>;
       final patrimonio = results[2] as PatrimonioSummary;
 
-      print('✅ [AccountsController] Listo! ${accounts.length} cuentas');
-      print('✅ [AccountsController] Patrimonio: activos=${patrimonio.activos}, pasivos=${patrimonio.pasivos}');
+      debugPrint('✅ [AccountsController] Listo! ${accounts.length} cuentas');
+      debugPrint('✅ [AccountsController] Patrimonio: activos=${patrimonio.activos}, pasivos=${patrimonio.pasivos}');
 
       state = AccountsState(
         accounts: accounts,
@@ -93,10 +94,10 @@ class AccountsController extends _$AccountsController {
         error: null,
       );
 
-      print('✅ [AccountsController] Ya está');
+      debugPrint('✅ [AccountsController] Ya está');
     } catch (e, stackTrace) {
-      print('🔴 [AccountsController] Error: $e');
-      print('🔴 [AccountsController] StackTrace: $stackTrace');
+      debugPrint('🔴 [AccountsController] Error: $e');
+      debugPrint('🔴 [AccountsController] StackTrace: $stackTrace');
       state = state.copyWith(
         isLoading: false,
         error: 'Error al cargar cuentas: ${e.toString()}',

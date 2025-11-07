@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'core/providers/providers.dart';
-import 'features/auth/login_screen.dart';
-import 'features/auth/register_screen.dart';
-import 'features/personal_finances/home_screen.dart';
-import 'features/transactions/add_transaction_screen.dart';
-import 'features/analytics/analytics_screen.dart';
-import 'features/gamification/gamification_screen.dart';
+import '../core/providers/providers.dart';
+import '../features/auth/views/login_view.dart';
+import '../features/auth/views/register_view.dart';
+import '../features/home/views/home_screen.dart';
+import '../features/transactions/views/add_transaction_view.dart';
+import '../features/analytics/views/analytics_view.dart';
+import '../features/gamification/gamification_screen.dart';
 
 /// Provider del GoRouter que integra el estado de autenticación
 final routerProvider = Provider<GoRouter>((ref) {
