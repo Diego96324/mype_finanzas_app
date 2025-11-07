@@ -30,7 +30,7 @@ class AppDatabase {
     final path = join(dir.path, 'mype_finanzas.db');
     return openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -540,6 +540,116 @@ class AppDatabase {
         debugPrint('✅ Tabla password_reset_tokens creada');
       } catch (e) {
         debugPrint('⚠️ Error al crear tabla password_reset_tokens: $e');
+      }
+    }
+
+    // Versión 9: Agregar soporte de subcategorías y plantillas por tipo de negocio
+    if (oldVersion < 9) {
+      try {
+        // Agregar campos para subcategorías en la tabla categorias
+        await db.execute('ALTER TABLE categorias ADD COLUMN categoria_padre_id INTEGER REFERENCES categorias(id) ON DELETE CASCADE');
+        debugPrint('✅ Columna categoria_padre_id agregada');
+      } catch (e) {
+        debugPrint('⚠️ Columna categoria_padre_id ya existe: $e');
+      }
+
+      try {
+        await db.execute('ALTER TABLE categorias ADD COLUMN orden INTEGER DEFAULT 0');
+        debugPrint('✅ Columna orden agregada a categorias');
+      } catch (e) {
+        debugPrint('⚠️ Columna orden ya existe en categorias: $e');
+      }
+
+      try {
+        await db.execute('ALTER TABLE categorias ADD COLUMN tipo_negocio TEXT');
+        debugPrint('✅ Columna tipo_negocio agregada');
+      } catch (e) {
+        debugPrint('⚠️ Columna tipo_negocio ya existe: $e');
+      }
+
+      // Crear índice para mejorar consultas de subcategorías
+      try {
+        await db.execute('CREATE INDEX idx_categorias_padre ON categorias(categoria_padre_id)');
+        debugPrint('✅ Índice idx_categorias_padre creado');
+      } catch (e) {
+        debugPrint('⚠️ Índice idx_categorias_padre ya existe: $e');
+      }
+
+      // Crear tabla para plantillas de categorías por tipo de negocio
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS plantillas_categorias(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo_negocio TEXT NOT NULL,
+            nombre TEXT NOT NULL,
+            tipo TEXT NOT NULL,
+            descripcion TEXT,
+            icono TEXT,
+            color TEXT,
+            es_principal INTEGER NOT NULL DEFAULT 1,
+            categoria_padre_nombre TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          )
+        ''');
+        debugPrint('✅ Tabla plantillas_categorias creada');
+      } catch (e) {
+        debugPrint('⚠️ Error al crear tabla plantillas_categorias: $e');
+      }
+
+      // Insertar plantillas de categorías por tipo de negocio
+      final now = DateTime.now().toIso8601String();
+
+      // Plantillas para Bodega/Tienda
+      final plantillasBodega = [
+        {'tipo_negocio': 'bodega', 'nombre': 'Venta de Productos', 'tipo': 'ingreso', 'icono': 'shopping_cart', 'color': '#4CAF50', 'es_principal': 1, 'categoria_padre': null},
+        {'tipo_negocio': 'bodega', 'nombre': 'Venta de Bebidas', 'tipo': 'ingreso', 'icono': 'local_drink', 'color': '#8BC34A', 'es_principal': 0, 'categoria_padre': 'Venta de Productos'},
+        {'tipo_negocio': 'bodega', 'nombre': 'Venta de Abarrotes', 'tipo': 'ingreso', 'icono': 'kitchen', 'color': '#8BC34A', 'es_principal': 0, 'categoria_padre': 'Venta de Productos'},
+        {'tipo_negocio': 'bodega', 'nombre': 'Compra de Mercadería', 'tipo': 'egreso', 'icono': 'inventory', 'color': '#FF5722', 'es_principal': 1, 'categoria_padre': null},
+        {'tipo_negocio': 'bodega', 'nombre': 'Alquiler de Local', 'tipo': 'egreso', 'icono': 'store', 'color': '#F44336', 'es_principal': 1, 'categoria_padre': null},
+        {'tipo_negocio': 'bodega', 'nombre': 'Servicios Básicos', 'tipo': 'egreso', 'icono': 'receipt', 'color': '#E91E63', 'es_principal': 1, 'categoria_padre': null},
+      ];
+
+      // Plantillas para Restaurante
+      final plantillasRestaurante = [
+        {'tipo_negocio': 'restaurante', 'nombre': 'Ventas del Día', 'tipo': 'ingreso', 'icono': 'restaurant', 'color': '#4CAF50', 'es_principal': 1, 'categoria_padre': null},
+        {'tipo_negocio': 'restaurante', 'nombre': 'Delivery', 'tipo': 'ingreso', 'icono': 'delivery_dining', 'color': '#8BC34A', 'es_principal': 0, 'categoria_padre': 'Ventas del Día'},
+        {'tipo_negocio': 'restaurante', 'nombre': 'Mesa', 'tipo': 'ingreso', 'icono': 'table_restaurant', 'color': '#8BC34A', 'es_principal': 0, 'categoria_padre': 'Ventas del Día'},
+        {'tipo_negocio': 'restaurante', 'nombre': 'Compra de Ingredientes', 'tipo': 'egreso', 'icono': 'shopping_basket', 'color': '#FF5722', 'es_principal': 1, 'categoria_padre': null},
+        {'tipo_negocio': 'restaurante', 'nombre': 'Carnes y Pescados', 'tipo': 'egreso', 'icono': 'set_meal', 'color': '#FF9800', 'es_principal': 0, 'categoria_padre': 'Compra de Ingredientes'},
+        {'tipo_negocio': 'restaurante', 'nombre': 'Verduras', 'tipo': 'egreso', 'icono': 'eco', 'color': '#FF9800', 'es_principal': 0, 'categoria_padre': 'Compra de Ingredientes'},
+        {'tipo_negocio': 'restaurante', 'nombre': 'Sueldos Personal', 'tipo': 'egreso', 'icono': 'groups', 'color': '#9C27B0', 'es_principal': 1, 'categoria_padre': null},
+      ];
+
+      // Plantillas para Servicios Profesionales
+      final plantillasServicios = [
+        {'tipo_negocio': 'servicios', 'nombre': 'Honorarios', 'tipo': 'ingreso', 'icono': 'work', 'color': '#4CAF50', 'es_principal': 1, 'categoria_padre': null},
+        {'tipo_negocio': 'servicios', 'nombre': 'Consultoría', 'tipo': 'ingreso', 'icono': 'support_agent', 'color': '#8BC34A', 'es_principal': 0, 'categoria_padre': 'Honorarios'},
+        {'tipo_negocio': 'servicios', 'nombre': 'Proyectos', 'tipo': 'ingreso', 'icono': 'assignment', 'color': '#2196F3', 'es_principal': 1, 'categoria_padre': null},
+        {'tipo_negocio': 'servicios', 'nombre': 'Material de Oficina', 'tipo': 'egreso', 'icono': 'description', 'color': '#FF5722', 'es_principal': 1, 'categoria_padre': null},
+        {'tipo_negocio': 'servicios', 'nombre': 'Software y Licencias', 'tipo': 'egreso', 'icono': 'computer', 'color': '#673AB7', 'es_principal': 1, 'categoria_padre': null},
+        {'tipo_negocio': 'servicios', 'nombre': 'Marketing', 'tipo': 'egreso', 'icono': 'campaign', 'color': '#E91E63', 'es_principal': 1, 'categoria_padre': null},
+      ];
+
+      // Insertar todas las plantillas
+      try {
+        for (var plantilla in [...plantillasBodega, ...plantillasRestaurante, ...plantillasServicios]) {
+          await db.insert('plantillas_categorias', {
+            'tipo_negocio': plantilla['tipo_negocio'],
+            'nombre': plantilla['nombre'],
+            'tipo': plantilla['tipo'],
+            'descripcion': 'Plantilla para ${plantilla['tipo_negocio']}',
+            'icono': plantilla['icono'],
+            'color': plantilla['color'],
+            'es_principal': plantilla['es_principal'],
+            'categoria_padre_nombre': plantilla['categoria_padre'],
+            'created_at': now,
+            'updated_at': now,
+          });
+        }
+        debugPrint('✅ Plantillas de categorías insertadas exitosamente');
+      } catch (e) {
+        debugPrint('⚠️ Error al insertar plantillas: $e');
       }
     }
   }

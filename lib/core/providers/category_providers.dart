@@ -1,0 +1,224 @@
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../data/repositories/category_repository.dart';
+import '../../data/models/category_model.dart';
+
+part 'category_providers.g.dart';
+
+// Repository provider
+@riverpod
+CategoryRepository categoryRepository(CategoryRepositoryRef ref) {
+  return CategoryRepository();
+}
+
+// Estado de las categorías del usuario
+@riverpod
+class CategoriesState extends _$CategoriesState {
+  @override
+  Future<List<Category>> build() async {
+    return await _loadCategories();
+  }
+
+  Future<List<Category>> _loadCategories() async {
+    try {
+      final repo = ref.read(categoryRepositoryProvider);
+      return await repo.getUserCategories();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Crear nueva categoría
+  Future<bool> createCategory({
+    required String nombre,
+    required String tipo,
+    int? categoriaPadreId,
+    String? descripcion,
+    required String icono,
+    required String color,
+    String? tipoNegocio,
+  }) async {
+    try {
+      final repo = ref.read(categoryRepositoryProvider);
+      final category = await repo.createCategory(
+        nombre: nombre,
+        tipo: tipo,
+        categoriaPadreId: categoriaPadreId,
+        descripcion: descripcion,
+        icono: icono,
+        color: color,
+        tipoNegocio: tipoNegocio,
+      );
+
+      return category != null;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Actualizar categoría
+  Future<bool> updateCategory({
+    required int categoryId,
+    String? nombre,
+    String? descripcion,
+    String? icono,
+    String? color,
+    int? categoriaPadreId,
+    bool? activa,
+  }) async {
+    try {
+      final repo = ref.read(categoryRepositoryProvider);
+      final success = await repo.updateCategory(
+        categoryId: categoryId,
+        nombre: nombre,
+        descripcion: descripcion,
+        icono: icono,
+        color: color,
+        categoriaPadreId: categoriaPadreId,
+        activa: activa,
+      );
+
+      return success;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Eliminar categoría
+  Future<bool> deleteCategory(int categoryId) async {
+    try {
+      final repo = ref.read(categoryRepositoryProvider);
+      final success = await repo.deleteCategory(categoryId);
+
+      return success;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Reordenar categorías
+  Future<bool> reorderCategories(List<int> categoryIds) async {
+    try {
+      final repo = ref.read(categoryRepositoryProvider);
+      final success = await repo.reorderCategories(categoryIds);
+
+      return success;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Aplicar plantilla de negocio
+  Future<bool> applyBusinessTemplate(String tipoNegocio) async {
+    try {
+      final repo = ref.read(categoryRepositoryProvider);
+      final success = await repo.applyBusinessTemplate(tipoNegocio);
+
+      return success;
+    } catch (e) {
+      return false;
+    }
+  }
+}
+
+// Provider para categorías por tipo
+@riverpod
+Future<List<Category>> categoriesByType(CategoriesByTypeRef ref, String tipo) async {
+  final categories = await ref.watch(categoriesStateProvider.future);
+  return categories.where((cat) => cat.tipo == tipo).toList();
+}
+
+// Provider para categorías de ingreso
+@riverpod
+Future<List<Category>> incomeCategories(IncomeCategoriesRef ref) async {
+  return ref.watch(categoriesByTypeProvider('ingreso').future);
+}
+
+// Provider para categorías de egreso
+@riverpod
+Future<List<Category>> expenseCategories(ExpenseCategoriesRef ref) async {
+  return ref.watch(categoriesByTypeProvider('egreso').future);
+}
+
+// Provider para buscar categorías
+@riverpod
+Future<List<Category>> searchCategories(SearchCategoriesRef ref, String query) async {
+  if (query.isEmpty) {
+    return ref.watch(categoriesStateProvider.future);
+  }
+
+  final repo = ref.read(categoryRepositoryProvider);
+  return await repo.searchCategories(query);
+}
+
+// Provider para estadísticas de uso
+@riverpod
+Future<Map<int, int>> categoryUsageStats(CategoryUsageStatsRef ref) async {
+  final repo = ref.read(categoryRepositoryProvider);
+  return await repo.getCategoryUsageStats();
+}
+
+// Provider para plantillas de negocio disponibles
+@riverpod
+List<BusinessTemplate> businessTemplates(BusinessTemplatesRef ref) {
+  return [
+    BusinessTemplate(
+      id: 'bodega',
+      nombre: 'Bodega / Tienda',
+      descripcion: 'Categorías para negocios de venta al por menor',
+      icono: 'store',
+      color: '#4CAF50',
+    ),
+    BusinessTemplate(
+      id: 'restaurante',
+      nombre: 'Restaurante',
+      descripcion: 'Categorías para negocios de comida',
+      icono: 'restaurant',
+      color: '#FF9800',
+    ),
+    BusinessTemplate(
+      id: 'servicios',
+      nombre: 'Servicios Profesionales',
+      descripcion: 'Categorías para freelancers y consultores',
+      icono: 'work',
+      color: '#2196F3',
+    ),
+    BusinessTemplate(
+      id: 'transporte',
+      nombre: 'Transporte',
+      descripcion: 'Categorías para taxis, delivery, etc.',
+      icono: 'local_shipping',
+      color: '#9C27B0',
+    ),
+    BusinessTemplate(
+      id: 'taller',
+      nombre: 'Taller / Mecánica',
+      descripcion: 'Categorías para talleres y servicios técnicos',
+      icono: 'construction',
+      color: '#FF5722',
+    ),
+    BusinessTemplate(
+      id: 'salon',
+      nombre: 'Salón de Belleza',
+      descripcion: 'Categorías para peluquerías y spa',
+      icono: 'face',
+      color: '#E91E63',
+    ),
+  ];
+}
+
+// Modelo para plantillas de negocio
+class BusinessTemplate {
+  final String id;
+  final String nombre;
+  final String descripcion;
+  final String icono;
+  final String color;
+
+  BusinessTemplate({
+    required this.id,
+    required this.nombre,
+    required this.descripcion,
+    required this.icono,
+    required this.color,
+  });
+}

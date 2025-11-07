@@ -10,6 +10,7 @@ import '../../presentation/features/home/views/home_screen.dart';
 import '../../presentation/features/transactions/views/add_transaction_view.dart';
 import '../../presentation/features/analytics/views/analytics_view.dart';
 import '../../presentation/features/gamification/views/gamification_screen.dart';
+import '../../presentation/features/categories/views/categories_management_view.dart';
 
 /// Provider del GoRouter que integra el estado de autenticación
 final routerProvider = Provider<GoRouter>((ref) {
@@ -90,6 +91,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/gamification',
         name: 'gamification',
         builder: (context, state) => const GamificationScreen(),
+      ),
+      GoRoute(
+        path: '/categories',
+        name: 'categories',
+        builder: (context, state) => const CategoriesManagementView(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

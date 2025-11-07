@@ -478,6 +478,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
       child: Column(
         children: [
           _buildSettingTile(
+            icon: Icons.category,
+            title: 'Gestionar Categorías',
+            subtitle: 'Organiza tus ingresos y gastos',
+            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+            onTap: () {
+              context.push('/categories');
+            },
+          ),
+          const Divider(height: 1, color: Color(0xFF3D3D3D)),
+          _buildSettingTile(
             icon: Icons.edit,
             title: 'Editar perfil',
             subtitle: 'Actualizar información personal',
