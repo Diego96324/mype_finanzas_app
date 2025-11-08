@@ -38,7 +38,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (value == null || value.isEmpty) {
       return 'El email es requerido';
     }
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+
+    final emailRegex = RegExp(r'^[\w.-]+@([\w-]+\.)+[\w-]{2,4}$');
     if (!emailRegex.hasMatch(value)) {
       return 'Ingresa un email válido';
     }
@@ -432,3 +433,4 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 }
+
