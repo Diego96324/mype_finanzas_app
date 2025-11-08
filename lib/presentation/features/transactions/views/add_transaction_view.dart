@@ -3,22 +3,26 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import '../../../../../data/models/category_model.dart';
 import '../../../../../data/models/transaction_model.dart';
+import '../../../../core/providers/category_providers.dart';
 import '../../../../core/theme/components/date_picker_theme.dart';
-import '../../../../core/utils/form_validators.dart';
 import '../../../../core/utils/attachments_helper.dart';
+import '../../../../core/utils/form_validators.dart';
 import '../controllers/transactions_controller.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
   final AppTransaction? baseTx;
   final DateTime? initialDate;
   final DateTimeRange? allowedDateRange;
+  final bool isQuickAdd; // añadido para router
 
   const AddTransactionScreen({
     super.key,
     this.baseTx,
     this.initialDate,
     this.allowedDateRange,
+    this.isQuickAdd = false,
   });
 
   @override
@@ -33,6 +37,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
   final _montoCtrl = TextEditingController();
   final _etiquetaCtrl = TextEditingController();
   final _notaCtrl = TextEditingController();
+  int? _categoriaId;
 
   bool _recurrente = false;
   String _frecuencia = 'una_vez'; // una_vez | semanal | quincenal | mensual | personalizada
@@ -55,6 +60,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
     _montoCtrl.text = base?.monto.toStringAsFixed(2) ?? '';
     _etiquetaCtrl.text = base?.etiqueta ?? '';
     _notaCtrl.text = base?.nota ?? '';
+    _categoriaId = base?.categoriaId;
 
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 500),
@@ -166,6 +172,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
       monto: monto,
       etiqueta: _etiquetaCtrl.text.trim().isEmpty ? null : _etiquetaCtrl.text.trim(),
       nota: _notaCtrl.text.trim().isEmpty ? null : _notaCtrl.text.trim(),
+      categoriaId: _categoriaId,
       recurrente: _recurrente,
       esRecurrente: false,
       frecuenciaRecurrencia: frecuencia,
@@ -399,6 +406,11 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
                       ),
                     ),
                   ),
+
+                  const SizedBox(height: 20),
+
+                  // Categoría
+                  _buildCategoryPicker(context),
 
                   const SizedBox(height: 20),
 
@@ -783,7 +795,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
                         const SizedBox(height: 2),
                         Text(
                           _fechaFinRecurrencia == null
-                              ? 'Sin fecha fin'
+                              ? 'Sin límite'
                               : '${_fechaFinRecurrencia!.day.toString().padLeft(2, '0')}/${_fechaFinRecurrencia!.month.toString().padLeft(2, '0')}/${_fechaFinRecurrencia!.year}',
                           style: TextStyle(
                             color: colorScheme.onSurface,
@@ -820,5 +832,154 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
         ],
       ),
     );
+  }
+
+  Widget _buildCategoryPicker(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    final categoriesAsync = ref.watch(categoriesStateProvider);
+    String label;
+    if (_categoriaId == null) {
+      label = 'Sin categoría';
+    } else {
+      label = categoriesAsync.maybeWhen(
+        data: (list) {
+          final found = _findCategoryIn(list, _categoriaId!);
+          return found?.nombre ?? 'Categoría no disponible';
+        },
+        orElse: () => '—',
+      );
+    }
+
+    return InkWell(
+      onTap: () => _openCategorySheet(context),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.dividerColor, width: 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.tealAccent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.category_rounded,
+                color: Colors.tealAccent,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Categoría',
+                    style: TextStyle(
+                      color: colorScheme.onSurface.withValues(alpha: 0.6),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openCategorySheet(BuildContext context) async {
+    final categoriesAsync = ref.read(categoriesStateProvider);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    await showModalBottomSheet<int?>(
+      context: context,
+      backgroundColor: theme.cardColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: categoriesAsync.when(
+              data: (list) {
+                return ListView(
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.clear, color: Colors.grey),
+                      title: const Text('Sin categoría'),
+                      onTap: () => Navigator.pop(ctx, null),
+                    ),
+                    const Divider(),
+                    ...list.map((cat) => _buildCategoryTile(ctx, cat, colorScheme)),
+                  ],
+                );
+              },
+              loading: () => const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator())),
+              error: (error, stack) => const Center(child: Padding(padding: EdgeInsets.all(16), child: Text('No se pudieron cargar las categorías'))),
+            ),
+          ),
+        );
+      },
+    ).then((selectedId) {
+      if (!mounted) return;
+      setState(() => _categoriaId = selectedId);
+    });
+  }
+
+  Widget _buildCategoryTile(BuildContext ctx, Category cat, ColorScheme colorScheme) {
+    return ExpansionTile(
+      leading: const Icon(Icons.folder_rounded, color: Colors.tealAccent),
+      title: Text(cat.nombre, style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w600)),
+      children: [
+        ListTile(
+          leading: const Icon(Icons.label_rounded, color: Colors.tealAccent),
+          title: Text(cat.nombre),
+          onTap: () => Navigator.pop(ctx, cat.id),
+        ),
+        if ((cat.subcategorias ?? []).isNotEmpty)
+          ...cat.subcategorias!.map(
+            (sub) => ListTile(
+              leading: const Icon(Icons.subdirectory_arrow_right_rounded, color: Colors.tealAccent),
+              title: Text(sub.nombre),
+              onTap: () => Navigator.pop(ctx, sub.id),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Category? _findCategoryIn(List<Category> list, int id) {
+    for (final c in list) {
+      if (c.id == id) return c;
+      for (final s in c.subcategorias ?? []) {
+        if (s.id == id) return s;
+      }
+    }
+    return null;
   }
 }

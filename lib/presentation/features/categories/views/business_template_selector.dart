@@ -25,7 +25,7 @@ class BusinessTemplateSelector extends ConsumerWidget {
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    color: _parseColor(template.color).withOpacity(0.2),
+                    color: _parseColor(template.color).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(

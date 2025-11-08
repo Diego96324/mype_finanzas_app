@@ -34,10 +34,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
     _animation = Tween<double>(begin: 0.95, end: 1.05).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
+
+    // Cargar preferencia de "Mantener sesión iniciada"
+    Future.microtask(() async {
+      final remember = await ref.read(secureStorageServiceProvider).getRememberMe();
+      if (mounted) setState(() => _rememberMe = remember);
+    });
   }
 
   Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
+    debugPrint('👆 Botón login presionado');
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Revisa los campos: email y contraseña válidos son requeridos')),);
+      return;
+    }
 
     setState(() => _loading = true);
     final ctx = context;
@@ -45,16 +56,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
 
     final user = _userCtrl.text.trim();
     final pass = _passCtrl.text.trim();
+    debugPrint('📧 Intentando login con email=$user rememberMe=$_rememberMe');
 
     final authNotifier = ref.read(authStateProvider.notifier);
-    final result = await authNotifier.login(email: user, password: pass);
+    final result = await authNotifier.login(email: user, password: pass, rememberMe: _rememberMe);
 
     if (!ctx.mounted) return;
 
     if (result['success'] == true) {
-      // GoRouter se encargará de la navegación automáticamente
+      debugPrint('➡️ Navegando a home');
       ctx.go('/');
     } else {
+      debugPrint('❌ Login fallido: ${result['message']}');
       setState(() => _loading = false);
       messenger.showSnackBar(
         SnackBar(content: Text('❌ ${result['message']}')),
@@ -72,8 +85,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
-    final isDarkModeAsync = ref.watch(themeStateProvider);
-    final isDark = isDarkModeAsync.value ?? true;
+    final isDark = ref.watch(themeStateProvider); // ahora bool directo
 
     final bgColor = isDark ? Colors.black : Colors.green.shade50;
     final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;

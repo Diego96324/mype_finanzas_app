@@ -11,8 +11,7 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDarkModeAsync = ref.watch(themeStateProvider);
-    final isDarkMode = isDarkModeAsync.value ?? true;
+    final isDarkMode = ref.watch(themeStateProvider);
 
     final router = ref.watch(routerProvider);
 
@@ -89,4 +88,3 @@ class MyApp extends ConsumerWidget {
     );
   }
 }
-

@@ -82,7 +82,7 @@ class _EditAccountDialogState extends ConsumerState<EditAccountDialog> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _tipoSeleccionado,
+                  initialValue: _tipoSeleccionado,
                   decoration: const InputDecoration(
                     labelText: 'Tipo de cuenta *',
                     border: OutlineInputBorder(),
@@ -136,7 +136,7 @@ class _EditAccountDialogState extends ConsumerState<EditAccountDialog> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _monedaSeleccionada,
+                        initialValue: _monedaSeleccionada,
                         decoration: const InputDecoration(
                           labelText: 'Moneda',
                           border: OutlineInputBorder(),
@@ -208,4 +208,3 @@ class _EditAccountDialogState extends ConsumerState<EditAccountDialog> {
     );
   }
 }
-

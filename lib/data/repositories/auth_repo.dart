@@ -71,6 +71,7 @@ class AuthRepository {
     required String password,
   }) async {
     try {
+      debugPrint('🔐 Intentando login para: ${email.toLowerCase()}');
       final database = await _db.database;
       final now = DateTime.now();
 
@@ -80,7 +81,10 @@ class AuthRepository {
         whereArgs: [email.toLowerCase(), _hashPassword(password)],
       );
 
+      debugPrint('🔎 Usuarios encontrados: ${users.length}');
+
       if (users.isEmpty) {
+        debugPrint('❌ Credenciales inválidas o usuario inactivo');
         return null;
       }
 
@@ -103,7 +107,7 @@ class AuthRepository {
         'dispositivo': 'mobile',
         'ip_address': null,
         'fecha_inicio': now.toIso8601String(),
-        'fecha_expiracion': now.add(const Duration(days: 30)).toIso8601String(), // sesion dura 30 dias
+        'fecha_expiracion': now.add(const Duration(days: 30)).toIso8601String(),
         'activa': 1,
         'created_at': now.toIso8601String(),
       });
@@ -113,6 +117,8 @@ class AuthRepository {
         where: 'id = ?',
         whereArgs: [sessionId],
       );
+
+      debugPrint('✅ Sesión creada. Token: ${token.substring(0, 8)}...');
 
       return {
         'user': user,

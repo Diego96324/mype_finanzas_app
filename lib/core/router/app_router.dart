@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/providers.dart';
+import '../providers/providers.dart' show authStateProvider;
 import '../../presentation/features/auth/views/login_view.dart';
 import '../../presentation/features/auth/views/register_view.dart';
 import '../../presentation/features/auth/views/forgot_password_view.dart';
@@ -80,7 +80,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/add',
         name: 'add-transaction',
-        builder: (context, state) => const AddTransactionScreen(),
+        builder: (context, state) {
+          final quick = state.uri.queryParameters['quick'] == '1';
+          // AddTransactionScreen deberá leer este valor para usar modo rápido.
+          return AddTransactionScreen(isQuickAdd: quick);
+        },
       ),
       GoRoute(
         path: '/analytics',

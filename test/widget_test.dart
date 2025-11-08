@@ -10,7 +10,8 @@ void main() {
         child: MyApp(),
       ),
     );
-    await tester.pumpAndSettle();
+    // Evita esperar a que se asiente porque hay animaciones infinitas
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Bienvenido a Numeria'), findsOneWidget);
     expect(find.text('Iniciar sesión'), findsOneWidget);

@@ -506,16 +506,45 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            t.etiqueta ?? 'Sin etiqueta',
-                            style: TextStyle(
-                              color: colorScheme.onSurface,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.1,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: t.etiqueta ?? 'Sin etiqueta',
+                                        style: TextStyle(
+                                          color: colorScheme.onSurface,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 0.1,
+                                        ),
+                                      ),
+                                      if (t.esRecurrente || t.recurrente)
+                                        WidgetSpan(
+                                          alignment: PlaceholderAlignment.middle,
+                                          child: Tooltip(
+                                            message: _recurrenceTooltip(t),
+                                            child: Padding(
+                                              padding: const EdgeInsets.only(left: 6),
+                                              child: Icon(
+                                                Icons.autorenew_rounded,
+                                                color: colorScheme.primary.withValues(alpha: 0.85),
+                                                size: 14,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.left,
+                                  softWrap: false,
+                                ),
+                              ),
+                            ],
                           ),
                           if (t.nota != null && t.nota!.isNotEmpty) ...[
                             const SizedBox(height: 3),
@@ -551,6 +580,7 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
                       ),
                     ),
                     const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                     Icon(
                       Icons.chevron_right_rounded,
                       color: colorScheme.onSurface.withValues(alpha: 0.45),
@@ -1192,6 +1222,18 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
         );
       },
     );
+  }
+
+  String _recurrenceTooltip(AppTransaction t) {
+    final parts = <String>['Recurrente'];
+    if (t.frecuenciaRecurrencia != null && t.frecuenciaRecurrencia!.isNotEmpty) {
+      parts.add('• ${t.frecuenciaRecurrencia}');
+    }
+    if (t.recurrenceEndDate != null) {
+      final d = t.recurrenceEndDate!;
+      parts.add('hasta ${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}');
+    }
+    return parts.join(' ');
   }
 }
 

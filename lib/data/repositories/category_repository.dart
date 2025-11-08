@@ -146,7 +146,7 @@ class CategoryRepository {
         ordenArgs = [userId, categoriaPadreId];
       }
       final maxOrden = await database.rawQuery(
-        'SELECT MAX(orden) as max_orden FROM categorias WHERE ' + ordenWhere,
+        'SELECT MAX(orden) as max_orden FROM categorias WHERE $ordenWhere',
         ordenArgs,
       );
       final orden = ((maxOrden.first['max_orden'] as int?) ?? -1) + 1;
@@ -526,7 +526,7 @@ class CategoryRepository {
       final whereClause = incluirInactivas
           ? '(usuario_id = ? OR usuario_id IS NULL) AND categoria_padre_id IS NULL'
           : '(usuario_id = ? OR usuario_id IS NULL) AND activa = 1 AND categoria_padre_id IS NULL';
-      final result = await database.rawQuery('SELECT COUNT(*) as total FROM categorias WHERE ' + whereClause, [userId]);
+      final result = await database.rawQuery('SELECT COUNT(*) as total FROM categorias WHERE $whereClause', [userId]);
       return (result.first['total'] as int?) ?? 0;
     } catch (e) {
       debugPrint('❌ Error contando categorías: $e');

@@ -8,6 +8,7 @@ import '../../../../core/providers/providers.dart';
 import '../../../shared/utils/currency_formatter.dart';
 import '../../transactions/controllers/transactions_controller.dart';
 import '../../auth/views/change_password_view.dart';
+import '../../../../features/transactions/data/last_category_storage.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -109,6 +110,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
 
     // Usar el provider para hacer logout
     await ref.read(authStateProvider.notifier).logout();
+    // Limpieza de últimas categorías cuando se cierra sesión
+    final userId = ref.read(currentUserIdProvider);
+    if (userId != null) {
+      await LastCategoryStorage().clearAllForUser(userId);
+    }
 
     if (!ctx.mounted) return;
 

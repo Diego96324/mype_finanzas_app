@@ -160,7 +160,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     width: 100,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: const Color(0xFF13BB67).withOpacity(0.1),
+                      color: const Color(0xFF13BB67).withValues(alpha: 0.1),
                     ),
                     child: const Icon(
                       Icons.account_balance_wallet,

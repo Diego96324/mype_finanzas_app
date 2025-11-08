@@ -4,24 +4,31 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Lee propiedades definidas por Flutter / local.properties y conviértelas al tipo correcto
+val flutterVersionCode: Int =
+    (project.findProperty("flutter.versionCode") ?: "1").toString().toInt()
+
+val flutterVersionName: String =
+    (project.findProperty("flutter.versionName") ?: "1.0.0").toString()
+
+val flutterMinSdk: Int =
+    (project.findProperty("flutter.minSdkVersion") ?: "23").toString().toInt()
+
 android {
     namespace = "pe.unfv.mype_finanzas"
     compileSdk = 36
-
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "pe.unfv.mype_finanzas"
 
-        // Compatibilidad amplia
-        minSdk = flutter.minSdkVersion
+        minSdk = maxOf(flutterMinSdk, 29)
         targetSdk = 36
 
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionCode = flutterVersionCode
+        versionName = flutterVersionName
     }
 
-    // ✅ ACTIVA BuildConfig aquí (si lo necesitas)
     buildFeatures {
         buildConfig = true
     }
@@ -36,11 +43,15 @@ android {
 
     buildTypes {
         release {
+            // cámbialo por tu firma real cuando tengas keystore de release
             signingConfig = signingConfigs.getByName("debug")
+            // minifyEnabled = true
+            // proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }
 
 flutter {
+    // ruta a la raíz del proyecto Flutter
     source = "../.."
 }

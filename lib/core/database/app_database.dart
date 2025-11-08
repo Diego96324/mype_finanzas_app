@@ -750,6 +750,33 @@ class AppDatabase {
     }
   }
 
+  Future<void> ensureSeedUser() async {
+    try {
+      final db = await database;
+      final count = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM usuarios')) ?? 0;
+      if (count == 0) {
+        final now = DateTime.now().toIso8601String();
+        await db.insert('usuarios', {
+          'email': 'admin@mypefinanzas.com',
+          'password_hash': _hashPassword('admin123'),
+          'nombre': 'Administrador',
+          'apellido': 'Sistema',
+          'telefono': null,
+          'fecha_registro': now,
+          'ultima_conexion': null,
+          'activo': 1,
+          'rol': 'admin',
+          'avatar_uri': null,
+          'created_at': now,
+          'updated_at': now,
+        });
+        debugPrint('🧪 Usuario seed admin reinsertado');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error al asegurar usuario seed: $e');
+    }
+  }
+
   String _hashPassword(String password) {
     return 'hash_$password';
   }
