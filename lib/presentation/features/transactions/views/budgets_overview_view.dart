@@ -11,15 +11,12 @@ import '../../budgets/widgets/category_budget_card.dart';
 
 const _kPrefPeriodo = 'budgets_overview_periodo';
 const _kPrefRef = 'budgets_overview_ref';
-const _kPrefCatId = 'budgets_overview_cat_id';
 const _kPrefAlertsEnabled = 'budgets_alerts_enabled';
 const _kPrefAlertsThreshold = 'budgets_alerts_threshold';
 const _kPrefAlertsCategories = 'budgets_alerts_categories';
 
 class BudgetsOverviewView extends ConsumerStatefulWidget {
-  final int? initialCategoryId; // Agregado para navegación desde alertas
-
-  const BudgetsOverviewView({super.key, this.initialCategoryId});
+  const BudgetsOverviewView({super.key});
 
   @override
   ConsumerState<BudgetsOverviewView> createState() => _BudgetsOverviewViewState();
@@ -28,7 +25,6 @@ class BudgetsOverviewView extends ConsumerStatefulWidget {
 class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
   bool _loading = true;
   List<Category> _principal = [];
-  Category? _selected;
   String _periodo = 'mensual';
   DateTime _ref = DateTime.now();
 
@@ -52,28 +48,6 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
     super.dispose();
   }
 
-  Future<void> _applyInitialCategory() async {
-    // Aplicar categoría inicial desde parámetro o preferencias
-    if (widget.initialCategoryId != null) {
-      for (final c in _principal) {
-        if (c.id == widget.initialCategoryId) {
-          setState(() => _selected = c);
-          return;
-        }
-      }
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    final catId = prefs.getInt(_kPrefCatId);
-    if (catId == null) return;
-    for (final c in _principal) {
-      if (c.id == catId) {
-        setState(() => _selected = c);
-        break;
-      }
-    }
-  }
-
   Future<void> _loadData() async {
     setState(() => _loading = true);
     final userId = AuthService().currentUserId;
@@ -89,24 +63,12 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
     final prefs = await SharedPreferences.getInstance();
     final savedPeriodo = prefs.getString(_kPrefPeriodo);
     final savedRef = prefs.getInt(_kPrefRef);
-    final savedCatId = prefs.getInt(_kPrefCatId);
     final savedAlertsEnabled = prefs.getBool(_kPrefAlertsEnabled);
     final savedAlertsThreshold = prefs.getDouble(_kPrefAlertsThreshold);
     final savedAlertCats = prefs.getStringList(_kPrefAlertsCategories);
 
-    Category? sel;
-    if (savedCatId != null) {
-      for (final c in principales) {
-        if (c.id == savedCatId) {
-          sel = c;
-          break;
-        }
-      }
-    }
-
     setState(() {
       _principal = principales;
-      _selected = sel ?? (principales.isNotEmpty ? principales.first : null);
       if (savedPeriodo == 'mensual' || savedPeriodo == 'trimestral') {
         _periodo = savedPeriodo!;
       }
@@ -124,7 +86,6 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
       };
       _loading = false;
     });
-    await _applyInitialCategory();
     await _loadAlertBudgets();
   }
 
@@ -132,9 +93,6 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kPrefPeriodo, _periodo);
     await prefs.setInt(_kPrefRef, _ref.year * 100 + _ref.month);
-    if (_selected?.id != null) {
-      await prefs.setInt(_kPrefCatId, _selected!.id!);
-    }
     await prefs.setBool(_kPrefAlertsEnabled, _alertsEnabled);
     await prefs.setDouble(_kPrefAlertsThreshold, _alertsThreshold);
     await prefs.setStringList(
@@ -276,38 +234,6 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Selector de categoría
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Categoría', style: theme.textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<Category>(
-                      initialValue: _selected,
-                      items: _principal.map((cat) {
-                        return DropdownMenuItem(
-                          value: cat,
-                          child: Text(cat.nombre),
-                        );
-                      }).toList(),
-                      onChanged: (cat) {
-                        setState(() => _selected = cat);
-                        _savePrefs();
-                      },
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
             // Selector de período y referencia
             Row(
               children: [
@@ -362,21 +288,37 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
                 ),
               ],
             ),
+            const SizedBox(height: 24),
+
+            // Título de sección
+            Text(
+              'Presupuestos por Categoría',
+              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Período: ${_periodo == 'mensual' ? 'Mensual' : 'Trimestral'}',
+              style: theme.textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            ),
             const SizedBox(height: 16),
 
-            // Widget de presupuesto de categoría seleccionada
-            if (_selected != null) ...[
-              Text(
-                'Presupuesto ${_periodo == 'mensual' ? 'mensual' : 'trimestral'}',
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(height: 6),
-              CategoryBudgetCard(
-                category: _selected!,
-                periodo: _periodo,
-                referencia: _ref,
-              ),
-            ],
+            // Lista lazy de todas las categorías con sus presupuestos
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _principal.length,
+              itemBuilder: (context, index) {
+                final category = _principal[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: CategoryBudgetCard(
+                    category: category,
+                    periodo: _periodo,
+                    referencia: _ref,
+                  ),
+                );
+              },
+            ),
 
             const SizedBox(height: 32),
             Text('Alertas de presupuesto', style: theme.textTheme.titleMedium),
@@ -484,10 +426,6 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
                           await _loadAlertBudgets();
                         },
                       ),
-                      onTap: () {
-                        setState(() => _selected = cat);
-                        _savePrefs();
-                      },
                     ),
                   );
                 }).toList(),
@@ -578,13 +516,13 @@ class _HelpDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Esta pantalla te permite gestionar presupuestos por categoría.',
+              'Esta pantalla te permite gestionar presupuestos por categoría de egreso.',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 12),
             Text('• Selecciona una categoría para ver y configurar su presupuesto'),
             Text('• Elige entre período mensual o trimestral'),
-            Text('• Navega por diferentes fechas'),
+            Text('• Navega por diferentes meses usando las flechas'),
             SizedBox(height: 12),
             Text(
               'Alertas:',
@@ -592,7 +530,7 @@ class _HelpDialog extends StatelessWidget {
             ),
             Text('• Activa alertas para recibir notificaciones cuando el presupuesto alcance un % determinado'),
             Text('• Puedes seleccionar categorías específicas o monitorear todas'),
-            Text('• Las alertas aparecerán le avisarán cuando se pase del límite'),
+            Text('• Las alertas aparecerán en la parte inferior cuando se activen'),
           ],
         ),
       ),

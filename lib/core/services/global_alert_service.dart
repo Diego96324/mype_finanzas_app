@@ -22,8 +22,11 @@ class GlobalAlertService {
     final messenger = rootScaffoldMessengerKey.currentState;
     final ctx = rootScaffoldMessengerKey.currentContext;
     if (messenger == null || ctx == null) return;
+
     final now = DateTime.now();
-    if (_lastShown != null && now.difference(_lastShown!) < _cooldown) return; // cooldown global
+    if (_lastShown != null && now.difference(_lastShown!) < _cooldown) {
+      return; // cooldown global
+    }
 
     // Persistencia: sólo mostrar si es mayor al último registrado
     final prefs = await SharedPreferences.getInstance();
@@ -37,7 +40,9 @@ class GlobalAlertService {
 
     messenger.showSnackBar(
       SnackBar(
-        content: Text('⚠️ Presupuesto de "$categoriaNombre" alcanzó ${pctInt}% (Límite S/ ${limite.toStringAsFixed(2)})'),
+        content: Text(
+            '⚠️ Presupuesto de "$categoriaNombre" alcanzó $pctInt% (Límite S/ ${limite.toStringAsFixed(2)})'
+        ),
         behavior: SnackBarBehavior.floating,
         backgroundColor: Colors.orange.shade700,
         duration: const Duration(seconds: 5),
@@ -48,13 +53,47 @@ class GlobalAlertService {
             try {
               Navigator.of(ctx).push(
                 MaterialPageRoute(
-                  builder: (_) => BudgetsOverviewView(initialCategoryId: categoriaId),
+                  builder: (_) => const BudgetsOverviewView(),
                 ),
               );
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('Error al navegar a BudgetsOverviewView: $e');
+            }
           },
         ),
       ),
     );
+  }
+
+  /// Mtodo opcional para limpiar alertas antiguas (llamar periódicamente si es necesario)
+  Future<void> cleanOldAlerts() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+      final now = DateTime.now();
+
+      for (final key in keys) {
+        if (key.startsWith('budget_alert_')) {
+          // Parsear fecha del key: budget_alert_YYYY_MM_periodo_categoriaId
+          final parts = key.split('_');
+          if (parts.length >= 4) {
+            final year = int.tryParse(parts[2]);
+            final month = int.tryParse(parts[3]);
+
+            if (year != null && month != null) {
+              final alertDate = DateTime(year, month);
+              final diff = now.difference(alertDate);
+
+              // Eliminar alertas de más de 3 meses
+              if (diff.inDays > 90) {
+                await prefs.remove(key);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error al limpiar alertas antiguas: $e');
+    }
   }
 }
