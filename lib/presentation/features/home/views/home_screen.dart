@@ -9,6 +9,8 @@ import '../../reports/views/reports_view.dart' as reports;
 import '../../transactions/views/search_filter_view.dart';
 import '../../transactions/controllers/transactions_controller.dart';
 import '../../transactions/views/transactions_list_view.dart';
+import '../../transactions/views/transactions_quick_menu.dart';
+import '../../transactions/views/budgets_overview_view.dart';
 
 class MyHomePage extends ConsumerStatefulWidget {
   const MyHomePage({super.key, required this.title});
@@ -20,6 +22,7 @@ class MyHomePage extends ConsumerStatefulWidget {
 
 class _MyHomePageState extends ConsumerState<MyHomePage> {
   int _pageIndex = 0;
+  String _transactionsMode = 'transacciones';
 
   late final List<Widget> _pages;
 
@@ -107,30 +110,42 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
                 ),
               ),
               leading: IconButton(
-                icon: Icon(Icons.search, color: colorScheme.onSurface),
+                icon: Icon(Icons.menu_rounded, color: colorScheme.onSurface),
                 onPressed: () async {
-                  // Obtenemos los filtros actuales del controlador
-                  final controller = ref.read(transactionsControllerProvider.notifier);
-
-                  final result = await Navigator.push<Map<String, dynamic>>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SearchFilterScreen(
-                        initialFilters: {
-                          'tipo': controller.currentTypeFilter,
-                          'order': controller.currentOrder,
-                          'searchTerm': controller.currentSearchTerm,
-                        },
-                      ),
+                  await showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    showDragHandle: true,
+                    backgroundColor: theme.scaffoldBackgroundColor,
+                    builder: (_) => TransactionsQuickMenu(
+                      currentMode: _transactionsMode,
+                      onSelectMode: (mode) => setState(() => _transactionsMode = mode),
                     ),
                   );
-                  if (result != null) {
-                    // Aplicamos los filtros directamente al controlador
-                    controller.updateFiltersFromMap(result);
-                  }
                 },
               ),
               actions: [
+                IconButton(
+                  icon: Icon(Icons.search, color: colorScheme.onSurface),
+                  onPressed: () async {
+                    final controller = ref.read(transactionsControllerProvider.notifier);
+                    final result = await Navigator.push<Map<String, dynamic>>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SearchFilterScreen(
+                          initialFilters: {
+                            'tipo': controller.currentTypeFilter,
+                            'order': controller.currentOrder,
+                            'searchTerm': controller.currentSearchTerm,
+                          },
+                        ),
+                      ),
+                    );
+                    if (result != null) {
+                      controller.updateFiltersFromMap(result);
+                    }
+                  },
+                ),
                 IconButton(
                   tooltip: () {
                     final state = ref.watch(transactionsControllerProvider);
@@ -140,7 +155,6 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
                   }(),
                   icon: Icon(Icons.date_range, color: colorScheme.onSurface),
                   onPressed: () async {
-                    // Obtenemos el rango actual del controlador
                     final now = DateTime.now();
                     final state = ref.read(transactionsControllerProvider);
                     final currentRange = state.filters.from != null && state.filters.to != null
@@ -166,7 +180,6 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
                     );
 
                     if (picked != null && context.mounted) {
-                      // Aplicamos el rango directamente al controlador
                       ref.read(transactionsControllerProvider.notifier)
                           .selectDateRange(picked.start, picked.end);
                     }
@@ -175,7 +188,11 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
               ],
             )
           : null,
-      body: _pages[_pageIndex],
+      body: _pageIndex == 0
+          ? (_transactionsMode == 'transacciones'
+              ? const TransactionsListView()
+              : const BudgetsOverviewView())
+          : _pages[_pageIndex],
       bottomNavigationBar: BottomAppBar(
         color: theme.appBarTheme.backgroundColor,
         child: Row(
@@ -236,4 +253,3 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
     );
   }
 }
-

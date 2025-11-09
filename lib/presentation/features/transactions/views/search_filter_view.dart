@@ -23,6 +23,10 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
   final _minAmountCtrl = TextEditingController();
   final _maxAmountCtrl = TextEditingController();
   bool _tagOnly = false;
+  bool _noteOnly = false;
+  bool _onlyRecurrent = false;
+  bool _hasAttachment = false;
+  String? _frecuencia;
 
   final TextEditingController _categorySearchCtrl = TextEditingController();
 
@@ -43,6 +47,10 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
     if (minAmount != null) _minAmountCtrl.text = minAmount.toString();
     if (maxAmount != null) _maxAmountCtrl.text = maxAmount.toString();
     _tagOnly = (widget.initialFilters['tagOnly'] as bool?) ?? false;
+    _noteOnly = (widget.initialFilters['noteOnly'] as bool?) ?? false;
+    _onlyRecurrent = (widget.initialFilters['onlyRecurrent'] as bool?) ?? false;
+    _hasAttachment = (widget.initialFilters['hasAttachment'] as bool?) ?? false;
+    _frecuencia = widget.initialFilters['frecuencia'] as String?;
 
     _loadCategories();
   }
@@ -490,6 +498,36 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                 value: _tagOnly,
                 onChanged: (v) => setState(() => _tagOnly = v),
               ),
+              SwitchListTile(
+                title: const Text('Buscar solo en nota'),
+                value: !_tagOnly && _noteOnly,
+                onChanged: (v) => setState(() {
+                  _noteOnly = v;
+                  if (v) _tagOnly = false;
+                }),
+              ),
+              SwitchListTile(
+                title: const Text('Solo recurrentes'),
+                value: _onlyRecurrent,
+                onChanged: (v) => setState(() => _onlyRecurrent = v),
+              ),
+              SwitchListTile(
+                title: const Text('Con comprobante'),
+                value: _hasAttachment,
+                onChanged: (v) => setState(() => _hasAttachment = v),
+              ),
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(labelText: 'Frecuencia'),
+                initialValue: _frecuencia,
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('Cualquiera')),
+                  DropdownMenuItem(value: 'semanal', child: Text('Semanal')),
+                  DropdownMenuItem(value: 'quincenal', child: Text('Quincenal')),
+                  DropdownMenuItem(value: 'mensual', child: Text('Mensual')),
+                  DropdownMenuItem(value: 'personalizada', child: Text('Personalizada')),
+                ],
+                onChanged: (val) => setState(() => _frecuencia = val),
+              ),
               const SizedBox(height: 28),
               _buildMultiFilterSection(
                 context,
@@ -526,6 +564,10 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                           _minAmountCtrl.clear();
                           _maxAmountCtrl.clear();
                           _tagOnly = false;
+                          _noteOnly = false;
+                          _onlyRecurrent = false;
+                          _hasAttachment = false;
+                          _frecuencia = null;
                         });
                       },
                       icon: const Icon(Icons.refresh_rounded, size: 20),
@@ -565,6 +607,10 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                           'minAmount': double.tryParse(_minAmountCtrl.text.replaceAll(',', '.')),
                           'maxAmount': double.tryParse(_maxAmountCtrl.text.replaceAll(',', '.')),
                           'tagOnly': _tagOnly,
+                          'noteOnly': _noteOnly,
+                          'onlyRecurrent': _onlyRecurrent,
+                          'hasAttachment': _hasAttachment,
+                          'frecuencia': _frecuencia,
                         });
                       },
                       icon: const Icon(Icons.check_rounded, size: 20),

@@ -1,12 +1,20 @@
+import 'package:sqflite/sqflite.dart';
 import '../../core/database/app_database.dart';
 import '../../../data/models/transaction_model.dart';
 
 class TransactionRepo {
-  final _dbFuture = AppDatabase().database;
+  final Future<Database> _dbFuture;
+  TransactionRepo({Future<Database>? dbFuture}) : _dbFuture = dbFuture ?? AppDatabase().database;
+  TransactionRepo.withDb(Database db) : _dbFuture = Future.value(db);
 
   Future<int> insert(AppTransaction t) async {
     final db = await _dbFuture;
     return db.insert('transacciones', t.toMap());
+  }
+
+  Future<int> insertAndGetId(AppTransaction t) async {
+    final db = await _dbFuture;
+    return await db.insert('transacciones', t.toMap());
   }
 
   Future<List<AppTransaction>> list({
@@ -94,6 +102,12 @@ class TransactionRepo {
     double? minAmount,
     double? maxAmount,
     bool tagOnly = false,
+    bool? onlyRecurrent,
+    bool? hasAttachment,
+    String? frecuencia,
+    bool noteOnly = false,
+    int? limit,
+    int? offset,
   }) async {
     final db = await _dbFuture;
 
@@ -141,39 +155,52 @@ class TransactionRepo {
       if (tagOnly) {
         where.add('etiqueta LIKE ?');
         args.add(searchPattern);
+      } else if (noteOnly) {
+        where.add('nota LIKE ?');
+        args.add(searchPattern);
       } else {
         where.add('(etiqueta LIKE ? OR nota LIKE ?)');
         args.add(searchPattern);
         args.add(searchPattern);
       }
     }
+    if (frecuencia != null && frecuencia.isNotEmpty) {
+      where.add('frecuencia_recurrencia = ?');
+      args.add(frecuencia);
+    }
+    if (onlyRecurrent != null) {
+      if (onlyRecurrent) {
+        where.add('recurrente = 1 AND frecuencia_recurrencia IS NOT NULL AND frecuencia_recurrencia != "una_vez"');
+      } else {
+        where.add('(recurrente = 0 OR frecuencia_recurrencia IS NULL OR frecuencia_recurrencia = "una_vez")');
+      }
+    }
+    if (hasAttachment != null) {
+      if (hasAttachment) {
+        where.add('comprobante_uri IS NOT NULL AND comprobante_uri != ""');
+      } else {
+        where.add('(comprobante_uri IS NULL OR comprobante_uri = "")');
+      }
+    }
 
     String orderBy;
     if (orders != null && orders.isNotEmpty) {
       List<String> orderCriteria = [];
-
-      // Ordenar por fecha
       if (orders.contains('fecha_desc')) {
         orderCriteria.add('fecha DESC');
       } else if (orders.contains('fecha_asc')) {
         orderCriteria.add('fecha ASC');
       }
-
-      // Ordenar por monto (secundario)
       if (orders.contains('monto_desc')) {
         orderCriteria.add('monto DESC');
       } else if (orders.contains('monto_asc')) {
         orderCriteria.add('monto ASC');
       }
-
-      // Si no hay criterios, usar fecha descendente por defecto
       if (orderCriteria.isEmpty) {
         orderCriteria.add('fecha DESC');
       }
-
       orderBy = orderCriteria.join(', ');
     } else {
-      // Usar el parámetro order (String) simple
       switch (order) {
         case 'fecha_asc':  orderBy = 'fecha ASC'; break;
         case 'monto_desc': orderBy = 'monto DESC, fecha DESC'; break;
@@ -188,6 +215,8 @@ class TransactionRepo {
       where: where.isEmpty ? null : where.join(' AND '),
       whereArgs: args.isEmpty ? null : args,
       orderBy: orderBy,
+      limit: limit,
+      offset: offset,
     );
     return rows.map(AppTransaction.fromMap).toList();
   }
@@ -227,5 +256,23 @@ class TransactionRepo {
       'egresos': egresos,
       'saldo': saldo,
     };
+  }
+
+  Future<bool> existsChildAtDate({required int usuarioId, required DateTime fecha}) async {
+    final db = await _dbFuture;
+    final rows = await db.query(
+      'transacciones',
+      columns: ['id'],
+      where: 'usuario_id = ? AND fecha = ? AND es_recurrente = 1',
+      whereArgs: [usuarioId, fecha.toIso8601String()],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
+  Future<List<String?>> getAllAttachmentPaths() async {
+    final db = await _dbFuture;
+    final rows = await db.query('transacciones', columns: ['comprobante_uri'], where: 'comprobante_uri IS NOT NULL AND comprobante_uri != ""');
+    return rows.map((r) => r['comprobante_uri'] as String?).toList();
   }
 }

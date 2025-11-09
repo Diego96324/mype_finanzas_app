@@ -6,6 +6,7 @@ import 'app.dart';
 import 'core/database/app_database.dart';
 import 'domain/services/auth_service.dart';
 import 'domain/services/backup_service.dart';
+import 'domain/services/attachment_cleanup_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +15,9 @@ Future<void> main() async {
   await AppDatabase().database.then(
     (db) => debugPrint('✅ Base de datos inicializada: $db'),
   );
+
+  // Limpieza de adjuntos huérfanos
+  await AttachmentCleanupService().removeOrphanAttachments();
 
   // Limpiar tokens antiguos de SharedPreferences (migración)
   final prefs = await SharedPreferences.getInstance();

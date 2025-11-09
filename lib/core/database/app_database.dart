@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -19,7 +19,7 @@ class AppDatabase {
   // NO TOCAR
   Future<void> resetDatabase() async {
     final dir = await getApplicationDocumentsDirectory();
-    final path = join(dir.path, 'mype_finanzas.db');
+    final path = p.join(dir.path, 'mype_finanzas.db');
     await deleteDatabase(path);
     _db = null;
     _db = await database;
@@ -27,10 +27,10 @@ class AppDatabase {
 
   Future<Database> _initDb() async {
     final dir = await getApplicationDocumentsDirectory();
-    final path = join(dir.path, 'mype_finanzas.db');
+    final path = p.join(dir.path, 'mype_finanzas.db');
     return openDatabase(
       path,
-      version: 10, // incrementado de 9 a 10 para nuevas columnas de recurrencia avanzada
+      version: 13, // bump para presupuestos por categoría (alertas/ajuste)
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -149,6 +149,9 @@ class AppDatabase {
         fecha_inicio TEXT NOT NULL,
         fecha_fin TEXT NOT NULL,
         activo INTEGER NOT NULL DEFAULT 1,
+        alerta_thresholds TEXT NOT NULL DEFAULT '75,90,100',
+        alerta_emitida_hasta INTEGER NOT NULL DEFAULT 0,
+        auto_ajuste INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
@@ -285,12 +288,13 @@ class AppDatabase {
     await db.execute('CREATE INDEX idx_transacciones_cuenta ON transacciones(cuenta_id)');
     await db.execute('CREATE INDEX idx_transacciones_fecha ON transacciones(fecha)');
     await db.execute('CREATE INDEX idx_transacciones_tipo ON transacciones(tipo)');
-    await db.execute('CREATE INDEX idx_presupuestos_usuario ON presupuestos(usuario_id)');
-    await db.execute('CREATE INDEX idx_metas_usuario ON metas_financieras(usuario_id)');
-    await db.execute('CREATE INDEX idx_accounts_usuario ON accounts(usuario_id)');
-    await db.execute('CREATE INDEX idx_cuentas_usuario ON cuentas(usuario_id)');
-    await db.execute('CREATE INDEX idx_budgets_usuario_mes ON budgets(usuario_id, mes, anio)');
-    await db.execute('CREATE INDEX idx_budget_periods_usuario ON budget_periods(usuario_id, periodo, mes, anio)');
+    // Nuevos índices para filtros avanzados
+    await db.execute('CREATE INDEX idx_transacciones_etiqueta ON transacciones(etiqueta)');
+    await db.execute('CREATE INDEX idx_transacciones_nota ON transacciones(nota)');
+    await db.execute('CREATE INDEX idx_transacciones_categoria ON transacciones(categoria_id)');
+    await db.execute('CREATE INDEX idx_transacciones_monto ON transacciones(monto)');
+    await db.execute('CREATE INDEX idx_presupuestos_usuario_periodo ON presupuestos(usuario_id, periodo, fecha_inicio)');
+    await db.execute('CREATE INDEX idx_presupuestos_categoria_periodo ON presupuestos(categoria_id, periodo, fecha_inicio)');
 
     final now = DateTime.now().toIso8601String();
 
@@ -747,6 +751,25 @@ class AppDatabase {
       } catch (e) {
         debugPrint('⚠️ Columna next_occurrence ya existe: $e');
       }
+    }
+
+    if (oldVersion < 13) {
+      try {
+        await db.execute("ALTER TABLE presupuestos ADD COLUMN alerta_thresholds TEXT NOT NULL DEFAULT '75,90,100'");
+      } catch (e) { debugPrint('⚠️ alerta_thresholds ya existe: $e'); }
+      try {
+        await db.execute('ALTER TABLE presupuestos ADD COLUMN alerta_emitida_hasta INTEGER NOT NULL DEFAULT 0');
+      } catch (e) { debugPrint('⚠️ alerta_emitida_hasta ya existe: $e'); }
+      try {
+        await db.execute('ALTER TABLE presupuestos ADD COLUMN auto_ajuste INTEGER NOT NULL DEFAULT 0');
+      } catch (e) { debugPrint('⚠️ auto_ajuste ya existe: $e'); }
+      try {
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_presupuestos_usuario_periodo ON presupuestos(usuario_id, periodo, fecha_inicio)');
+      } catch (e) { debugPrint('⚠️ índice idx_presupuestos_usuario_periodo: $e'); }
+      try {
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_presupuestos_categoria_periodo ON presupuestos(categoria_id, periodo, fecha_inicio)');
+      } catch (e) { debugPrint('⚠️ índice idx_presupuestos_categoria_periodo: $e'); }
+      debugPrint('✅ Migración v13 presupuestos por categoría lista');
     }
   }
 

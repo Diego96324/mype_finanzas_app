@@ -1,15 +1,25 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../../../../../data/models/transaction_model.dart';
-import '../../../../data/repositories/transaction_repo.dart';
+
+import '../../../../core/database/app_database.dart';
+import '../../../../core/services/global_alert_service.dart';
+import '../../../../core/utils/attachments_helper.dart';
+import '../../../../core/utils/recurrence_helper.dart';
+import '../../../../data/models/transaction_model.dart';
 import '../../../../data/repositories/account_repository.dart';
+import '../../../../data/repositories/transaction_repo.dart';
 import '../../../../domain/services/auth_service.dart';
+import '../../../../domain/services/category_budget_service.dart' as budget_service;
 import '../../../../domain/services/transaction_cache_service.dart';
+import '../../../features/budgets/controllers/category_budget_controller.dart';
 
 part 'transactions_controller.g.dart';
 
 // Provider para el repositorio de cuentas
-final accountRepositoryProvider = Provider<AccountRepository>((ref) => AccountRepository());
+final accountRepositoryProvider =
+    Provider<AccountRepository>((ref) => AccountRepository());
 
 class TransactionsState {
   final List<AppTransaction> transactions; // lista de movimientos
@@ -17,6 +27,8 @@ class TransactionsState {
   final bool isLoading;
   final String? error; // nunca se sabe
   final TransactionFilters filters; // filtros activos (fecha, tipo, etc)
+  final bool hasMore;
+  final int loadedCount;
 
   const TransactionsState({
     this.transactions = const [],
@@ -24,6 +36,8 @@ class TransactionsState {
     this.isLoading = false,
     this.error,
     this.filters = const TransactionFilters(),
+    this.hasMore = true,
+    this.loadedCount = 0,
   });
 
   TransactionsState copyWith({
@@ -32,6 +46,8 @@ class TransactionsState {
     bool? isLoading,
     String? error,
     TransactionFilters? filters,
+    bool? hasMore,
+    int? loadedCount,
   }) {
     return TransactionsState(
       transactions: transactions ?? this.transactions,
@@ -39,6 +55,8 @@ class TransactionsState {
       isLoading: isLoading ?? this.isLoading,
       error: error,
       filters: filters ?? this.filters,
+      hasMore: hasMore ?? this.hasMore,
+      loadedCount: loadedCount ?? this.loadedCount,
     );
   }
 }
@@ -54,6 +72,10 @@ class TransactionFilters {
   final double? minAmount; // monto mínimo
   final double? maxAmount; // monto máximo
   final bool tagOnly; // buscar solo en etiqueta
+  final bool? onlyRecurrent; // solo transacciones recurrentes/no recurrentes
+  final bool? hasAttachment; // con o sin comprobante
+  final String? frecuencia; // frecuencia_recurrencia específica
+  final bool noteOnly; // buscar sólo en nota
 
   const TransactionFilters({
     this.tipos,
@@ -65,6 +87,10 @@ class TransactionFilters {
     this.minAmount,
     this.maxAmount,
     this.tagOnly = false,
+    this.onlyRecurrent,
+    this.hasAttachment,
+    this.frecuencia,
+    this.noteOnly = false,
   });
 
   TransactionFilters copyWith({
@@ -77,6 +103,10 @@ class TransactionFilters {
     double? minAmount,
     double? maxAmount,
     bool? tagOnly,
+    bool? onlyRecurrent,
+    bool? hasAttachment,
+    String? frecuencia,
+    bool? noteOnly,
   }) {
     return TransactionFilters(
       tipos: tipos ?? this.tipos,
@@ -88,6 +118,10 @@ class TransactionFilters {
       minAmount: minAmount ?? this.minAmount,
       maxAmount: maxAmount ?? this.maxAmount,
       tagOnly: tagOnly ?? this.tagOnly,
+      onlyRecurrent: onlyRecurrent ?? this.onlyRecurrent,
+      hasAttachment: hasAttachment ?? this.hasAttachment,
+      frecuencia: frecuencia ?? this.frecuencia,
+      noteOnly: noteOnly ?? this.noteOnly,
     );
   }
 }
@@ -101,54 +135,69 @@ class TransactionsController extends _$TransactionsController {
 
   @override
   TransactionsState build() {
-    Future.microtask(() => loadTransactions());
-    return const TransactionsState(isLoading: true);
+    Future.microtask(() => loadTransactions(reset: true));
+    return const TransactionsState(
+        isLoading: true, hasMore: true, loadedCount: 0);
   }
 
-  Future<void> loadTransactions() async {
-    debugPrint('🔵 [TransactionsController] Cargando transacciones...');
+  Future<void> loadTransactions({bool reset = false}) async {
     state = state.copyWith(isLoading: true, error: null);
-
     try {
       final userId = _authService.currentUserId;
-      debugPrint('🔵 [TransactionsController] User: $userId');
-
       if (userId == null) {
-        debugPrint('🔴 [TransactionsController] Sin usuario');
-        state = state.copyWith(
-          isLoading: false,
-          error: 'Usuario no autenticado',
-        );
-        return;
+        // intentar crear usuario seed si la DB está vacía
+        await AppDatabase().ensureSeedUser();
+        final retryUser = _authService.currentUserId;
+        if (retryUser == null) {
+          state =
+              state.copyWith(isLoading: false, error: 'Usuario no autenticado');
+          return;
+        }
       }
+      final effectiveUserId = _authService.currentUserId!;
+      if (reset) {
+        state =
+            state.copyWith(transactions: [], loadedCount: 0, hasMore: true);
+      }
+      // Procesar ocurrencias recurrentes vencidas antes de listar
+      await _processDueRecurrences(effectiveUserId);
 
       final filters = state.filters;
-      debugPrint('🔵 [TransactionsController] Filtros: tipos=${filters.tipos}, from=${filters.from}, to=${filters.to}, order=${filters.order}');
+      debugPrint(
+          '🔵 [TransactionsController] Filtros: tipos=${filters.tipos}, from=${filters.from}, to=${filters.to}, order=${filters.order}');
 
-      final transactions = await _transactionRepo.listMultiple(
-        usuarioId: userId,
+      const pageSize = 50;
+      final offset = state.loadedCount;
+      final newPage = await _transactionRepo.listMultiple(
+        usuarioId: effectiveUserId,
         tipos: filters.tipos,
         from: filters.from,
         to: filters.to,
+        order: filters.order,
         searchTerm: filters.searchTerm,
-        orders: [filters.order],
         categoriaIds: filters.categoriaIds,
         minAmount: filters.minAmount,
         maxAmount: filters.maxAmount,
-        tagOnly: filters.tagOnly,
+        tagOnly: filters.tagOnly && !filters.noteOnly,
+        noteOnly: filters.noteOnly,
+        onlyRecurrent: filters.onlyRecurrent,
+        hasAttachment: filters.hasAttachment,
+        frecuencia: filters.frecuencia,
+        limit: pageSize,
+        offset: offset,
       );
 
-      debugPrint('✅ [TransactionsController] ${transactions.length} transacciones');
-
-      final stats = await _transactionRepo.getStats(usuarioId: userId);
+      final stats =
+          await _transactionRepo.getStats(usuarioId: effectiveUserId);
       debugPrint('✅ [TransactionsController] Stats: $stats');
 
-      state = TransactionsState(
-        transactions: transactions,
+      state = state.copyWith(
+        transactions: [...state.transactions, ...newPage],
         stats: stats,
         isLoading: false,
         error: null,
-        filters: filters,
+        loadedCount: state.loadedCount + newPage.length,
+        hasMore: newPage.length == pageSize,
       );
 
       debugPrint('✅ [TransactionsController] Ya está');
@@ -162,15 +211,86 @@ class TransactionsController extends _$TransactionsController {
     }
   }
 
+  Future<void> loadMore() async {
+    if (!state.hasMore || state.isLoading) return;
+    await loadTransactions();
+  }
+
+  Future<void> _processDueRecurrences(int userId) async {
+    try {
+      final now = DateTime.now();
+      final recurrentList = await _transactionRepo.listMultiple(
+        usuarioId: userId,
+        tipos: null,
+        from: null,
+        to: null,
+        order: 'fecha_desc',
+        onlyRecurrent: true,
+      );
+
+      for (final tx in recurrentList) {
+        if (!(tx.recurrente &&
+            tx.frecuenciaRecurrencia != null &&
+            tx.frecuenciaRecurrencia != 'una_vez')) continue;
+        DateTime? next = tx.nextOccurrence;
+        if (next == null) continue;
+
+        int safety = 0;
+        DateTime? lastNext = next;
+        while (lastNext != null &&
+            !lastNext.isAfter(now) &&
+            RecurrenceHelper.isRecurrenceActive(
+                tx.recurrenceEndDate, lastNext)) {
+          // Evitar duplicados si ya existe una hija en esa fecha exacta
+          final userId = _authService.currentUserId!;
+          final alreadyExists = await _transactionRepo.existsChildAtDate(
+              usuarioId: userId, fecha: lastNext);
+          if (!alreadyExists) {
+            final child = tx.copyWith(
+              id: null,
+              fecha: lastNext,
+              esRecurrente: true,
+              comprobanteUri: null,
+              createdAt: now,
+              updatedAt: now,
+            );
+            await _transactionRepo.insert(child);
+          }
+
+          // Calcular siguiente
+          lastNext = RecurrenceHelper.computeNextOccurrence(
+            base: lastNext,
+            frecuencia: tx.frecuenciaRecurrencia,
+            intervalDays: tx.recurrenceIntervalDays,
+          );
+
+          safety++;
+          if (safety > 36) break; // límite de seguridad (3 años si mensual)
+        }
+
+        // Actualizar nextOccurrence de la madre si cambió
+        if (lastNext != next) {
+          final motherUpdated = tx.copyWith(
+            nextOccurrence: lastNext,
+            updatedAt: now,
+          );
+          await _transactionRepo.update(motherUpdated);
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error procesando recurrencias: $e');
+    }
+  }
+
   Future<void> applyFilters(TransactionFilters filters) async {
     state = state.copyWith(filters: filters);
-    await loadTransactions();
+    await loadTransactions(reset: true);
   }
 
   // Quita todos los filtros
   Future<void> clearFilters() async {
     state = state.copyWith(filters: const TransactionFilters());
-    await loadTransactions();
+    await loadTransactions(reset: true);
   }
 
   // Guarda un ingreso o egreso nuevo
@@ -188,9 +308,18 @@ class TransactionsController extends _$TransactionsController {
         return false;
       }
 
-      // Calcular nextOccurrence si es recurrente y no viene
-      final isRecurrent = transaction.recurrente && transaction.frecuenciaRecurrencia != null && transaction.frecuenciaRecurrencia != 'una_vez';
-      final next = transaction.nextOccurrence ?? (isRecurrent ? _calculateNextOccurrence(transaction) : null);
+      final frecuencia = transaction.frecuenciaRecurrencia;
+      final isRecurrent = transaction.recurrente &&
+          frecuencia != null &&
+          frecuencia != 'una_vez';
+      final next = transaction.nextOccurrence ??
+          (isRecurrent
+              ? RecurrenceHelper.computeNextOccurrence(
+                  base: transaction.fecha,
+                  frecuencia: frecuencia,
+                  intervalDays: transaction.recurrenceIntervalDays,
+                )
+              : null);
 
       final now = DateTime.now();
       final newTransaction = transaction.copyWith(
@@ -200,14 +329,22 @@ class TransactionsController extends _$TransactionsController {
         updatedAt: now,
       );
 
-      await _transactionRepo.insert(newTransaction);
-
+      await _transactionRepo.insertAndGetId(newTransaction);
       _cacheService.invalidateUser(userId);
-      await loadTransactions();
-
+      await _refreshAll();
+      // invalidar presupuesto categoría si egreso
+      if (newTransaction.tipo == 'egreso' &&
+          newTransaction.categoriaId != null) {
+        _invalidateCategoryBudget(
+            newTransaction.categoriaId!, newTransaction.fecha);
+        // Notificar si se cruzó umbral
+        unawaited(_notifyCategoryBudget(
+            newTransaction.categoriaId!, newTransaction.fecha));
+      }
       return true;
     } catch (e) {
-      state = state.copyWith(error: 'Error al guardar transacción: ${e.toString()}');
+      state = state.copyWith(
+          error: 'Error al guardar transacción: ${e.toString()}');
       return false;
     }
   }
@@ -227,20 +364,31 @@ class TransactionsController extends _$TransactionsController {
         return false;
       }
 
-      // Actualizamos la fecha de modificación
       final updatedTransaction = transaction.copyWith(
         updatedAt: DateTime.now(),
       );
 
       await _transactionRepo.update(updatedTransaction);
-
-      // Limpiamos caché y recargamos
+      // Actualización optimista
+      final updatedList = state.transactions
+          .map((t) =>
+              t.id == updatedTransaction.id ? updatedTransaction : t)
+          .toList();
+      state = state.copyWith(transactions: updatedList);
       _cacheService.invalidateUser(userId);
-      await loadTransactions();
-
+      await _refreshAll();
+      if (updatedTransaction.tipo == 'egreso' &&
+          updatedTransaction.categoriaId != null) {
+        _invalidateCategoryBudget(
+            updatedTransaction.categoriaId!, updatedTransaction.fecha);
+        // Notificar si se cruzó umbral
+        unawaited(_notifyCategoryBudget(
+            updatedTransaction.categoriaId!, updatedTransaction.fecha));
+      }
       return true;
     } catch (e) {
-      state = state.copyWith(error: 'Error al actualizar transacción: ${e.toString()}');
+      state = state.copyWith(
+          error: 'Error al actualizar transacción: ${e.toString()}');
       return false;
     }
   }
@@ -255,15 +403,28 @@ class TransactionsController extends _$TransactionsController {
         return false;
       }
 
+      // obtener el comprobante antes de borrar
+      final tx = await _transactionRepo.getById(transactionId);
       await _transactionRepo.delete(transactionId);
 
-      // Actualizamos después de borrar
-      _cacheService.invalidateUser(userId);
-      await loadTransactions();
+      // eliminar comprobante físico si existía
+      if (tx?.comprobanteUri != null && tx!.comprobanteUri!.isNotEmpty) {
+        await AttachmentsHelper.deleteAttachment(tx.comprobanteUri);
+      }
 
+      _cacheService.invalidateUser(userId);
+      // Optimista: remover de la lista antes de recargar
+      final filtered =
+          state.transactions.where((t) => t.id != transactionId).toList();
+      state = state.copyWith(transactions: filtered);
+      await _refreshAll();
+      if (tx != null && tx.tipo == 'egreso' && tx.categoriaId != null) {
+        _invalidateCategoryBudget(tx.categoriaId!, tx.fecha);
+      }
       return true;
     } catch (e) {
-      state = state.copyWith(error: 'Error al eliminar transacción: ${e.toString()}');
+      state = state.copyWith(
+          error: 'Error al eliminar transacción: ${e.toString()}');
       return false;
     }
   }
@@ -280,12 +441,12 @@ class TransactionsController extends _$TransactionsController {
 
       // Importar el repositorio de cuentas
       final accountRepo = ref.read(accountRepositoryProvider);
-      final success = await accountRepo.deleteAccountFromTransaction(accountId);
+      final success =
+          await accountRepo.deleteAccountFromTransaction(accountId);
 
       if (success) {
-        // Actualizamos la lista de transacciones
         _cacheService.invalidateUser(userId);
-        await loadTransactions();
+        await _refreshAll();
       }
 
       return success;
@@ -300,7 +461,8 @@ class TransactionsController extends _$TransactionsController {
     try {
       return await _transactionRepo.getById(transactionId);
     } catch (e) {
-      state = state.copyWith(error: 'Error al obtener transacción: ${e.toString()}');
+      state = state.copyWith(
+          error: 'Error al obtener transacción: ${e.toString()}');
       return null;
     }
   }
@@ -356,10 +518,15 @@ class TransactionsController extends _$TransactionsController {
       to: state.filters.to,
       searchTerm: filtersMap['searchTerm'] as String?,
       order: order,
-      categoriaIds: (filtersMap['categoriaIds'] as List?)?.map((e) => e as int).toList(),
+      categoriaIds:
+          (filtersMap['categoriaIds'] as List?)?.map((e) => e as int).toList(),
       minAmount: filtersMap['minAmount'] as double?,
       maxAmount: filtersMap['maxAmount'] as double?,
       tagOnly: (filtersMap['tagOnly'] as bool?) ?? false,
+      onlyRecurrent: filtersMap['onlyRecurrent'] as bool?,
+      hasAttachment: filtersMap['hasAttachment'] as bool?,
+      frecuencia: filtersMap['frecuencia'] as String?,
+      noteOnly: (filtersMap['noteOnly'] as bool?) ?? false,
     );
 
     await applyFilters(newFilters);
@@ -385,12 +552,12 @@ class TransactionsController extends _$TransactionsController {
 
   // Recarga después de crear una transacción (llamado desde el FAB)
   Future<void> reloadAfterCreate() async {
-    await loadTransactions();
+    await loadTransactions(reset: true);
   }
 
   // Recarga después de editar una cuenta (llamado desde el diálogo de edición)
   Future<void> reloadAfterAccountUpdate() async {
-    await loadTransactions();
+    await loadTransactions(reset: true);
   }
 
   // Obtiene el rango de fechas actual
@@ -421,23 +588,54 @@ class TransactionsController extends _$TransactionsController {
     return state.filters.searchTerm;
   }
 
-  // Calcula próxima ocurrencia para una transacción recurrente
-  DateTime? _calculateNextOccurrence(AppTransaction tx) {
-    if (tx.frecuenciaRecurrencia == null) return null;
-    final base = tx.fecha;
-    switch (tx.frecuenciaRecurrencia) {
-      case 'semanal':
-        return base.add(const Duration(days: 7));
-      case 'quincenal':
-        return base.add(const Duration(days: 15));
-      case 'mensual':
-        return DateTime(base.year, base.month + 1, base.day, base.hour, base.minute, base.second);
-      case 'personalizada':
-        final interval = tx.recurrenceIntervalDays ?? 0;
-        if (interval <= 0) return null;
-        return base.add(Duration(days: interval));
-      default:
-        return null;
+  void _invalidateCategoryBudget(int categoriaId, DateTime fecha) {
+    final keyMensual = CategoryBudgetKey(
+        categoriaId: categoriaId,
+        periodo: 'mensual',
+        referencia: DateTime(fecha.year, fecha.month, 1));
+    final keyTrimestral = CategoryBudgetKey(
+        categoriaId: categoriaId,
+        periodo: 'trimestral',
+        referencia: DateTime(fecha.year, fecha.month, 1));
+    try {
+      ref.invalidate(categoryBudgetControllerProvider(keyMensual));
+      ref.invalidate(categoryBudgetControllerProvider(keyTrimestral));
+    } catch (e) {
+      debugPrint('⚠️ Error invalidando presupuesto categoría: $e');
     }
+  }
+
+  Future<void> _notifyCategoryBudget(int categoriaId, DateTime fecha) async {
+    try {
+      final uid = _authService.currentUserId;
+      if (uid == null) return;
+      final service = budget_service.CategoryBudgetService();
+      final refDate = DateTime(fecha.year, fecha.month, 1);
+      for (final periodo in ['mensual', 'trimestral']) {
+        final summary = await service.getSummary(
+          usuarioId: uid,
+          categoriaId: categoriaId,
+          periodo: periodo,
+          referencia: refDate,
+        );
+        final umbral = summary?.nuevoUmbralEmitido;
+        if (summary != null && umbral != null) {
+          await GlobalAlertService().showBudgetThresholdAlert(
+            categoriaId: categoriaId,
+            categoriaNombre: summary.budget.nombre,
+            porcentaje: umbral.toDouble(),
+            limite: summary.budget.montoLimite,
+            periodo: periodo,
+            referencia: refDate,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ Error notificando alerta presupuesto: $e');
+    }
+  }
+
+  Future<void> _refreshAll() async {
+    await loadTransactions(reset: true);
   }
 }

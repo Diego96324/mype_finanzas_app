@@ -9,6 +9,7 @@ import '../../../../core/providers/category_providers.dart';
 import '../../../../core/theme/components/date_picker_theme.dart';
 import '../../../../core/utils/attachments_helper.dart';
 import '../../../../core/utils/form_validators.dart';
+import '../../../../core/utils/recurrence_helper.dart';
 import '../controllers/transactions_controller.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
@@ -91,23 +92,16 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
     super.dispose();
   }
 
-  // Helper para calcular próxima ocurrencia
+  // Helper para calcular próxima ocurrencia (delegado al helper)
   DateTime? _computeNextOccurrence(DateTime base) {
-    switch (_frecuencia) {
-      case 'semanal':
-        return base.add(const Duration(days: 7));
-      case 'quincenal':
-        return base.add(const Duration(days: 15));
-      case 'mensual':
-        return DateTime(base.year, base.month + 1, base.day, base.hour, base.minute, base.second);
-      case 'personalizada':
-        final n = int.tryParse(_intervaloCtrl.text.trim());
-        if (n == null || n <= 0) return null;
-        return base.add(Duration(days: n));
-      default:
-        return null;
-    }
+    return RecurrenceHelper.computeNextOccurrence(
+      base: base,
+      frecuencia: _recuenciaValida ? _frecuencia : null,
+      intervalDays: int.tryParse(_intervaloCtrl.text.trim()),
+    );
   }
+
+  bool get _recuenciaValida => _recurrente && _frecuencia != 'una_vez';
 
   Future<void> _pickFecha() async {
     final firstDate = widget.allowedDateRange?.start ?? DateTime(2010);
@@ -157,6 +151,14 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
   Future<void> _guardar() async {
     if (_formKey.currentState?.validate() != true) return;
 
+    // Validación de fecha fin de recurrencia (si aplica)
+    if (_recurrente && _fechaFinRecurrencia != null && !_fechaFinRecurrencia!.isAfter(_fecha)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('La fecha fin de recurrencia debe ser posterior a la inicial'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     final monto = double.tryParse(_montoCtrl.text.replaceAll(',', '.')) ?? 0;
 
     final frecuencia = _recurrente && _frecuencia != 'una_vez' ? _frecuencia : null;
@@ -166,7 +168,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
     final next = (_recurrente && frecuencia != null) ? _computeNextOccurrence(_fecha) : null;
 
     final transaction = AppTransaction(
-      usuarioId: 0, // El controlador asignará el ID correcto
+      usuarioId: 0,
       fecha: _fecha,
       tipo: _tipo,
       monto: monto,
@@ -182,6 +184,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
       comprobanteUri: _comprobantePath,
+      // (eliminado) tags: List<String>.from(_tags),
     );
 
     final success = await ref.read(transactionsControllerProvider.notifier).saveTransaction(transaction);
@@ -300,12 +303,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> wit
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
                     ],
-                    validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Ingrese un monto';
-                      final num? parsed = num.tryParse(v.replaceAll(',', '.'));
-                      if (parsed == null || parsed <= 0) return 'Ingrese un monto válido';
-                      return null;
-                    },
+                    validator: (v) => FormValidators.validateAmount(v),
                   ),
 
                   const SizedBox(height: 16),

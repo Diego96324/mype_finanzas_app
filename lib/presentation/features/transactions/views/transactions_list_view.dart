@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,6 +16,9 @@ class TransactionsListView extends ConsumerStatefulWidget {
 }
 
 class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
+  final ScrollController _scrollController = ScrollController();
+  Timer? _loadMoreDebounce;
+
   @override
   void initState() {
     super.initState();
@@ -23,8 +27,34 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       debugPrint('🔍 [TransactionsListView] Página cargada');
     });
+    _scrollController.addListener(_onScroll);
   }
 
+  void _onScroll() {
+    final ctrl = _scrollController;
+    if (!ctrl.hasClients) return;
+    final max = ctrl.position.maxScrollExtent;
+    final current = ctrl.position.pixels;
+    if (max - current < 400) {
+      // Debounce para evitar múltiples llamadas en umbral
+      if (_loadMoreDebounce?.isActive ?? false) return;
+      _loadMoreDebounce = Timer(const Duration(milliseconds: 300), () {
+        // Evitar llamadas innecesarias si ya no hay más
+        final hasMore = ref.read(transactionsControllerProvider).hasMore;
+        if (hasMore) {
+          ref.read(transactionsControllerProvider.notifier).loadMore();
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    _loadMoreDebounce?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -231,10 +261,25 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
 
                     final groupedTransactions = _groupTransactionsByDate(transactions);
 
+                    final showFooter = state.hasMore; // solo footer si hay más
                     return ListView.builder(
+                      controller: _scrollController,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      itemCount: groupedTransactions.length,
+                      itemCount: groupedTransactions.length + (showFooter ? 1 : 0),
                       itemBuilder: (context, groupIndex) {
+                        if (showFooter && groupIndex == groupedTransactions.length) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            child: Center(
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(strokeWidth: 3),
+                              ),
+                            ),
+                          );
+                        }
+
                         final group = groupedTransactions[groupIndex];
                         final date = group['date'] as DateTime;
                         final txList = group['transactions'] as List<AppTransaction>;
