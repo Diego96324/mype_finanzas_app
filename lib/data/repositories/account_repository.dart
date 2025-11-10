@@ -279,7 +279,7 @@ class AccountRepository {
     }
   }
 
-  // Método utilitario para corregir en lote transacciones de apertura existentes
+  // Méodo utilitario para corregir en lote transacciones de apertura existentes
   Future<int> fixOpeningTransactionsTypes() async {
     try {
       final userId = _auth.currentUserId;
