@@ -118,11 +118,21 @@ class AccountRepository {
 
         final categoriaId = categorias.isNotEmpty ? categorias.first['id'] as int? : null;
 
+        // Determinar si la cuenta es pasiva para registrar correctamente la transacción de apertura
+        final tiposPasivos = ['credito', 'por_pagar'];
+        final bool esPasivo = tiposPasivos.contains(tipo);
+
+        // Si la cuenta es pasiva, un saldo inicial positivo representa una obligación (egreso en la lista de movimientos),
+        // mientras que para cuentas normales un saldo positivo se registra como 'ingreso'.
+        final aperturaTipo = esPasivo
+            ? (saldoInicial >= 0 ? 'egreso' : 'ingreso')
+            : (saldoInicial >= 0 ? 'ingreso' : 'egreso');
+
         await database.insert('transacciones', {
           'usuario_id': userId,
           'cuenta_id': accountId,
           'categoria_id': categoriaId,
-          'tipo': saldoInicial >= 0 ? 'ingreso' : 'egreso',
+          'tipo': aperturaTipo,
           'descripcion': 'Saldo inicial',
           'etiqueta': nombre, // ✅ Etiqueta = Nombre de la cuenta
           'nota': institucion != null && institucion.isNotEmpty
@@ -220,8 +230,39 @@ class AccountRepository {
             : 'Apertura de cuenta';
       }
 
+      // Obtener el tipo de la cuenta actual para decidir el tipo de la transacción de apertura
+      final cuentas = await database.query(
+        'cuentas',
+        columns: ['tipo', 'saldo'],
+        where: 'id = ?',
+        whereArgs: [accountId],
+        limit: 1,
+      );
+
+      String? cuentaTipo;
+      double currentSaldo = 0.0;
+      if (cuentas.isNotEmpty) {
+        cuentaTipo = cuentas.first['tipo'] as String?;
+        final saldoVal = cuentas.first['saldo'] as num?;
+        currentSaldo = saldoVal != null ? saldoVal.toDouble() : 0.0;
+      }
+
       if (saldo != null) {
         transactionUpdateData['monto'] = saldo.abs();
+      }
+
+      // Determinar si la cuenta es pasiva para registrar correctamente la transacción de apertura
+      final tiposPasivos = ['credito', 'por_pagar'];
+      final bool esPasivo = cuentaTipo != null && tiposPasivos.contains(cuentaTipo);
+
+      // Si ya se va a actualizar el monto, o queremos asegurar que el tipo sea consistente, calculamos el tipo correcto
+      if (transactionUpdateData.containsKey('monto') || cuentaTipo != null) {
+        final effectiveSaldo = (saldo != null) ? saldo : currentSaldo;
+        final aperturaTipo = esPasivo
+            ? (effectiveSaldo >= 0 ? 'egreso' : 'ingreso')
+            : (effectiveSaldo >= 0 ? 'ingreso' : 'egreso');
+
+        transactionUpdateData['tipo'] = aperturaTipo;
       }
 
       if (transactionUpdateData.length > 1) { // Más de solo updated_at
@@ -238,7 +279,129 @@ class AccountRepository {
     }
   }
 
-  // Eliminar cuenta (soft delete)
+  // Método utilitario para corregir en lote transacciones de apertura existentes
+  Future<int> fixOpeningTransactionsTypes() async {
+    try {
+      final userId = _auth.currentUserId;
+      if (userId == null) return 0;
+
+      final database = await _db.database;
+      // Obtener todas las transacciones de apertura con su cuenta
+      final rows = await database.rawQuery('''
+        SELECT t.id as tid, t.cuenta_id as cid, t.monto as monto, c.tipo as cuenta_tipo
+        FROM transacciones t
+        LEFT JOIN cuentas c ON c.id = t.cuenta_id
+        WHERE t.es_apertura_cuenta = 1 AND c.usuario_id = ?
+      ''', [userId]);
+
+      int updated = 0;
+      final tiposPasivos = ['credito', 'por_pagar'];
+
+      for (final r in rows) {
+        final tid = r['tid'] as int?;
+        final monto = (r['monto'] as num?)?.toDouble() ?? 0.0;
+        final cuentaTipo = r['cuenta_tipo'] as String?;
+        final esPasivo = cuentaTipo != null && tiposPasivos.contains(cuentaTipo);
+        final aperturaTipo = esPasivo ? (monto >= 0 ? 'egreso' : 'ingreso') : (monto >= 0 ? 'ingreso' : 'egreso');
+
+        if (tid != null) {
+          final res = await database.update(
+            'transacciones',
+            {'tipo': aperturaTipo, 'updated_at': DateTime.now().toIso8601String()},
+            where: 'id = ?',
+            whereArgs: [tid],
+          );
+          if (res > 0) updated += 1;
+        }
+      }
+
+      debugPrint('✅ Corregidas $updated transacciones de apertura');
+      return updated;
+    } catch (e) {
+      debugPrint('❌ Error al corregir transacciones de apertura: $e');
+      return 0;
+    }
+  }
+
+  // Reordenar cuentas
+  Future<bool> reorderAccounts(List<int> accountIds) async {
+    try {
+      final userId = _auth.currentUserId;
+      if (userId == null) return false;
+
+      final database = await _db.database;
+
+      return await database.transaction((txn) async {
+        for (int i = 0; i < accountIds.length; i++) {
+          await txn.update(
+            'cuentas',
+            {'orden': i},
+            where: 'id = ? AND usuario_id = ?',
+            whereArgs: [accountIds[i], userId],
+          );
+        }
+        return true;
+      });
+    } catch (e) {
+      debugPrint('❌ Error al reordenar cuentas: $e');
+      return false;
+    }
+  }
+
+  // Actualizar cuenta cuando se edita la transacción de apertura
+  Future<bool> updateAccountFromTransaction({
+    required int accountId,
+    required String nombre,
+    String? institucion,
+  }) async {
+    try {
+      final userId = _auth.currentUserId;
+      if (userId == null) return false;
+
+      final database = await _db.database;
+      final rowsAffected = await database.update(
+        'cuentas',
+        {
+          'nombre': nombre,
+          'institucion': institucion,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+        where: 'id = ? AND usuario_id = ?',
+        whereArgs: [accountId, userId],
+      );
+
+      debugPrint('✅ Cuenta actualizada desde transacción: $nombre');
+      return rowsAffected > 0;
+    } catch (e) {
+      debugPrint('❌ Error al actualizar cuenta desde transacción: $e');
+      return false;
+    }
+  }
+
+  // Eliminar cuenta cuando se elimina la transacción de apertura
+  Future<bool> deleteAccountFromTransaction(int accountId) async {
+    try {
+      final userId = _auth.currentUserId;
+      if (userId == null) return false;
+
+      final database = await _db.database;
+
+      // Eliminar la cuenta (esto también eliminará las transacciones asociadas por CASCADE)
+      final rowsAffected = await database.delete(
+        'cuentas',
+        where: 'id = ? AND usuario_id = ?',
+        whereArgs: [accountId, userId],
+      );
+
+      debugPrint('✅ Cuenta eliminada desde transacción de apertura');
+      return rowsAffected > 0;
+    } catch (e) {
+      debugPrint('❌ Error al eliminar cuenta desde transacción: $e');
+      return false;
+    }
+  }
+
+  // Eliminar cuenta (soft delete) - método público
   Future<bool> deleteAccount(int accountId) async {
     try {
       final userId = _auth.currentUserId;
@@ -433,84 +596,6 @@ class AccountRepository {
         'porTipo': {},
         'cuentas': 0,
       };
-    }
-  }
-
-  // Reordenar cuentas
-  Future<bool> reorderAccounts(List<int> accountIds) async {
-    try {
-      final userId = _auth.currentUserId;
-      if (userId == null) return false;
-
-      final database = await _db.database;
-
-      return await database.transaction((txn) async {
-        for (int i = 0; i < accountIds.length; i++) {
-          await txn.update(
-            'cuentas',
-            {'orden': i},
-            where: 'id = ? AND usuario_id = ?',
-            whereArgs: [accountIds[i], userId],
-          );
-        }
-        return true;
-      });
-    } catch (e) {
-      debugPrint('❌ Error al reordenar cuentas: $e');
-      return false;
-    }
-  }
-
-  // Actualizar cuenta cuando se edita la transacción de apertura
-  Future<bool> updateAccountFromTransaction({
-    required int accountId,
-    required String nombre,
-    String? institucion,
-  }) async {
-    try {
-      final userId = _auth.currentUserId;
-      if (userId == null) return false;
-
-      final database = await _db.database;
-      final rowsAffected = await database.update(
-        'cuentas',
-        {
-          'nombre': nombre,
-          'institucion': institucion,
-          'updated_at': DateTime.now().toIso8601String(),
-        },
-        where: 'id = ? AND usuario_id = ?',
-        whereArgs: [accountId, userId],
-      );
-
-      debugPrint('✅ Cuenta actualizada desde transacción: $nombre');
-      return rowsAffected > 0;
-    } catch (e) {
-      debugPrint('❌ Error al actualizar cuenta desde transacción: $e');
-      return false;
-    }
-  }
-
-  // Eliminar cuenta cuando se elimina la transacción de apertura
-  Future<bool> deleteAccountFromTransaction(int accountId) async {
-    try {
-      final userId = _auth.currentUserId;
-      if (userId == null) return false;
-
-      final database = await _db.database;
-
-      // Eliminar la cuenta (esto también eliminará las transacciones asociadas por CASCADE)
-      final rowsAffected = await database.delete(
-        'cuentas',
-        where: 'id = ? AND usuario_id = ?',
-        whereArgs: [accountId, userId],
-      );
-
-      debugPrint('✅ Cuenta eliminada desde transacción de apertura');
-      return rowsAffected > 0;
-    } catch (e) {
-      debugPrint('❌ Error al eliminar cuenta desde transacción: $e');
-      return false;
     }
   }
 

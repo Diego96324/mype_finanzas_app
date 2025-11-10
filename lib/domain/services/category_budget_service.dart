@@ -1,4 +1,6 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/database/app_database.dart';
 import '../../data/models/category_budget_model.dart';
@@ -131,6 +133,7 @@ class CategoryBudgetService {
     required int categoriaId,
     required String periodo,
     required DateTime referencia,
+    bool persistAlertChange = true,
   }) async {
     final budget = await _repo.getActiveFor(
       usuarioId: usuarioId,
@@ -153,8 +156,42 @@ class CategoryBudgetService {
     final reached = budget.alertaThresholds.where((t) => pct >= t).fold<int>(0, (prev, t) => t > prev ? t : prev);
     int? nuevoUmbral;
     if (reached > budget.alertaEmitidaHasta) {
-      await _repo.setAlertEmitted(id: budget.id!, hasta: reached);
+      // Se superó un umbral nuevo: si se permite persistir, marcar y notificar.
+      if (persistAlertChange) {
+        await _repo.setAlertEmitted(id: budget.id!, hasta: reached);
+      }
       nuevoUmbral = reached;
+    } else if (reached < budget.alertaEmitidaHasta) {
+      // El uso bajó por debajo del último umbral mostrado: resetear el estado
+      // para permitir que, si se supera de nuevo, vuelva a emitir notificaciones.
+      if (persistAlertChange) {
+        try {
+          await _repo.setAlertEmitted(id: budget.id!, hasta: reached);
+          // También actualizar la preferencia que utiliza GlobalAlertService
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            final key = 'budget_alert_${budget.fechaInicio.year}_${budget.fechaInicio.month}_${budget.periodo}_${budget.categoriaId}';
+            await prefs.setInt(key, reached);
+            debugPrint('\u2139\ufe0f [CategoryBudgetService] SharedPreferences $key actualizado a $reached');
+
+            // Además: si existe la notificación marcada como mostrada, eliminarla
+            // para permitir que vuelva a mostrarse en futuras verificaciones.
+            final shownKey = 'budget_shown_notifications';
+            final shownIds = prefs.getStringList(shownKey) ?? [];
+            final notifId = 'category_${budget.periodo}_${budget.categoriaId}_${budget.fechaInicio.year}_${budget.fechaInicio.month}';
+            if (shownIds.contains(notifId)) {
+              shownIds.remove(notifId);
+              await prefs.setStringList(shownKey, shownIds);
+              debugPrint('\u2139\ufe0f [CategoryBudgetService] Removida notificación $notifId de $shownKey para permitir re-notificación');
+            }
+          } catch (e) {
+            debugPrint('\u26a0\ufe0f [CategoryBudgetService] No se pudo actualizar SharedPreferences: $e');
+          }
+          debugPrint('\u2139\ufe0f [CategoryBudgetService] alertaEmitidaHasta reducida para budget.id=${budget.id} de ${budget.alertaEmitidaHasta} a $reached');
+        } catch (_) {
+          // no bloquear el flujo por errores de persistencia
+        }
+      }
     }
 
     double? sugerencia;

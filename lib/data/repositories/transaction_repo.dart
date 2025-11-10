@@ -3,9 +3,11 @@ import '../../core/database/app_database.dart';
 import '../../../data/models/transaction_model.dart';
 
 class TransactionRepo {
-  final Future<Database> _dbFuture;
-  TransactionRepo({Future<Database>? dbFuture}) : _dbFuture = dbFuture ?? AppDatabase().database;
-  TransactionRepo.withDb(Database db) : _dbFuture = Future.value(db);
+  final Future<Database>? _overrideDbFuture;
+  TransactionRepo({Future<Database>? dbFuture}) : _overrideDbFuture = dbFuture;
+  TransactionRepo.withDb(Database db) : _overrideDbFuture = Future.value(db);
+
+  Future<Database> get _dbFuture async => _overrideDbFuture ?? AppDatabase().database;
 
   Future<int> insert(AppTransaction t) async {
     final db = await _dbFuture;

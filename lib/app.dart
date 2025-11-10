@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router/app_router.dart';
 import 'core/providers/providers.dart';
+import 'core/widgets/budget_notification_banner.dart';
 
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
@@ -36,6 +37,11 @@ class MyApp extends ConsumerWidget {
       ],
       routerConfig: router,
       scaffoldMessengerKey: rootScaffoldMessengerKey,
+      builder: (context, child) {
+        // Envuelve el árbol de la app con el banner global de notificaciones
+        // de presupuesto para que las alertas se muestren en la parte superior.
+        return BudgetNotificationBanner(child: child ?? const SizedBox.shrink());
+      },
     );
   }
 

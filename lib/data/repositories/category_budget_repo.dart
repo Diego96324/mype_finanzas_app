@@ -2,7 +2,8 @@ import '../../core/database/app_database.dart';
 import '../models/category_budget_model.dart';
 
 class CategoryBudgetRepo {
-  final AppDatabase _dbProvider = AppDatabase();
+  // Obtener la instancia de AppDatabase sólo cuando se necesita (lazy).
+  AppDatabase get _dbProvider => AppDatabase();
 
   Future<int> insert(CategoryBudget budget) async {
     final db = await _dbProvider.database;

@@ -38,7 +38,7 @@ class TransactionsQuickMenu extends ConsumerWidget {
               selected: currentMode == 'transacciones',
               onTap: () {
                 onSelectMode('transacciones');
-                Navigator.pop(context);
+                Navigator.maybePop(context);
               },
             ),
             const SizedBox(height: 8),
@@ -49,7 +49,7 @@ class TransactionsQuickMenu extends ConsumerWidget {
               selected: currentMode == 'presupuestos',
               onTap: () {
                 onSelectMode('presupuestos');
-                Navigator.pop(context);
+                Navigator.maybePop(context);
               },
             ),
             const SizedBox(height: 12),
@@ -58,7 +58,7 @@ class TransactionsQuickMenu extends ConsumerWidget {
               child: TextButton.icon(
                 icon: const Icon(Icons.close),
                 label: const Text('Cerrar'),
-                onPressed: () => Navigator.pop(context),
+                onPressed: () => Navigator.maybePop(context),
               ),
             ),
           ],
@@ -94,14 +94,14 @@ class _ModeTile extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: selected ? colorScheme.primary.withValues(alpha: 0.12) : colorScheme.surfaceVariant.withValues(alpha: 0.2),
+                  color: selected ? colorScheme.primary.withValues(alpha: 0.12) : colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: selected ? colorScheme.primary : colorScheme.outlineVariant.withValues(alpha: 0.3),
+                    color: selected ? colorScheme.primary : colorScheme.outline.withValues(alpha: 0.3),
                     width: 1.5,
                   ),
                 ),
-                child: Icon(icon, color: selected ? colorScheme.primary : colorScheme.onSurfaceVariant),
+                child: Icon(icon, color: selected ? colorScheme.primary : colorScheme.onSurface.withValues(alpha: 0.9)),
               ),
               const SizedBox(width: 12),
               Expanded(

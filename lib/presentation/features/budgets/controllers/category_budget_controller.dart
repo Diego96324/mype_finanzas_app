@@ -46,7 +46,12 @@ class CategoryBudgetController extends StateNotifier<CategoryBudgetState> {
   final CategoryBudgetKey key;
 
   CategoryBudgetController(this.key) : super(const CategoryBudgetState(isLoading: true)) {
-    Future.microtask(() => load());
+    Future.microtask(() {
+      // Verificar antes de invocar para evitar llamadas innecesarias después de dispose
+      if (mounted) {
+        load();
+      }
+    });
   }
 
   Future<void> load() async {
@@ -54,6 +59,7 @@ class CategoryBudgetController extends StateNotifier<CategoryBudgetState> {
     try {
       final uid = _auth.currentUserId;
       if (uid == null) {
+        if (!mounted) return;
         state = state.copyWith(isLoading: false, error: 'Usuario no autenticado');
         return;
       }
@@ -63,9 +69,14 @@ class CategoryBudgetController extends StateNotifier<CategoryBudgetState> {
         periodo: key.periodo,
         referencia: key.referencia,
       );
+      if (!mounted) {
+        debugPrint('⚠️ [CategoryBudgetController] load() finalizó async pero notifier disposed, no se actualiza estado');
+        return;
+      }
       state = state.copyWith(summary: summary, isLoading: false);
     } catch (e, st) {
       debugPrint('Error load CategoryBudget: $e\n$st');
+      if (!mounted) return;
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
@@ -79,11 +90,11 @@ class CategoryBudgetController extends StateNotifier<CategoryBudgetState> {
     try {
       final uid = _auth.currentUserId;
       if (uid == null) {
-        state = state.copyWith(error: 'Usuario no autenticado');
+        if (mounted) state = state.copyWith(error: 'Usuario no autenticado');
         return false;
       }
       if (montoLimite <= 0) {
-        state = state.copyWith(error: 'El monto debe ser mayor a cero');
+        if (mounted) state = state.copyWith(error: 'El monto debe ser mayor a cero');
         return false;
       }
       await _service.saveBudget(
@@ -99,7 +110,7 @@ class CategoryBudgetController extends StateNotifier<CategoryBudgetState> {
       await load();
       return true;
     } catch (e) {
-      state = state.copyWith(error: 'Error al guardar: ${e.toString()}');
+      if (mounted) state = state.copyWith(error: 'Error al guardar: ${e.toString()}');
       return false;
     }
   }

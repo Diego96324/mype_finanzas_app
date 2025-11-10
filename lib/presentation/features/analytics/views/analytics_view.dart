@@ -298,7 +298,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> with SingleTi
                   final dateRange = state.dateRange;
 
                   // Navegar a agregar transacción
-                  Navigator.of(context).push(
+                  Navigator.of(context, rootNavigator: true).push(
                     MaterialPageRoute(
                       builder: (context) => AddTransactionScreen(
                         initialDate: dateRange?.start ?? DateTime.now(),
@@ -1026,4 +1026,3 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> with SingleTi
     );
   }
 }
-

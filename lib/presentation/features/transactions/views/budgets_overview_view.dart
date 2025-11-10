@@ -8,6 +8,7 @@ import '../../../../data/repositories/category_repository.dart';
 import '../../../../domain/services/auth_service.dart';
 import '../../../../domain/services/category_budget_service.dart';
 import '../../budgets/widgets/category_budget_card.dart';
+import '../cache/budgets_cache.dart';
 
 const _kPrefPeriodo = 'budgets_overview_periodo';
 const _kPrefRef = 'budgets_overview_ref';
@@ -56,9 +57,18 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
       return;
     }
 
-    final repo = CategoryRepository();
-    final all = await repo.getCategoriesByType('egreso', incluirSubcategorias: false);
-    final principales = all.where((c) => c.categoriaPadreId == null).toList();
+    // Consultar cache primero
+    final cache = BudgetsCache.instance();
+    List<Category>? principalesNullable = cache.getCategories(userId);
+    List<Category> principales;
+    if (principalesNullable == null) {
+      final repo = CategoryRepository();
+      final all = await repo.getCategoriesByType('egreso', incluirSubcategorias: false);
+      principales = all.where((c) => c.categoriaPadreId == null).toList();
+      cache.setCategories(userId, principales);
+    } else {
+      principales = principalesNullable;
+    }
 
     final prefs = await SharedPreferences.getInstance();
     final savedPeriodo = prefs.getString(_kPrefPeriodo);
@@ -86,7 +96,16 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
       };
       _loading = false;
     });
-    await _loadAlertBudgets();
+    // Si hay alertBudgets en cache, úsalo para evitar recálculos; si no, cárgalos
+    final cachedAlerts = BudgetsCache.instance().getAlertBudgets(userId, _periodo, _ref);
+    if (cachedAlerts != null) {
+      setState(() {
+        _alertBudgets = cachedAlerts;
+        _loadingAlerts = false;
+      });
+    } else {
+      await _loadAlertBudgets();
+    }
   }
 
   Future<void> _savePrefs() async {
@@ -138,10 +157,22 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
       }
     }
 
+    // Guardar en cache y actualizar estado
+    BudgetsCache.instance().setAlertBudgets(userId, _periodo, _ref, results);
     setState(() {
       _alertBudgets = results;
       _loadingAlerts = false;
     });
+  }
+
+  // Fuerza recarga desde origen y limpia cache cuando el usuario presiona "Refrescar"
+  Future<void> _forceReload() async {
+    final userId = AuthService().currentUserId;
+    if (userId != null) {
+      BudgetsCache.instance().clearCategories(userId);
+      BudgetsCache.instance().clearAlertBudgets(userId);
+    }
+    await _loadData();
   }
 
   void _changePeriodo(String p) {
@@ -208,7 +239,7 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
               Icon(
                 Icons.wallet,
                 size: 64,
-                color: Colors.grey.withOpacity(0.5),
+                color: Colors.grey.withValues(alpha: 0.5),
               ),
               const SizedBox(height: 16),
               Text(
@@ -221,7 +252,7 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
               Text(
                 'Crea categorías de egreso para gestionar presupuestos',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey.withOpacity(0.7),
+                  color: Colors.grey.withValues(alpha: 0.7),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -284,7 +315,7 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
                 FilledButton.icon(
                   icon: const Icon(Icons.refresh),
                   label: const Text('Refrescar'),
-                  onPressed: () => setState(() {}),
+                  onPressed: () async => await _forceReload(),
                 ),
               ],
             ),

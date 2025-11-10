@@ -187,7 +187,7 @@ class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScree
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
-          Navigator.pop(context, _dirty);
+          if (context.mounted) Navigator.pop(context, _dirty);
         }
       },
       child: Scaffold(
@@ -196,7 +196,9 @@ class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScree
           backgroundColor: theme.appBarTheme.backgroundColor,
           leading: IconButton(
             icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
-            onPressed: () => Navigator.pop(context, _dirty),
+            onPressed: () {
+              if (context.mounted) Navigator.pop(context, _dirty);
+            },
           ),
           title: Text(
             'Detalle de transacción',
@@ -212,8 +214,7 @@ class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScree
               tooltip: 'Editar',
               icon: Icon(Icons.edit_outlined, color: colorScheme.onSurface),
               onPressed: () async {
-                final changed = await Navigator.push<bool>(
-                  context,
+                final changed = await Navigator.of(context, rootNavigator: true).push<bool>(
                   MaterialPageRoute(builder: (_) => EditTransactionScreen(tx: _tx)),
                 );
                 if (changed == true) {
@@ -227,8 +228,7 @@ class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScree
               tooltip: 'Duplicar',
               icon: Icon(Icons.copy_outlined, color: colorScheme.onSurface),
               onPressed: () async {
-                final saved = await Navigator.push<bool>(
-                  context,
+                final saved = await Navigator.of(context, rootNavigator: true).push<bool>(
                   MaterialPageRoute(
                     builder: (_) => AddTransactionScreen(baseTx: _tx),
                   ),
@@ -238,7 +238,7 @@ class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScree
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('✅ Transacción duplicada correctamente')),
                   );
-                  Navigator.pop(context, true);
+                  if (context.mounted) Navigator.pop(context, true);
                 }
               },
             ),
@@ -249,7 +249,7 @@ class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScree
               onPressed: () async {
                 final ok = await showDialog<bool>(
                   context: context,
-                  builder: (_) => AlertDialog(
+                  builder: (ctx) => AlertDialog(
                     backgroundColor: theme.cardColor,
                     title: Text(
                       'Eliminar transacción',
@@ -261,14 +261,14 @@ class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScree
                     ),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.pop(context, false),
+                        onPressed: () => Navigator.pop(ctx, false),
                         child: const Text('Cancelar'),
                       ),
                       FilledButton(
                         style: FilledButton.styleFrom(
                           backgroundColor: Colors.redAccent,
                         ),
-                        onPressed: () => Navigator.pop(context, true),
+                        onPressed: () => Navigator.pop(ctx, true),
                         child: const Text('Eliminar'),
                       ),
                     ],
@@ -276,11 +276,32 @@ class _TransactionDetailScreenState extends ConsumerState<TransactionDetailScree
                 );
                 if (ok == true && _tx.id != null) {
                   final controller = ref.read(transactionsControllerProvider.notifier);
-                  final success = await controller.deleteTransaction(_tx.id!);
-
-                  if (context.mounted && success) {
-                    Navigator.pop(context, true);
+                  // Feedback inmediato
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Eliminando transacción...')),
+                    );
                   }
+
+                  // Llamada en background; cerramos la pantalla inmediatamente para UX snappy
+                  controller.deleteTransaction(_tx.id!).then((success) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    if (success) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Transacción eliminada'), backgroundColor: Color(0xFF13BB67)),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Error al eliminar la transacción'), backgroundColor: Colors.redAccent),
+                      );
+                      // Forzar recarga por seguridad
+                      ref.read(transactionsControllerProvider.notifier).loadTransactions(reset: true);
+                    }
+                  });
+
+                  if (context.mounted) Navigator.pop(context, true);
                 }
               },
             ),

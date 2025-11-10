@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/components/date_picker_theme.dart';
 import '../../profile/views/profile_view.dart';
@@ -11,10 +12,15 @@ import '../../transactions/controllers/transactions_controller.dart';
 import '../../transactions/views/transactions_list_view.dart';
 import '../../transactions/views/transactions_quick_menu.dart';
 import '../../transactions/views/budgets_overview_view.dart';
+import '../../../widgets/main_nav_bar.dart';
 
 class MyHomePage extends ConsumerStatefulWidget {
-  const MyHomePage({super.key, required this.title});
+  const MyHomePage({super.key, required this.title, this.child});
   final String title;
+  // Cuando `MyHomePage` se usa como ShellRoute, recibirá el `child` que
+  // corresponde a la ruta activa (p. ej. AnalyticsScreen). Si es null,
+  // se comporta como antes.
+  final Widget? child;
 
   @override
   ConsumerState<MyHomePage> createState() => _MyHomePageState();
@@ -23,8 +29,12 @@ class MyHomePage extends ConsumerStatefulWidget {
 class _MyHomePageState extends ConsumerState<MyHomePage> {
   int _pageIndex = 0;
   String _transactionsMode = 'transacciones';
+  bool _forceShowBudgets = false;
 
   late final List<Widget> _pages;
+  // Provider de información de ruta y listener para sincronizar el índice
+  RouteInformationProvider? _routeInfoProvider;
+  VoidCallback? _routeInfoListener;
 
   @override
   void initState() {
@@ -35,67 +45,79 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
       const reports.ReportsScreen(),
       const ProfileScreen(),
     ];
+    // Dejamos _pageIndex en 0 inicialmente; en el post frame handler
+    // leeremos la ubicación actual del router y sincronizaremos el índice.
+    _pageIndex = 0;
+
+    // Nos suscribimos al RouteInformationProvider del GoRouter después del primer frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        _routeInfoProvider = GoRouter.of(context).routeInformationProvider;
+        // Inicializar a partir de la ubicación actual
+        final initialLoc = _routeInfoProvider?.value.uri.toString() ?? '/';
+        final initialIdx = _indexFromLocation(initialLoc);
+        // Si la URL trae ?mode=presupuestos, sincronizamos el modo también
+        final initialMode = Uri.tryParse(initialLoc)?.queryParameters['mode'];
+        debugPrint('➡️ [MyHomePage] initial router location=$initialLoc -> idx=$initialIdx, mode=$initialMode');
+        setState(() {
+          if (initialIdx != _pageIndex) _pageIndex = initialIdx;
+          if (initialMode != null && initialMode != _transactionsMode) _transactionsMode = initialMode;
+        });
+
+        _routeInfoListener = () {
+          try {
+            final loc = _routeInfoProvider?.value.uri.toString() ?? '/';
+            final uri = Uri.tryParse(loc);
+            final idx = _indexFromLocation(loc);
+            final mode = uri?.queryParameters['mode'];
+            debugPrint('➡️ [MyHomePage] routeInfoListener detected location=$loc -> idx=$idx, mode=$mode');
+            setState(() {
+              if (idx != _pageIndex) _pageIndex = idx;
+              if (mode != null && mode != _transactionsMode) _transactionsMode = mode;
+              // Solo actualizamos la bandera si la URL trae explícitamente el mode.
+              if (mode != null) {
+                _forceShowBudgets = (mode == 'presupuestos' && idx == 0);
+              }
+            });
+          } catch (e) {
+            debugPrint('➡️ [MyHomePage] routeInfoListener error: $e');
+          }
+        };
+        _routeInfoProvider?.addListener(_routeInfoListener!);
+      } catch (e) {
+        debugPrint('➡️ [MyHomePage] could not attach routeInfo listener: $e');
+      }
+    });
   }
 
-  Widget _buildNavItem(IconData icon, String label, int index) {
-    final isSelected = _pageIndex == index;
-    final colorScheme = Theme.of(context).colorScheme;
-    final activeColor = colorScheme.onSurface;
-    final inactiveColor = colorScheme.onSurface.withValues(alpha: 0.6);
-
-    return Expanded(
-      child: InkWell(
-        onTap: () => setState(() => _pageIndex = index),
-        borderRadius: BorderRadius.circular(8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              height: 3,
-              width: isSelected ? 30 : 0,
-              decoration: BoxDecoration(
-                color: activeColor,
-                borderRadius: BorderRadius.circular(2),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: activeColor.withValues(alpha: 0.70),
-                          blurRadius: 10,
-                          spreadRadius: 3,
-                          offset: const Offset(0, -1),
-                        ),
-                      ]
-                    : [],
-              ),
-            ),
-            const SizedBox(height: 6),
-            Icon(
-              icon,
-              color: isSelected ? activeColor : inactiveColor,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? activeColor : inactiveColor,
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
-            )
-          ],
-        ),
-      ),
-    );
+  int _indexFromLocation(String loc) {
+    if (loc.startsWith('/analytics')) return 1;
+    if (loc.startsWith('/reports')) return 2;
+    if (loc.startsWith('/profile')) return 3;
+    return 0;
   }
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('➡️ [MyHomePage] build: _pageIndex=$_pageIndex, child=${widget.child?.runtimeType}');
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    // Calculamos el modo efectivo: preferimos el parámetro `mode` en la URL
+    // (por ejemplo '/?mode=presupuestos') y si no existe usamos el estado local.
+    final currentLocation = _routeInfoProvider?.value.uri.toString() ?? GoRouter.of(context).routeInformationProvider.value.uri.toString();
+    final urlMode = Uri.tryParse(currentLocation)?.queryParameters['mode'];
+    final effectiveMode = urlMode ?? _transactionsMode;
+
+    debugPrint('➡️ [MyHomePage] effectiveMode=$effectiveMode (urlMode=$urlMode, _transactionsMode=$_transactionsMode)');
+
+    // Usamos el estado local como fuente inmediata para la animación.
+    // Cuando ShellRoute actualice el `child`, sincronizaremos `_pageIndex`
+    // en didUpdateWidget para reflejar la ruta real.
+
     return Scaffold(
+      extendBody: false,
+      extendBodyBehindAppBar: false,
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: _pageIndex == 0
           ? AppBar(
@@ -119,7 +141,22 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
                     backgroundColor: theme.scaffoldBackgroundColor,
                     builder: (_) => TransactionsQuickMenu(
                       currentMode: _transactionsMode,
-                      onSelectMode: (mode) => setState(() => _transactionsMode = mode),
+                      onSelectMode: (mode) {
+                        debugPrint('➡️ [MyHomePage] TransactionsQuickMenu selected mode: $mode');
+                        // Actualizamos el modo y navegamos a '/' para forzar que
+                        // la vista de transacciones (Inicio) se muestre incluso
+                        // cuando se usa MyHomePage como ShellRoute.
+                        setState(() {
+                          _transactionsMode = mode;
+                          _pageIndex = 0; // aseguramos que la pestaña Inicio quede activa inmediatamente
+                          _forceShowBudgets = mode == 'presupuestos';
+                        });
+                        // Navegar a la ruta de inicio pasando el modo en la query
+                        // para que, si MyHomePage está en un ShellRoute con `child`,
+                        // podamos detectar el modo desde la URL y mostrar la vista adecuada.
+                        final encoded = Uri(queryParameters: {'mode': mode}).query;
+                        context.go('/?$encoded');
+                      },
                     ),
                   );
                 },
@@ -188,68 +225,71 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
               ],
             )
           : null,
-      body: _pageIndex == 0
-          ? (_transactionsMode == 'transacciones'
-              ? const TransactionsListView()
-              : const BudgetsOverviewView())
-          : _pages[_pageIndex],
-      bottomNavigationBar: BottomAppBar(
-        color: theme.appBarTheme.backgroundColor,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(Icons.list_alt, 'Transacciones', 0),
-            _buildNavItem(Icons.bar_chart, 'Análisis', 1),
-            _buildNavItem(Icons.assignment, 'Informes', 2),
-            _buildNavItem(Icons.person, 'Perfil', 3),
-          ],
+      body: () {
+        // Si estamos en la pestaña Inicio y el modo efectivo pide 'presupuestos',
+        // mostramos la vista de presupuestos aunque widget.child exista (ShellRoute).
+        if (_pageIndex == 0 && (effectiveMode == 'presupuestos' || _forceShowBudgets)) {
+          return const BudgetsOverviewView();
+        }
+        // Si hay un child (ShellRoute) y no estamos forzando presupuestos, lo mostramos.
+        if (widget.child != null) return widget.child!;
+        // Caso por defecto: comportamiento basado en _pageIndex/_transactionsMode
+        if (_pageIndex == 0) {
+          return _transactionsMode == 'transacciones' ? const TransactionsListView() : const BudgetsOverviewView();
+        }
+        return _pages[_pageIndex];
+      }(),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: EdgeInsets.zero,
+        child: MainNavBar(
+          currentIndex: _pageIndex,
+          onTap: _onTap,
+          onAdd: _onAddTransaction, // FAB integrado en MainNavBar: pasamos la callback onAdd
         ),
       ),
-      floatingActionButton: _pageIndex == 0
-          ? Container(
-              width: 65,
-              height: 65,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [colorScheme.primary, colorScheme.secondary],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: colorScheme.primary.withValues(alpha: 0.5),
-                    blurRadius: 20,
-                    spreadRadius: 2,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(32.5),
-                  onTap: () async {
-                    final saved = await Navigator.push<bool>(
-                      context,
-                      MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
-                    );
-                    if (saved == true) {
-                      // Recargamos usando el controlador
-                      ref.read(transactionsControllerProvider.notifier).reloadAfterCreate();
-                    }
-                  },
-                  child: Center(
-                    child: Icon(
-                      Icons.add_rounded,
-                      color: colorScheme.onPrimary,
-                      size: 32,
-                    ),
-                  ),
-                ),
-              ),
-            )
-          : null,
     );
+  }
+
+  Future<void> _onAddTransaction() async {
+    final saved = await Navigator.of(context, rootNavigator: true).push<bool>(
+      MaterialPageRoute(builder: (_) => const AddTransactionScreen()),
+    );
+    if (saved == true) {
+      ref.read(transactionsControllerProvider.notifier).reloadAfterCreate();
+    }
+  }
+
+  void _onTap(int index) {
+    const paths = ['/', '/analytics', '/reports', '/profile'];
+    final path = paths[index];
+    debugPrint('➡️ [MyHomePage] _onTap -> setting _pageIndex = $index (path: $path)');
+    setState(() {
+      _pageIndex = index;
+      // al cambiar de pestaña, dejamos de forzar la vista de presupuestos
+      _forceShowBudgets = false;
+    });
+    debugPrint('➡️ [MyHomePage] _onTap -> navigating to $path');
+    context.go(path);
+  }
+
+  @override
+  void didUpdateWidget(covariant MyHomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    debugPrint('➡️ [MyHomePage] didUpdateWidget: oldChild=${oldWidget.child?.runtimeType} newChild=${widget.child?.runtimeType}');
+    // No intentamos sincronizar aquí: el listener sobre routeInformationProvider
+    // hará la actualización de índice cuando la ubicación cambie.
+  }
+
+  @override
+  void dispose() {
+    try {
+      if (_routeInfoProvider != null && _routeInfoListener != null) {
+        _routeInfoProvider?.removeListener(_routeInfoListener!);
+      }
+    } catch (e) {
+      debugPrint('➡️ [MyHomePage] error removing route listener: $e');
+    }
+    super.dispose();
   }
 }

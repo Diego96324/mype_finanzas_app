@@ -9,6 +9,9 @@ import '../../presentation/features/auth/views/reset_password_view.dart';
 import '../../presentation/features/home/views/home_screen.dart';
 import '../../presentation/features/transactions/views/add_transaction_view.dart';
 import '../../presentation/features/analytics/views/analytics_view.dart';
+import '../../presentation/features/reports/views/reports_view.dart' as reports;
+import '../../presentation/features/profile/views/profile_view.dart';
+import '../../presentation/features/transactions/views/transactions_list_view.dart';
 import '../../presentation/features/gamification/views/gamification_screen.dart';
 import '../../presentation/features/categories/views/categories_management_view.dart';
 
@@ -72,10 +75,31 @@ final routerProvider = Provider<GoRouter>((ref) {
           return ResetPasswordView(email: email);
         },
       ),
-      GoRoute(
-        path: '/',
-        name: 'home',
-        builder: (context, state) => const MyHomePage(title: 'Registro de transacciones'),
+      // ShellRoute para la navegación principal con pestañas
+      ShellRoute(
+        builder: (context, state, child) => MyHomePage(key: const ValueKey('main-shell'), title: 'Registro de transacciones', child: child),
+        routes: [
+          GoRoute(
+            path: '/',
+            name: 'home',
+            builder: (context, state) => const TransactionsListView(),
+          ),
+          GoRoute(
+            path: '/analytics',
+            name: 'analytics',
+            builder: (context, state) => const AnalyticsScreen(),
+          ),
+          GoRoute(
+            path: '/reports',
+            name: 'reports',
+            builder: (context, state) => const reports.ReportsScreen(),
+          ),
+          GoRoute(
+            path: '/profile',
+            name: 'profile',
+            builder: (context, state) => const ProfileScreen(),
+          ),
+        ],
       ),
       GoRoute(
         path: '/add',
@@ -85,11 +109,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           // AddTransactionScreen deberá leer este valor para usar modo rápido.
           return AddTransactionScreen(isQuickAdd: quick);
         },
-      ),
-      GoRoute(
-        path: '/analytics',
-        name: 'analytics',
-        builder: (context, state) => const AnalyticsScreen(),
       ),
       GoRoute(
         path: '/gamification',
@@ -139,6 +158,6 @@ GoRouter buildRouter() {
       GoRoute(path: '/add', builder: (context, state) => const AddTransactionScreen()),
       GoRoute(path: '/analytics', builder: (context, state) => const AnalyticsScreen()),
       GoRoute(path: '/gamification', builder: (context, state) => const GamificationScreen()),
-    ],
-  );
-}
+     ],
+   );
+ }

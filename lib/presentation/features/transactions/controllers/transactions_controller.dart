@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/database/app_database.dart';
-import '../../../../core/services/global_alert_service.dart';
 import '../../../../core/utils/attachments_helper.dart';
 import '../../../../core/utils/recurrence_helper.dart';
 import '../../../../data/models/transaction_model.dart';
@@ -14,6 +13,7 @@ import '../../../../domain/services/auth_service.dart';
 import '../../../../domain/services/category_budget_service.dart' as budget_service;
 import '../../../../domain/services/transaction_cache_service.dart';
 import '../../../features/budgets/controllers/category_budget_controller.dart';
+import '../../../../core/providers/budget_notifications_provider.dart';
 
 part 'transactions_controller.g.dart';
 
@@ -231,9 +231,13 @@ class TransactionsController extends _$TransactionsController {
       for (final tx in recurrentList) {
         if (!(tx.recurrente &&
             tx.frecuenciaRecurrencia != null &&
-            tx.frecuenciaRecurrencia != 'una_vez')) continue;
+            tx.frecuenciaRecurrencia != 'una_vez')) {
+          continue;
+        }
         DateTime? next = tx.nextOccurrence;
-        if (next == null) continue;
+        if (next == null) {
+          continue;
+        }
 
         int safety = 0;
         DateTime? lastNext = next;
@@ -338,8 +342,22 @@ class TransactionsController extends _$TransactionsController {
         _invalidateCategoryBudget(
             newTransaction.categoriaId!, newTransaction.fecha);
         // Notificar si se cruzó umbral
-        unawaited(_notifyCategoryBudget(
-            newTransaction.categoriaId!, newTransaction.fecha));
+        await _notifyCategoryBudget(
+            newTransaction.categoriaId!, newTransaction.fecha);
+        try {
+          await ref.read(budgetNotificationsProvider.notifier).onTransactionChanged();
+          // Forzar re-evaluación/refresh del provider para asegurar que la UI
+          // reciba las notificaciones recién calculadas.
+          try {
+            ref.invalidate(budgetNotificationsProvider);
+          } catch (_) {
+            // ref.invalidate puede no existir en algunas versiones o contextos;
+            // en ese caso, fallback a leer de nuevo el notifier.
+            await ref.read(budgetNotificationsProvider.notifier).checkBudgets();
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error actualizando budgetNotificationsProvider: $e');
+        }
       }
       return true;
     } catch (e) {
@@ -382,8 +400,18 @@ class TransactionsController extends _$TransactionsController {
         _invalidateCategoryBudget(
             updatedTransaction.categoriaId!, updatedTransaction.fecha);
         // Notificar si se cruzó umbral
-        unawaited(_notifyCategoryBudget(
-            updatedTransaction.categoriaId!, updatedTransaction.fecha));
+        await _notifyCategoryBudget(
+            updatedTransaction.categoriaId!, updatedTransaction.fecha);
+        try {
+          await ref.read(budgetNotificationsProvider.notifier).onTransactionChanged();
+          try {
+            ref.invalidate(budgetNotificationsProvider);
+          } catch (_) {
+            await ref.read(budgetNotificationsProvider.notifier).checkBudgets();
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error actualizando budgetNotificationsProvider: $e');
+        }
       }
       return true;
     } catch (e) {
@@ -395,6 +423,7 @@ class TransactionsController extends _$TransactionsController {
 
   // Borra una transacción
   Future<bool> deleteTransaction(int transactionId) async {
+    List<AppTransaction> previousList = state.transactions;
     try {
       final userId = _authService.currentUserId;
 
@@ -403,26 +432,49 @@ class TransactionsController extends _$TransactionsController {
         return false;
       }
 
-      // obtener el comprobante antes de borrar
+      // obtener la transacción (para attachment / presupuesto)
       final tx = await _transactionRepo.getById(transactionId);
+
+      // Eliminación optimista: actualizar el estado inmediatamente para dar respuesta instantánea
+      final filtered = previousList.where((t) => t.id != transactionId).toList();
+      state = state.copyWith(transactions: filtered);
+
+      // Ejecutar borrado en repositorio (esperamos al menos esto para mantener consistencia DB)
       await _transactionRepo.delete(transactionId);
 
-      // eliminar comprobante físico si existía
+      // Borrado del attachment en background (no await para no bloquear la UI)
       if (tx?.comprobanteUri != null && tx!.comprobanteUri!.isNotEmpty) {
-        await AttachmentsHelper.deleteAttachment(tx.comprobanteUri);
+        // Fire-and-forget in background; capturamos errores sin bloquear la UI
+        Future.microtask(() async {
+          try {
+            await AttachmentsHelper.deleteAttachment(tx.comprobanteUri);
+          } catch (e) {
+            debugPrint('⚠️ Error borrando attachment en background: $e');
+          }
+        });
       }
 
       _cacheService.invalidateUser(userId);
-      // Optimista: remover de la lista antes de recargar
-      final filtered =
-          state.transactions.where((t) => t.id != transactionId).toList();
-      state = state.copyWith(transactions: filtered);
+      // Actualizamos datos adicionales y notificaciones
       await _refreshAll();
       if (tx != null && tx.tipo == 'egreso' && tx.categoriaId != null) {
         _invalidateCategoryBudget(tx.categoriaId!, tx.fecha);
+        await _notifyCategoryBudget(tx.categoriaId!, tx.fecha);
+        try {
+          await ref.read(budgetNotificationsProvider.notifier).onTransactionChanged();
+          try {
+            ref.invalidate(budgetNotificationsProvider);
+          } catch (_) {
+            await ref.read(budgetNotificationsProvider.notifier).checkBudgets();
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error actualizando budgetNotificationsProvider: $e');
+        }
       }
       return true;
     } catch (e) {
+      // Revertir estado optimista si falla
+      state = state.copyWith(transactions: previousList);
       state = state.copyWith(
           error: 'Error al eliminar transacción: ${e.toString()}');
       return false;
@@ -608,26 +660,29 @@ class TransactionsController extends _$TransactionsController {
   Future<void> _notifyCategoryBudget(int categoriaId, DateTime fecha) async {
     try {
       final uid = _authService.currentUserId;
+      debugPrint('🔔 [_notifyCategoryBudget] llamado para categoriaId=$categoriaId fecha=$fecha uid=$uid');
       if (uid == null) return;
       final service = budget_service.CategoryBudgetService();
       final refDate = DateTime(fecha.year, fecha.month, 1);
+      // Mostrar a lo sumo una alerta por categoría en este flujo. Preferir 'mensual' sobre 'trimestral'.
+      bool alreadyNotifiedForCategory = false;
       for (final periodo in ['mensual', 'trimestral']) {
+        if (alreadyNotifiedForCategory) break;
+        debugPrint('🔎 [_notifyCategoryBudget] comprobando periodo=$periodo refDate=$refDate');
         final summary = await service.getSummary(
           usuarioId: uid,
           categoriaId: categoriaId,
           periodo: periodo,
           referencia: refDate,
+          persistAlertChange: false,
         );
+        debugPrint('🔍 [_notifyCategoryBudget] summary for periodo=$periodo -> ${summary == null ? 'null' : 'porcentaje=${summary.porcentaje} real=${summary.realAcumulado} umbral=${summary.nuevoUmbralEmitido}'}');
         final umbral = summary?.nuevoUmbralEmitido;
         if (summary != null && umbral != null) {
-          await GlobalAlertService().showBudgetThresholdAlert(
-            categoriaId: categoriaId,
-            categoriaNombre: summary.budget.nombre,
-            porcentaje: umbral.toDouble(),
-            limite: summary.budget.montoLimite,
-            periodo: periodo,
-            referencia: refDate,
-          );
+          debugPrint('✅ [_notifyCategoryBudget] detected alert condition for categoriaId=$categoriaId periodo=$periodo umbral=$umbral');
+          // No mostrar aquí el SnackBar para evitar duplicados.
+          // La visualización global se realiza desde `budgetNotificationsProvider`.
+          alreadyNotifiedForCategory = true;
         }
       }
     } catch (e) {

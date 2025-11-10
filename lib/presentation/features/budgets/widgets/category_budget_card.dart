@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../../../core/services/global_alert_service.dart';
 import '../../../../../../data/models/category_model.dart';
 import '../controllers/category_budget_controller.dart';
 import '../../../../domain/services/category_budget_service.dart';
@@ -15,21 +14,9 @@ class CategoryBudgetCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final key = CategoryBudgetKey(categoriaId: category.id!, periodo: periodo, referencia: referencia);
 
-    // Notificación visual cuando se alcanza un nuevo umbral
-    ref.listen(categoryBudgetControllerProvider(key), (prev, next) {
-      final prevUmbral = prev?.summary?.nuevoUmbralEmitido;
-      final currUmbral = next.summary?.nuevoUmbralEmitido;
-      if (currUmbral != null && currUmbral != prevUmbral && next.summary != null) {
-        GlobalAlertService().showBudgetThresholdAlert(
-          categoriaId: category.id!,
-          categoriaNombre: category.nombre,
-          porcentaje: currUmbral.toDouble(),
-            limite: next.summary!.budget.montoLimite,
-            periodo: periodo,
-            referencia: referencia,
-        );
-      }
-    });
+    // Nota: eliminada la llamada a GlobalAlertService desde este listener para evitar
+    // duplicar la notificación global (SnackBar). La tarjeta sigue mostrando
+    // internamente el texto de alerta cuando `nuevoUmbralEmitido` está presente.
 
     final state = ref.watch(categoryBudgetControllerProvider(key));
 
