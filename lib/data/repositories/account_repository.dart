@@ -135,39 +135,48 @@ class AccountRepository {
 
         // Determinar si la cuenta es pasiva para registrar correctamente la transacción de apertura
         final tiposNoAfectan = ['credito', 'tarjeta_credito', 'por_pagar', 'por_cobrar'];
+        // Calcular si la cuenta es pasiva según su tipo
         final bool esPasivo = tiposNoAfectan.contains(tipo);
+        // Tipos para los que NO queremos crear una transacción de apertura en la lista
+        final tiposSkipOpeningTx = ['credito', 'tarjeta_credito', 'por_cobrar', 'por_pagar'];
 
-        // Si la cuenta es pasiva, un saldo inicial positivo representa una obligación (egreso en la lista de movimientos),
-        // mientras que para cuentas normales un saldo positivo se registra como 'ingreso'.
-        final aperturaTipo = esPasivo
-            ? (saldoInicial >= 0 ? 'egreso' : 'ingreso')
-            : (saldoInicial >= 0 ? 'ingreso' : 'egreso');
+        // Si el tipo de cuenta está en la lista de skip, no creamos la transacción de apertura
+        if (tiposSkipOpeningTx.contains(tipo)) {
+          debugPrint('ℹ️ Saltando creación de transacción de apertura para tipo de cuenta: $tipo');
+        } else {
 
-        final txMap = {
-          'usuario_id': userId,
-          'cuenta_id': accountId,
-          'categoria_id': categoriaId,
-          'tipo': aperturaTipo,
-          'descripcion': 'Saldo inicial',
-          'etiqueta': nombre, // ✅ Etiqueta = Nombre de la cuenta
-          'nota': institucion != null && institucion.isNotEmpty
-              ? 'Apertura de cuenta en $institucion'
-              : 'Apertura de cuenta', // ✅ Nota = Institución o descripción
-          'monto': saldoInicial.abs(),
-          'afecta_saldo': esPasivo ? 0 : 1,
-          'fecha': now.toIso8601String(),
-          'es_recurrente': 0,
-          'es_apertura_cuenta': 1, // ✅ Marcar como transacción de apertura
-          'confirmada': 1,
-          'created_at': now.toIso8601String(),
-          'updated_at': now.toIso8601String(),
-        };
-        // Filtrar keys que la tabla realmente tiene (compatibilidad)
-        if (!await _tableHasColumn(database, 'transacciones', 'afecta_saldo')) {
-          txMap.remove('afecta_saldo');
+         // Si la cuenta es pasiva, un saldo inicial positivo representa una obligación (egreso en la lista de movimientos),
+         // mientras que para cuentas normales un saldo positivo se registra como 'ingreso'.
+         final aperturaTipo = esPasivo
+             ? (saldoInicial >= 0 ? 'egreso' : 'ingreso')
+             : (saldoInicial >= 0 ? 'ingreso' : 'egreso');
+
+         final txMap = {
+           'usuario_id': userId,
+           'cuenta_id': accountId,
+           'categoria_id': categoriaId,
+           'tipo': aperturaTipo,
+           'descripcion': 'Saldo inicial',
+           'etiqueta': nombre, // ✅ Etiqueta = Nombre de la cuenta
+           'nota': institucion != null && institucion.isNotEmpty
+               ? 'Apertura de cuenta en $institucion'
+               : 'Apertura de cuenta', // ✅ Nota = Institución o descripción
+           'monto': saldoInicial.abs(),
+           'afecta_saldo': esPasivo ? 0 : 1,
+           'fecha': now.toIso8601String(),
+           'es_recurrente': 0,
+           'es_apertura_cuenta': 1, // ✅ Marcar como transacción de apertura
+           'confirmada': 1,
+           'created_at': now.toIso8601String(),
+           'updated_at': now.toIso8601String(),
+         };
+         // Filtrar keys que la tabla realmente tiene (compatibilidad)
+         if (!await _tableHasColumn(database, 'transacciones', 'afecta_saldo')) {
+           txMap.remove('afecta_saldo');
+         }
+         await database.insert('transacciones', txMap);
         }
-        await database.insert('transacciones', txMap);
-      }
+       }
 
       return getAccountById(accountId);
     } catch (e) {
