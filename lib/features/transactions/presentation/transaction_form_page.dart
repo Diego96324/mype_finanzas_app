@@ -20,16 +20,13 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
   final _tagsController = TextEditingController();
+  int? _lastStateHash;
 
   @override
   void initState() {
     super.initState();
     Future.microtask(() async {
       await ref.read(transactionFormControllerProvider(widget.args).notifier).init();
-    });
-    ref.listen(transactionFormControllerProvider(widget.args), (prev, next) {
-      _handleFocus(next.focusTarget);
-      _syncControllers(next);
     });
   }
 
@@ -59,6 +56,16 @@ class _TransactionFormPageState extends ConsumerState<TransactionFormPage> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(transactionFormControllerProvider(widget.args));
+
+    // Sincronizar estado (foco y controllers) después del frame sólo si cambió
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final h = state.hashCode;
+      if (_lastStateHash != h) {
+        _lastStateHash = h;
+        _handleFocus(state.focusTarget);
+        _syncControllers(state);
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(title: Text(state.isEditing ? 'Editar transacción' : 'Nueva transacción')),

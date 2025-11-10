@@ -21,6 +21,7 @@ class AppTransaction {
   final DateTime? recurrenceEndDate; // fecha fin de recurrencia
   final DateTime? nextOccurrence;    // próxima generación programada
   final bool sincronizado;
+  final bool afectaSaldo; // si esta transacción afecta los totales (ej: tarjetas crédito y cuentas por pagar/cobrar NO afectan)
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -47,6 +48,7 @@ class AppTransaction {
     this.recurrenceEndDate,
     this.nextOccurrence,
     this.sincronizado = false,
+    this.afectaSaldo = true,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -69,6 +71,7 @@ class AppTransaction {
         'es_recurrente': esRecurrente ? 1 : 0,
         'es_apertura_cuenta': esAperturaCuenta ? 1 : 0,
         'confirmada': confirmada ? 1 : 0,
+        'afecta_saldo': afectaSaldo ? 1 : 0,
         'frecuencia_recurrencia': frecuenciaRecurrencia,
         'recurrence_interval_days': recurrenceIntervalDays,
         'recurrence_end_date': recurrenceEndDate?.toIso8601String(),
@@ -96,6 +99,7 @@ class AppTransaction {
         esRecurrente: (map['es_recurrente'] as int?) == 1,
         esAperturaCuenta: (map['es_apertura_cuenta'] as int?) == 1,
         confirmada: (map['confirmada'] as int?) == 1,
+        afectaSaldo: (map['afecta_saldo'] as int?) == 1 || map['afecta_saldo'] == null,
         frecuenciaRecurrencia: map['frecuencia_recurrencia'] as String?,
         recurrenceIntervalDays: map['recurrence_interval_days'] as int?,
         recurrenceEndDate: (map['recurrence_end_date'] as String?) != null ? DateTime.parse(map['recurrence_end_date'] as String) : null,
@@ -128,6 +132,7 @@ class AppTransaction {
     DateTime? recurrenceEndDate,
     DateTime? nextOccurrence,
     bool? sincronizado,
+    bool? afectaSaldo,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -154,6 +159,7 @@ class AppTransaction {
       recurrenceEndDate: recurrenceEndDate ?? this.recurrenceEndDate,
       nextOccurrence: nextOccurrence ?? this.nextOccurrence,
       sincronizado: sincronizado ?? this.sincronizado,
+      afectaSaldo: afectaSaldo ?? this.afectaSaldo,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

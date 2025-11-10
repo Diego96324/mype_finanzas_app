@@ -292,6 +292,17 @@ class CategoryRepository {
           where: 'id = ?',
           whereArgs: [categoryId],
         );
+        if (rowsAffected > 0) {
+          try {
+            // Desactivar presupuestos asociados a esta categoría para que no sigan apareciendo
+            await database.update(
+              'presupuestos',
+              {'activo': 0, 'updated_at': DateTime.now().toIso8601String()},
+              where: 'categoria_id = ?',
+              whereArgs: [categoryId],
+            );
+          } catch (_) {}
+        }
         return rowsAffected > 0;
       } else {
         // Si no tiene transacciones, eliminar permanentemente
@@ -300,6 +311,12 @@ class CategoryRepository {
           where: 'id = ?',
           whereArgs: [categoryId],
         );
+        if (rowsAffected > 0) {
+          try {
+            // Borrar presupuestos asociados si la categoría se elimina físicamente
+            await database.delete('presupuestos', where: 'categoria_id = ?', whereArgs: [categoryId]);
+          } catch (_) {}
+        }
         return rowsAffected > 0;
       }
     } catch (e) {

@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // Imports corregidos según la estructura del proyecto
 import '../../../../data/models/category_model.dart';
-import '../../../../data/repositories/category_repository.dart';
+import '../../../../core/providers/category_providers.dart';
 import '../../../../domain/services/auth_service.dart';
 import '../../../../domain/services/category_budget_service.dart';
 import '../../budgets/widgets/category_budget_card.dart';
@@ -40,6 +40,8 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
   @override
   void initState() {
     super.initState();
+    // No usar ref.listen en initState (provoca assertion en esta versión de Riverpod).
+    // _loadData inicializa la lista usando el cache / provider.
     _loadData();
   }
 
@@ -62,8 +64,8 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
     List<Category>? principalesNullable = cache.getCategories(userId);
     List<Category> principales;
     if (principalesNullable == null) {
-      final repo = CategoryRepository();
-      final all = await repo.getCategoriesByType('egreso', incluirSubcategorias: false);
+      // Usar el provider de categorías por tipo para incluir las categorías del usuario
+      final all = await ref.read(expenseCategoriesProvider.future);
       principales = all.where((c) => c.categoriaPadreId == null).toList();
       cache.setCategories(userId, principales);
     } else {
@@ -137,12 +139,17 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
     }
 
     final List<Map<String, dynamic>> results = [];
+    // Obtener las categorías actuales desde el provider (asegura que incluyamos
+    // categorías creadas por el usuario en otra pantalla)
+    final allCats = await ref.read(expenseCategoriesProvider.future);
+    final principales = allCats.where((c) => c.categoriaPadreId == null).toList();
+
     final catsToCheck = _alertsCategoryIds.isEmpty
-        ? _principal.where((c) => c.id != null).map((c) => c.id!).toList()
+        ? principales.where((c) => c.id != null).map((c) => c.id!).toList()
         : _alertsCategoryIds.toList();
 
     for (final catId in catsToCheck) {
-      final cat = _principal.firstWhere((c) => c.id == catId, orElse: () => _principal.first);
+      final cat = principales.firstWhere((c) => c.id == catId, orElse: () => principales.first);
       if (cat.id == null) continue;
 
       final summary = await service.getSummary(
@@ -172,6 +179,10 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
       BudgetsCache.instance().clearCategories(userId);
       BudgetsCache.instance().clearAlertBudgets(userId);
     }
+    // Invalidar provider para forzar recarga de categorías
+    try {
+      ref.invalidate(expenseCategoriesProvider);
+    } catch (_) {}
     await _loadData();
   }
 
@@ -209,6 +220,17 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Obtener categorías directamente desde el provider para que la UI se
+    // actualice automáticamente cuando se creen/eliminen categorías.
+    final catsAsync = ref.watch(expenseCategoriesProvider);
+    List<Category> principalFromProvider = [];
+    catsAsync.when(
+      data: (list) {
+        principalFromProvider = list.where((c) => c.categoriaPadreId == null).toList();
+      },
+      loading: () {},
+      error: (_, __) {},
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -229,7 +251,7 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
           ? const Center(
         child: CircularProgressIndicator(),
       )
-          : _principal.isEmpty
+          : principalFromProvider.isEmpty
           ? Center(
         child: Padding(
           padding: const EdgeInsets.all(32.0),
@@ -337,9 +359,9 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
             ListView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              itemCount: _principal.length,
+              itemCount: principalFromProvider.length,
               itemBuilder: (context, index) {
-                final category = _principal[index];
+                final category = principalFromProvider[index];
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: CategoryBudgetCard(

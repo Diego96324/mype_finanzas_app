@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../../data/models/category_model.dart';
 import '../controllers/category_budget_controller.dart';
-import '../../../../domain/services/category_budget_service.dart';
+import '../../../../domain/services/category_budget_service.dart' as budget_service;
+import '../../../../domain/services/auth_service.dart';
 
 class CategoryBudgetCard extends ConsumerWidget {
   final Category category;
@@ -65,6 +66,94 @@ class CategoryBudgetCard extends ConsumerWidget {
                       style: Theme.of(context).textTheme.bodySmall),
                 ),
             ],
+            // Si no hay uso (0) o no hay presupuesto, sugerir categorías con mayor gasto en el periodo
+            if (state.summary == null || (state.summary != null && state.summary!.realAcumulado == 0.0)) ...[
+              const SizedBox(height: 8),
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: (() async {
+                  final uid = AuthService().currentUserId;
+                  if (uid == null) return <Map<String, dynamic>>[];
+                  // Calcular rango según periodo
+                  DateTime from;
+                  DateTime to;
+                  if (periodo == 'mensual') {
+                    from = DateTime(referencia.year, referencia.month, 1);
+                    to = DateTime(referencia.year, referencia.month + 1, 0, 23, 59, 59, 999);
+                  } else {
+                    // trimestral
+                    final quarterStart = ((referencia.month - 1) ~/ 3) * 3 + 1;
+                    from = DateTime(referencia.year, quarterStart, 1);
+                    to = DateTime(referencia.year, quarterStart + 3, 0, 23, 59, 59, 999);
+                  }
+                  final res = await budget_service.CategoryBudgetService().getCategorySumsInRange(usuarioId: uid, from: from, to: to, rootCategoryId: category.id);
+                  return res;
+                })(),
+                builder: (context, snap) {
+                  if (!snap.hasData) return const SizedBox();
+                  final list = snap.data!;
+                  if (list.isEmpty) return const SizedBox();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 8),
+                      Text('Sugerencias: categorías con más gasto en este periodo', style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      ...list.take(3).map((m) {
+                        final targetId = m['categoriaId'] as int;
+                        final amount = state.summary?.budget.montoLimite ?? (m['monto'] as double);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6.0),
+                          child: Row(
+                            children: [
+                              Expanded(child: Text(m['nombre'] ?? '—', style: Theme.of(context).textTheme.bodyMedium)),
+                              Text('S/ ${ (m['monto'] as double).toStringAsFixed(2) }', style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
+                              const SizedBox(width: 8),
+                              TextButton(
+                                onPressed: () async {
+                                  final uid = AuthService().currentUserId;
+                                  if (uid == null) {
+                                    if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Usuario no autenticado'), backgroundColor: Colors.red));
+                                    return;
+                                  }
+                                  final service = budget_service.CategoryBudgetService();
+                                  final nombre = 'Presupuesto ${periodo}';
+                                  final success = await service.saveBudget(
+                                    usuarioId: uid,
+                                    categoriaId: targetId,
+                                    nombre: nombre,
+                                    montoLimite: amount,
+                                    periodo: periodo,
+                                    referencia: referencia,
+                                  );
+                                  if (context.mounted) {
+                                    if (success > 0) {
+                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Presupuesto creado/actualizado para ${m['nombre']}'), backgroundColor: const Color(0xFF13BB67)));
+                                      // Invalidar providers para refrescar
+                                      try {
+                                        final newKey = CategoryBudgetKey(categoriaId: targetId, periodo: periodo, referencia: referencia);
+                                        ref.invalidate(categoryBudgetControllerProvider(newKey));
+                                        // invalidar el key actual para que se actualice
+                                        final currentKey = CategoryBudgetKey(categoriaId: category.id!, periodo: periodo, referencia: referencia);
+                                        ref.invalidate(categoryBudgetControllerProvider(currentKey));
+                                      } catch (_) {}
+                                    } else {
+                                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error creando presupuesto'), backgroundColor: Colors.red));
+                                    }
+                                  }
+                                },
+                                child: const Text('Asignar'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                      const SizedBox(height: 6),
+                      Text('Si quieres que el presupuesto controle estos gastos, edita el presupuesto y selecciona la categoría correcta.', style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  );
+                },
+              ),
+            ],
             if (state.error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8.0),
@@ -78,7 +167,7 @@ class CategoryBudgetCard extends ConsumerWidget {
 }
 
 class _BudgetProgress extends StatelessWidget {
-  final CategoryBudgetSummary summary;
+  final budget_service.CategoryBudgetSummary summary;
   const _BudgetProgress({required this.summary});
 
   @override

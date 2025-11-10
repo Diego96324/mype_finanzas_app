@@ -124,6 +124,7 @@ class AppDatabase {
         es_recurrente INTEGER NOT NULL DEFAULT 0,
         es_apertura_cuenta INTEGER NOT NULL DEFAULT 0,
         confirmada INTEGER NOT NULL DEFAULT 1,
+        afecta_saldo INTEGER NOT NULL DEFAULT 1,
         frecuencia_recurrencia TEXT,
         recurrence_interval_days INTEGER,          -- intervalo para personalizada (en días)
         recurrence_end_date TEXT,                  -- fecha fin de recurrencia
@@ -770,6 +771,16 @@ class AppDatabase {
         await db.execute('CREATE INDEX IF NOT EXISTS idx_presupuestos_categoria_periodo ON presupuestos(categoria_id, periodo, fecha_inicio)');
       } catch (e) { debugPrint('⚠️ índice idx_presupuestos_categoria_periodo: $e'); }
       debugPrint('✅ Migración v13 presupuestos por categoría lista');
+    }
+
+    // Asegurar migración para agregar columna afecta_saldo en transacciones si no existe (version bump)
+    if (oldVersion < 13) {
+      try {
+        await db.execute('ALTER TABLE transacciones ADD COLUMN afecta_saldo INTEGER NOT NULL DEFAULT 1');
+        debugPrint('✅ Columna afecta_saldo agregada a transacciones');
+      } catch (e) {
+        debugPrint('⚠️ Columna afecta_saldo ya existe o error al agregar: $e');
+      }
     }
   }
 

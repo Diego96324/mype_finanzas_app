@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/repositories/account_repository.dart';
 import '../../data/models/account_model.dart';
+import '../../presentation/features/transactions/controllers/transactions_controller.dart';
 
 part 'account_providers.g.dart';
 
@@ -107,6 +108,11 @@ class AccountsState extends _$AccountsState {
 
       if (success) {
         await refresh();
+        // Forzar recarga de transacciones para que cualquier transacción de apertura
+        // eliminada deje de mostrarse inmediatamente en la lista.
+        try {
+          ref.invalidate(transactionsControllerProvider);
+        } catch (_) {}
       }
       return success;
     } catch (e) {
@@ -175,10 +181,11 @@ Future<Map<String, dynamic>> accountsSummary(Ref ref) async {
 @riverpod
 Future<Account?> accountById(Ref ref, int accountId) async {
   final accounts = await ref.watch(accountsStateProvider.future);
-  return accounts.firstWhere(
-        (account) => account.id == accountId,
-    orElse: () => throw Exception('Cuenta no encontrada'),
-  );
+  for (final account in accounts) {
+    if (account.id == accountId) return account;
+  }
+  // Si no la encontramos, devolvemos null en lugar de lanzar excepción.
+  return null;
 }
 
 // Provider para obtener el total de saldos

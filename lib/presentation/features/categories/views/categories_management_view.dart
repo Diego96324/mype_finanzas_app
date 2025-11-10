@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/providers/category_providers.dart';
+import '../../../../domain/services/auth_service.dart';
+import '../../transactions/cache/budgets_cache.dart';
+import '../../budgets/controllers/category_budget_controller.dart';
 import '../../../../data/models/category_model.dart';
 import 'category_form_dialog.dart';
 import 'business_template_selector.dart';
@@ -868,6 +871,22 @@ class _CategoriesManagementViewState extends ConsumerState<CategoriesManagementV
               if (!mounted) return;
               if (success) {
                 ref.invalidate(categoriesStateProvider);
+                // Invalidar provider de categorías por tipo (por si hay vistas que lo usan)
+                try { ref.invalidate(expenseCategoriesProvider); } catch (_) {}
+                // Limpiar caché de presupuestos para evitar que queden tarjetas huérfanas
+                try {
+                  final uid = AuthService().currentUserId;
+                  if (uid != null) BudgetsCache.instance().clearCategories(uid);
+                } catch (_) {}
+                // Invalidar controllers de presupuesto asociados a esta categoría para
+                // forzar recarga / eliminación de tarjetas huérfanas.
+                try {
+                  final now = DateTime.now();
+                  final keyMensual = CategoryBudgetKey(categoriaId: category.id!, periodo: 'mensual', referencia: DateTime(now.year, now.month, 1));
+                  final keyTrimestral = CategoryBudgetKey(categoriaId: category.id!, periodo: 'trimestral', referencia: DateTime(now.year, now.month, 1));
+                  ref.invalidate(categoryBudgetControllerProvider(keyMensual));
+                  ref.invalidate(categoryBudgetControllerProvider(keyTrimestral));
+                } catch (_) {}
               }
               messenger.showSnackBar(
                 SnackBar(

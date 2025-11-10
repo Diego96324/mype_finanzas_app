@@ -9,14 +9,47 @@ class TransactionRepo {
 
   Future<Database> get _dbFuture async => _overrideDbFuture ?? AppDatabase().database;
 
+  // Cache simple de columnas por tabla para evitar múltiples PRAGMA
+  final Map<String, Set<String>> _tableColumnsCache = {};
+
+  Future<Set<String>> _getTableColumns(Database db, String tableName) async {
+    if (_tableColumnsCache.containsKey(tableName)) return _tableColumnsCache[tableName]!;
+    try {
+      final info = await db.rawQuery('PRAGMA table_info($tableName)');
+      final cols = <String>{};
+      for (final row in info) {
+        final name = row['name'] as String?;
+        if (name != null) cols.add(name);
+      }
+      _tableColumnsCache[tableName] = cols;
+      return cols;
+    } catch (e) {
+      return <String>{};
+    }
+  }
+
+  Future<Map<String, dynamic>> _filterMapForTable(Database db, String tableName, Map<String, dynamic> input) async {
+    final cols = await _getTableColumns(db, tableName);
+    if (cols.isEmpty) return input; // si no conocemos columnas, devolver original (fall-back)
+    final out = <String, dynamic>{};
+    input.forEach((k, v) {
+      if (cols.contains(k)) out[k] = v;
+    });
+    return out;
+  }
+
   Future<int> insert(AppTransaction t) async {
     final db = await _dbFuture;
-    return db.insert('transacciones', t.toMap());
+    final raw = t.toMap();
+    final filtered = await _filterMapForTable(db, 'transacciones', raw);
+    return db.insert('transacciones', filtered);
   }
 
   Future<int> insertAndGetId(AppTransaction t) async {
     final db = await _dbFuture;
-    return await db.insert('transacciones', t.toMap());
+    final raw = t.toMap();
+    final filtered = await _filterMapForTable(db, 'transacciones', raw);
+    return await db.insert('transacciones', filtered);
   }
 
   Future<List<AppTransaction>> list({
@@ -74,22 +107,65 @@ class TransactionRepo {
     return rows.map(AppTransaction.fromMap).toList();
   }
 
+  // Helper: comprobar si la tabla contiene una columna (para compatibilidad con DB antiguas)
+  Future<bool> _tableHasColumn(Database db, String tableName, String columnName) async {
+    try {
+      final info = await db.rawQuery('PRAGMA table_info($tableName)');
+      for (final row in info) {
+        final name = row['name'] as String?;
+        if (name == columnName) return true;
+      }
+      return false;
+    } catch (e) {
+      // En caso de error asumimos que no existe para evitar excepciones en consultas
+      return false;
+    }
+  }
+
   Future<double> total(String tipo, {int? usuarioId}) async {
     final db = await _dbFuture;
     final where = <String>['tipo = ?'];
     final args = <dynamic>[tipo];
+
+    // Añadir filtro por afecta_saldo solo si la columna existe en la tabla
+    final hasAfecta = await _tableHasColumn(db, 'transacciones', 'afecta_saldo');
+    if (hasAfecta) {
+      where.add('afecta_saldo = 1');
+    }
 
     if (usuarioId != null) {
       where.add('usuario_id = ?');
       args.add(usuarioId);
     }
 
-    final rows = await db.rawQuery(
-      'SELECT SUM(monto) as total FROM transacciones WHERE ${where.join(' AND ')}',
-      args,
-    );
-    final value = rows.first['total'] as num?;
-    return (value ?? 0).toDouble();
+    try {
+      final rows = await db.rawQuery(
+        'SELECT SUM(monto) as total FROM transacciones WHERE ${where.join(' AND ')}',
+        args,
+      );
+      final value = rows.first['total'] as num?;
+      return (value ?? 0).toDouble();
+    } catch (e) {
+      // Si hubo un error SQL (ej. columna no existente), reintentar sin el filtro afecta_saldo
+      try {
+        final fallbackWhere = <String>['tipo = ?'];
+        final fallbackArgs = <dynamic>[tipo];
+        if (usuarioId != null) {
+          fallbackWhere.add('usuario_id = ?');
+          fallbackArgs.add(usuarioId);
+        }
+        final rows = await db.rawQuery(
+          'SELECT SUM(monto) as total FROM transacciones WHERE ${fallbackWhere.join(' AND ')}',
+          fallbackArgs,
+        );
+        final value = rows.first['total'] as num?;
+        return (value ?? 0).toDouble();
+      } catch (e2) {
+        // En caso extremo devolvemos 0 y logueamos
+        // debugPrint('Error calculando total: $e / $e2');
+        return 0.0;
+      }
+    }
   }
 
   Future<List<AppTransaction>> listMultiple({
@@ -233,8 +309,9 @@ class TransactionRepo {
       throw ArgumentError('update() requiere un id');
     }
     final db = await _dbFuture;
-    final map = t.toMap()..remove('id');
-    return db.update('transacciones', map, where: 'id = ?', whereArgs: [t.id]);
+    final raw = t.toMap()..remove('id');
+    final filtered = await _filterMapForTable(db, 'transacciones', raw);
+    return db.update('transacciones', filtered, where: 'id = ?', whereArgs: [t.id]);
   }
 
   Future<AppTransaction?> getById(int id) async {

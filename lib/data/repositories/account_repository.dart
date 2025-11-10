@@ -8,6 +8,21 @@ class AccountRepository {
   final AppDatabase _db = AppDatabase();
   final AuthService _auth = AuthService();
 
+  // Helper local para comprobar si una tabla tiene una columna (compatibilidad con DB antiguas)
+  // Acepta Database o Transaction (ambos implementan DatabaseExecutor)
+  Future<bool> _tableHasColumn(DatabaseExecutor dbExecutor, String tableName, String columnName) async {
+    try {
+      final info = await dbExecutor.rawQuery('PRAGMA table_info($tableName)');
+      for (final row in info) {
+        final name = row['name'] as String?;
+        if (name == columnName) return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
   // Obtener todas las cuentas del usuario actual
   Future<List<Account>> getUserAccounts() async {
     try {
@@ -119,8 +134,8 @@ class AccountRepository {
         final categoriaId = categorias.isNotEmpty ? categorias.first['id'] as int? : null;
 
         // Determinar si la cuenta es pasiva para registrar correctamente la transacción de apertura
-        final tiposPasivos = ['credito', 'por_pagar'];
-        final bool esPasivo = tiposPasivos.contains(tipo);
+        final tiposNoAfectan = ['credito', 'tarjeta_credito', 'por_pagar', 'por_cobrar'];
+        final bool esPasivo = tiposNoAfectan.contains(tipo);
 
         // Si la cuenta es pasiva, un saldo inicial positivo representa una obligación (egreso en la lista de movimientos),
         // mientras que para cuentas normales un saldo positivo se registra como 'ingreso'.
@@ -128,7 +143,7 @@ class AccountRepository {
             ? (saldoInicial >= 0 ? 'egreso' : 'ingreso')
             : (saldoInicial >= 0 ? 'ingreso' : 'egreso');
 
-        await database.insert('transacciones', {
+        final txMap = {
           'usuario_id': userId,
           'cuenta_id': accountId,
           'categoria_id': categoriaId,
@@ -139,13 +154,19 @@ class AccountRepository {
               ? 'Apertura de cuenta en $institucion'
               : 'Apertura de cuenta', // ✅ Nota = Institución o descripción
           'monto': saldoInicial.abs(),
+          'afecta_saldo': esPasivo ? 0 : 1,
           'fecha': now.toIso8601String(),
           'es_recurrente': 0,
           'es_apertura_cuenta': 1, // ✅ Marcar como transacción de apertura
           'confirmada': 1,
           'created_at': now.toIso8601String(),
           'updated_at': now.toIso8601String(),
-        });
+        };
+        // Filtrar keys que la tabla realmente tiene (compatibilidad)
+        if (!await _tableHasColumn(database, 'transacciones', 'afecta_saldo')) {
+          txMap.remove('afecta_saldo');
+        }
+        await database.insert('transacciones', txMap);
       }
 
       return getAccountById(accountId);
@@ -252,8 +273,8 @@ class AccountRepository {
       }
 
       // Determinar si la cuenta es pasiva para registrar correctamente la transacción de apertura
-      final tiposPasivos = ['credito', 'por_pagar'];
-      final bool esPasivo = cuentaTipo != null && tiposPasivos.contains(cuentaTipo);
+      final tiposNoAfectan = ['credito', 'tarjeta_credito', 'por_pagar', 'por_cobrar'];
+      final bool esPasivo = cuentaTipo != null && tiposNoAfectan.contains(cuentaTipo);
 
       // Si ya se va a actualizar el monto, o queremos asegurar que el tipo sea consistente, calculamos el tipo correcto
       if (transactionUpdateData.containsKey('monto') || cuentaTipo != null) {
@@ -263,9 +284,14 @@ class AccountRepository {
             : (effectiveSaldo >= 0 ? 'ingreso' : 'egreso');
 
         transactionUpdateData['tipo'] = aperturaTipo;
+        transactionUpdateData['afecta_saldo'] = esPasivo ? 0 : 1;
       }
 
       if (transactionUpdateData.length > 1) { // Más de solo updated_at
+        // Filtrar afecta_saldo si no existe en la tabla
+        if (!await _tableHasColumn(database, 'transacciones', 'afecta_saldo')) {
+          transactionUpdateData.remove('afecta_saldo');
+        }
         await database.update(
           'transacciones',
           transactionUpdateData,
@@ -295,19 +321,30 @@ class AccountRepository {
       ''', [userId]);
 
       int updated = 0;
-      final tiposPasivos = ['credito', 'por_pagar'];
+      final tiposNoAfectan = ['credito', 'tarjeta_credito', 'por_pagar', 'por_cobrar'];
 
       for (final r in rows) {
         final tid = r['tid'] as int?;
         final monto = (r['monto'] as num?)?.toDouble() ?? 0.0;
         final cuentaTipo = r['cuenta_tipo'] as String?;
-        final esPasivo = cuentaTipo != null && tiposPasivos.contains(cuentaTipo);
+        final esPasivo = cuentaTipo != null && tiposNoAfectan.contains(cuentaTipo);
         final aperturaTipo = esPasivo ? (monto >= 0 ? 'egreso' : 'ingreso') : (monto >= 0 ? 'ingreso' : 'egreso');
 
         if (tid != null) {
           final res = await database.update(
             'transacciones',
             {'tipo': aperturaTipo, 'updated_at': DateTime.now().toIso8601String()},
+            where: 'id = ?',
+            whereArgs: [tid],
+          );
+          // Actualizar afecta_saldo solo si la columna existe
+          final Map<String, dynamic> updateMap = {'updated_at': DateTime.now().toIso8601String()};
+          if (await _tableHasColumn(database, 'transacciones', 'afecta_saldo')) {
+            updateMap['afecta_saldo'] = esPasivo ? 0 : 1;
+          }
+          await database.update(
+            'transacciones',
+            updateMap,
             where: 'id = ?',
             whereArgs: [tid],
           );
@@ -414,25 +451,48 @@ class AccountRepository {
         'transacciones',
         where: 'cuenta_id = ? OR cuenta_destino_id = ?',
         whereArgs: [accountId, accountId],
-        limit: 1,
       );
 
-      if (transactions.isNotEmpty) {
-        // Si hay transacciones, solo desactivar
+      if (transactions.isEmpty) {
+        // Si no hay transacciones, eliminar permanentemente
+        final rowsAffected = await database.delete(
+          'cuentas',
+          where: 'id = ? AND usuario_id = ?',
+          whereArgs: [accountId, userId],
+        );
+        return rowsAffected > 0;
+      }
+
+      // Si hay transacciones, comprobar si todas son transacciones de apertura
+      bool allOpening = true;
+      for (final t in transactions) {
+        // Algunas instalaciones podrían guardar 0/1 o booleano; manejar ambos
+        final val = t['es_apertura_cuenta'];
+        final isOpening = (val == 1 || val == '1' || val == true);
+        if (!isOpening) {
+          allOpening = false;
+          break;
+        }
+      }
+
+      if (allOpening) {
+        // Todas las transacciones asociadas son solo aperturas => podemos eliminar
+        // las transacciones y borrar físicamente la cuenta en una transacción DB.
+        return await database.transaction((txn) async {
+          try {
+            await txn.delete('transacciones', where: 'cuenta_id = ?', whereArgs: [accountId]);
+          } catch (_) {}
+          final rows = await txn.delete('cuentas', where: 'id = ? AND usuario_id = ?', whereArgs: [accountId, userId]);
+          return rows > 0;
+        });
+      } else {
+        // Hay otras transacciones además de la aperturas => hacemos soft-delete
         final rowsAffected = await database.update(
           'cuentas',
           {
             'activa': 0,
             'updated_at': DateTime.now().toIso8601String(),
           },
-          where: 'id = ? AND usuario_id = ?',
-          whereArgs: [accountId, userId],
-        );
-        return rowsAffected > 0;
-      } else {
-        // Si no hay transacciones, eliminar permanentemente
-        final rowsAffected = await database.delete(
-          'cuentas',
           where: 'id = ? AND usuario_id = ?',
           whereArgs: [accountId, userId],
         );
@@ -530,8 +590,14 @@ class AccountRepository {
 
         final now = DateTime.now().toIso8601String();
 
+        // Decidir si esta transacción de transferencia afecta totales:
+        final fromTipo = fromAccount.tipo;
+        final toTipo = toAccount.tipo;
+        final tiposNoAfectanTransfer = ['credito', 'tarjeta_credito', 'por_pagar', 'por_cobrar'];
+        final bool transferenciaAfecta = !(tiposNoAfectanTransfer.contains(fromTipo) || tiposNoAfectanTransfer.contains(toTipo));
+
         // Registrar transacción de transferencia
-        await txn.insert('transacciones', {
+        final transferMap = {
           'usuario_id': userId,
           'cuenta_id': fromAccountId,
           'cuenta_destino_id': toAccountId,
@@ -539,12 +605,17 @@ class AccountRepository {
           'tipo': 'transferencia',
           'descripcion': descripcion ?? 'Transferencia entre cuentas',
           'monto': amount,
+          'afecta_saldo': transferenciaAfecta ? 1 : 0,
           'fecha': now,
           'es_recurrente': 0,
           'confirmada': 1,
           'created_at': now,
           'updated_at': now,
-        });
+        };
+        if (!await _tableHasColumn(txn, 'transacciones', 'afecta_saldo')) {
+          transferMap.remove('afecta_saldo');
+        }
+        await txn.insert('transacciones', transferMap);
 
         return true;
       });

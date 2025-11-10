@@ -333,7 +333,11 @@ class TransactionsController extends _$TransactionsController {
         updatedAt: now,
       );
 
-      await _transactionRepo.insertAndGetId(newTransaction);
+      // Log para depuración: mostrar qué se está guardando
+      debugPrint('💾 [TransactionsController] Guardando transacción -> categoriaId=${newTransaction.categoriaId}, usuarioId=${newTransaction.usuarioId}, tipo=${newTransaction.tipo}, monto=${newTransaction.monto}, fecha=${newTransaction.fecha.toIso8601String()}');
+
+      final insertedId = await _transactionRepo.insertAndGetId(newTransaction);
+      debugPrint('💾 [TransactionsController] Transacción insertada con id=$insertedId');
       _cacheService.invalidateUser(userId);
       await _refreshAll();
       // invalidar presupuesto categoría si egreso
