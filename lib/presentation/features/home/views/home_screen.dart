@@ -163,6 +163,14 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
               ),
               actions: [
                 IconButton(
+                  tooltip: 'Gamificación',
+                  icon: Icon(Icons.emoji_events, color: colorScheme.onSurface),
+                  onPressed: () {
+                    debugPrint('➡️ [MyHomePage] navegando a /gamification');
+                    context.push('/gamification');
+                  },
+                ),
+                IconButton(
                   icon: Icon(Icons.search, color: colorScheme.onSurface),
                   onPressed: () async {
                     final controller = ref.read(transactionsControllerProvider.notifier);

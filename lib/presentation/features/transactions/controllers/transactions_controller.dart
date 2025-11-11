@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:mype_finanzas/presentation/providers/gamification/gamification_providers.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/utils/attachments_helper.dart';
@@ -340,6 +341,17 @@ class TransactionsController extends _$TransactionsController {
       debugPrint('💾 [TransactionsController] Transacción insertada con id=$insertedId');
       _cacheService.invalidateUser(userId);
       await _refreshAll();
+      // Registrar evento de gamification (no bloquear el flujo principal)
+      try {
+        final service = ref.read(gamificationServiceProvider);
+        Future.microtask(() => service.recordEvent(
+            usuarioId: userId,
+            tipoEvento: 'transaction_created',
+            transactionType: newTransaction.tipo,
+            fechaEvento: newTransaction.fecha));
+      } catch (e) {
+        debugPrint('⚠️ No se pudo registrar evento gamification: $e');
+      }
       // invalidar presupuesto categoría si egreso
       if (newTransaction.tipo == 'egreso' &&
           newTransaction.categoriaId != null) {
@@ -399,6 +411,17 @@ class TransactionsController extends _$TransactionsController {
       state = state.copyWith(transactions: updatedList);
       _cacheService.invalidateUser(userId);
       await _refreshAll();
+      // Registrar evento de actualización en gamification
+      try {
+        final service = ref.read(gamificationServiceProvider);
+        Future.microtask(() => service.recordEvent(
+            usuarioId: userId,
+            tipoEvento: 'transaction_updated',
+            transactionType: updatedTransaction.tipo,
+            fechaEvento: updatedTransaction.fecha));
+      } catch (e) {
+        debugPrint('⚠️ No se pudo registrar evento gamification en update: $e');
+      }
       if (updatedTransaction.tipo == 'egreso' &&
           updatedTransaction.categoriaId != null) {
         _invalidateCategoryBudget(

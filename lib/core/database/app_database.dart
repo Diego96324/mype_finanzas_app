@@ -30,7 +30,7 @@ class AppDatabase {
     final path = p.join(dir.path, 'mype_finanzas.db');
     return openDatabase(
       path,
-      version: 13, // bump para presupuestos por categoría (alertas/ajuste)
+      version: 14, // bump para añadir tablas de gamification (v14)
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -275,6 +275,54 @@ class AppDatabase {
         updated_at TEXT NOT NULL
       )
     ''');
+
+    // --- Tablas de gamification (v14) ---
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS gamification_profiles(
+        usuario_id INTEGER PRIMARY KEY,
+        puntos INTEGER NOT NULL DEFAULT 0,
+        nivel INTEGER NOT NULL DEFAULT 1,
+        racha_actual INTEGER NOT NULL DEFAULT 0,
+        racha_maxima INTEGER NOT NULL DEFAULT 0,
+        ultima_fecha_evento TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS gamification_achievements(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tipo TEXT NOT NULL,
+        nombre TEXT NOT NULL,
+        descripcion TEXT,
+        progreso_actual REAL NOT NULL DEFAULT 0,
+        progreso_objetivo REAL NOT NULL DEFAULT 1,
+        estado TEXT NOT NULL DEFAULT 'locked', -- locked|unlocked|in_progress
+        ultima_actualizacion TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS gamification_events(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER,
+        tipo_evento TEXT NOT NULL,
+        descripcion TEXT,
+        puntos_otorgados INTEGER NOT NULL DEFAULT 0,
+        fecha_evento TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_gamification_profiles_usuario ON gamification_profiles(usuario_id)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_gamification_achievements_tipo ON gamification_achievements(tipo)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_gamification_events_usuario ON gamification_events(usuario_id)');
+    // --- fin gamification ---
 
     await db.execute('CREATE INDEX idx_usuarios_email ON usuarios(email)');
     await db.execute('CREATE INDEX idx_sesiones_usuario ON sesiones(usuario_id)');
@@ -629,7 +677,7 @@ class AppDatabase {
         await db.execute('ALTER TABLE categorias ADD COLUMN categoria_padre_id INTEGER REFERENCES categorias(id) ON DELETE CASCADE');
         debugPrint('✅ Columna categoria_padre_id agregada');
       } catch (e) {
-        debugPrint('⚠️ Columna categoria_padre_id ya existe: $e');
+        debugPrint('⚠️ Columna categoria_padre_id ya existe o error al agregar: $e');
       }
 
       try {
@@ -782,6 +830,72 @@ class AppDatabase {
         debugPrint('⚠️ Columna afecta_saldo ya existe o error al agregar: $e');
       }
     }
+
+    // Versión 14: Añadir tablas de gamification (perfiles, logros y eventos)
+    if (oldVersion < 14) {
+      try {
+        // Crear tablas si no existen (compatible con instalaciones antiguas)
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS gamification_profiles(
+            usuario_id INTEGER PRIMARY KEY,
+            puntos INTEGER NOT NULL DEFAULT 0,
+            nivel INTEGER NOT NULL DEFAULT 1,
+            racha_actual INTEGER NOT NULL DEFAULT 0,
+            racha_maxima INTEGER NOT NULL DEFAULT 0,
+            ultima_fecha_evento TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+          )
+        ''');
+      } catch (e) {
+        debugPrint('⚠️ Error creando tabla gamification_profiles: $e');
+      }
+
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS gamification_achievements(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            nombre TEXT NOT NULL,
+            descripcion TEXT,
+            progreso_actual REAL NOT NULL DEFAULT 0,
+            progreso_objetivo REAL NOT NULL DEFAULT 1,
+            estado TEXT NOT NULL DEFAULT 'locked',
+            ultima_actualizacion TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          )
+        ''');
+      } catch (e) {
+        debugPrint('⚠️ Error creando tabla gamification_achievements: $e');
+      }
+
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS gamification_events(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER,
+            tipo_evento TEXT NOT NULL,
+            descripcion TEXT,
+            puntos_otorgados INTEGER NOT NULL DEFAULT 0,
+            fecha_evento TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+          )
+        ''');
+      } catch (e) {
+        debugPrint('⚠️ Error creando tabla gamification_events: $e');
+      }
+
+      // Crear índices para consultas rápidas
+      try { await db.execute('CREATE INDEX IF NOT EXISTS idx_gamification_profiles_usuario ON gamification_profiles(usuario_id)'); } catch (e) { debugPrint('⚠️ idx_gamification_profiles_usuario: $e'); }
+      try { await db.execute('CREATE INDEX IF NOT EXISTS idx_gamification_achievements_tipo ON gamification_achievements(tipo)'); } catch (e) { debugPrint('⚠️ idx_gamification_achievements_tipo: $e'); }
+      try { await db.execute('CREATE INDEX IF NOT EXISTS idx_gamification_events_usuario ON gamification_events(usuario_id)'); } catch (e) { debugPrint('⚠️ idx_gamification_events_usuario: $e'); }
+
+      debugPrint('✅ Migración v14 (gamification) aplicada');
+    }
+
   }
 
   Future<void> ensureSeedUser() async {
@@ -805,6 +919,38 @@ class AppDatabase {
           'updated_at': now,
         });
         debugPrint('🧪 Usuario seed admin reinsertado');
+
+        // Insertar perfil de gamification para el usuario seed (si la tabla existe)
+        try {
+          final usuarioRow = await db.query('usuarios', where: 'email = ?', whereArgs: ['admin@mypefinanzas.com'], limit: 1);
+          if (usuarioRow.isNotEmpty) {
+            final usuarioId = usuarioRow.first['id'] as int;
+            // Crear perfil base solo si la tabla existe y no hay perfil previo
+            try {
+              final tables = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='gamification_profiles'");
+              if (tables.isNotEmpty) {
+                final existing = await db.query('gamification_profiles', where: 'usuario_id = ?', whereArgs: [usuarioId], limit: 1);
+                if (existing.isEmpty) {
+                  await db.insert('gamification_profiles', {
+                    'usuario_id': usuarioId,
+                    'puntos': 0,
+                    'nivel': 1,
+                    'racha_actual': 0,
+                    'racha_maxima': 0,
+                    'ultima_fecha_evento': null,
+                    'created_at': now,
+                    'updated_at': now,
+                  });
+                  debugPrint('🧪 Perfil gamification para usuario seed creado');
+                }
+              }
+            } catch (e) {
+              debugPrint('⚠️ No se pudo crear perfil gamification automáticamente: $e');
+            }
+          }
+        } catch (e) {
+          debugPrint('⚠️ Error buscando usuario seed tras inserción: $e');
+        }
       }
     } catch (e) {
       debugPrint('⚠️ Error al asegurar usuario seed: $e');
