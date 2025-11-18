@@ -1,7 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mype_finanzas/core/database/app_database.dart';
 import 'package:mype_finanzas/data/repositories/auth_repo.dart';
 
+import 'test_helpers.dart';
+
 void main() {
+  setUpAll(() {
+    initTestEnvironment();
+  });
+
+  setUp(() async {
+    await AppDatabase().resetDatabase();
+  });
+
   // Ensure Flutter bindings are initialized for services used by the repository
   TestWidgetsFlutterBinding.ensureInitialized();
 
