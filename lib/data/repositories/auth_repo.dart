@@ -203,6 +203,7 @@ class AuthRepository {
     String? apellido,
     String? telefono,
     String? avatarUri,
+    bool clearAvatar = false,
   }) async {
     try {
       final database = await _db.database;
@@ -213,7 +214,14 @@ class AuthRepository {
       if (nombre != null) updates['nombre'] = nombre;
       if (apellido != null) updates['apellido'] = apellido;
       if (telefono != null) updates['telefono'] = telefono;
-      if (avatarUri != null) updates['avatar_uri'] = avatarUri;
+      if (clearAvatar) {
+        updates['avatar_uri'] = null;
+      } else if (avatarUri != null) {
+        updates['avatar_uri'] = avatarUri;
+      }
+
+      // Log the updates that will be applied to DB for easier debugging
+      debugPrint('➡️ [AuthRepository] updateProfile: userId=$userId updates=$updates');
 
       await database.update(
         'usuarios',
@@ -221,6 +229,23 @@ class AuthRepository {
         where: 'id = ?',
         whereArgs: [userId],
       );
+
+      // Leer la fila tras el UPDATE para confirmar el valor almacenado
+      try {
+        final updatedRows = await database.query(
+          'usuarios',
+          where: 'id = ?',
+          whereArgs: [userId],
+        );
+        if (updatedRows.isNotEmpty) {
+          final stored = updatedRows.first['avatar_uri'];
+          debugPrint('🔎 [AuthRepository] post-update avatar_uri for userId=$userId -> $stored');
+        }
+      } catch (e) {
+        debugPrint('⚠️ [AuthRepository] could not read back user row: $e');
+      }
+
+      debugPrint('✅ [AuthRepository] updateProfile applied for userId=$userId');
 
       return true;
     } catch (e) {

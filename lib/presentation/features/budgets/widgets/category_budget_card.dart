@@ -116,7 +116,7 @@ class CategoryBudgetCard extends ConsumerWidget {
                                     return;
                                   }
                                   final service = budget_service.CategoryBudgetService();
-                                  final nombre = 'Presupuesto ${periodo}';
+                                  final nombre = 'Presupuesto $periodo';
                                   final success = await service.saveBudget(
                                     usuarioId: uid,
                                     categoriaId: targetId,
@@ -146,7 +146,7 @@ class CategoryBudgetCard extends ConsumerWidget {
                             ],
                           ),
                         );
-                      }).toList(),
+                      }),
                       const SizedBox(height: 6),
                       Text('Si quieres que el presupuesto controle estos gastos, edita el presupuesto y selecciona la categoría correcta.', style: Theme.of(context).textTheme.bodySmall),
                     ],

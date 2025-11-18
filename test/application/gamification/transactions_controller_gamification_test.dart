@@ -6,6 +6,9 @@ import 'package:mype_finanzas/data/models/transaction_model.dart';
 import 'package:mype_finanzas/application/services/gamification_service.dart';
 import 'package:mype_finanzas/data/repositories/gamification_repository.dart';
 import 'package:mype_finanzas/domain/services/auth_service.dart';
+import 'package:mype_finanzas/data/models/user_model.dart';
+import 'package:mype_finanzas/core/providers/providers.dart';
+import '../../test_helpers.dart';
 
 class FakeGamificationService extends GamificationService {
   int calls = 0;
@@ -21,7 +24,10 @@ class FakeGamificationService extends GamificationService {
   int computeLevel(int puntos) => 1 + (puntos ~/ 500);
 
   @override
-  int updateStreak(int currentStreak, DateTime? ultimaFechaEvento, DateTime fechaEvento) => 1;
+  Map<String, int> updateStreak(int currentStreak, int currentMaxStreak, DateTime? ultimaFechaEvento, DateTime fechaEvento) {
+    // For tests we return racha = 1 and keep existing max
+    return {'racha': 1, 'max': currentMaxStreak};
+  }
 
   @override
   Future<void> evaluateAchievements(int usuarioId) async {}
@@ -33,17 +39,44 @@ class FakeGamificationService extends GamificationService {
 }
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+  // Initialize common test environment
+  initTestEnvironment();
 
   test('TransactionsController triggers GamificationService.recordEvent on save and update', () async {
     final fakeService = FakeGamificationService();
 
-    // override gamificationServiceProvider with fake
+    // Initialize SharedPreferences mock to avoid MissingPluginException
+    // SharedPreferences already initialized by initTestEnvironment
+
+    // Create a dummy user to satisfy auth providers and avoid DB/PathProvider calls
+    final testUser = User(
+      id: 1,
+      email: 'test@example.com',
+      passwordHash: '',
+      nombre: 'Test',
+      apellido: null,
+      telefono: null,
+      fechaRegistro: DateTime.now(),
+      ultimaConexion: null,
+      activo: true,
+      rol: 'usuario',
+      avatarUri: null,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    // override gamificationServiceProvider with fake and provide auth values
     final container = ProviderContainer(overrides: [
       gamificationServiceProvider.overrideWithValue(fakeService),
+      currentUserIdProvider.overrideWithValue(1),
+      currentUserProvider.overrideWithValue(testUser),
+      isAuthenticatedProvider.overrideWithValue(true),
       // Ensure auth current user
       // If AuthService reads container, set it
     ]);
+
+    // Ensure the container is disposed after the test completes
+    addTearDown(() => container.dispose());
 
     // make AuthService use the container so currentUserId is available
     AuthService.setContainer(container);
@@ -79,7 +112,7 @@ void main() {
     // The fake service should have been invoked at least once (depending on DB operations)
     expect(fakeService.calls, greaterThanOrEqualTo(0));
 
-    // Dispose container
-    container.dispose();
+    // Dispose container (handled by addTearDown)
+    // container.dispose();
   });
 }

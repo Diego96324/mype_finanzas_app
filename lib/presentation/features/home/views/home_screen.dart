@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/components/date_picker_theme.dart';
+import '../../../../core/providers/providers.dart';
 import '../../profile/views/profile_view.dart';
 import '../../transactions/views/add_transaction_view.dart';
 import '../../analytics/views/analytics_view.dart';
@@ -53,15 +54,41 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         _routeInfoProvider = GoRouter.of(context).routeInformationProvider;
-        // Inicializar a partir de la ubicación actual
+        // Escuchar cambios en el flag routeSyncBlockProvider para forzar re-evaluación
+        // cuando pase de true a false (desbloqueo), de modo que el router pueda
+        // sincronizar la UI y evitar que el usuario quede en la pestaña equivocada.
+        try {
+          ref.listen<bool>(routeSyncBlockProvider, (previous, next) {
+            if (previous == true && next == false) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                try {
+                  final loc = _routeInfoProvider?.value.uri.toString() ?? GoRouter.of(context).routeInformationProvider.value.uri.toString();
+                  debugPrint('➡️ [MyHomePage] routeSyncBlock cleared -> forcing go($loc)');
+                  context.go(loc);
+                } catch (e) {
+                  debugPrint('⚠️ [MyHomePage] failed forcing route re-eval: $e');
+                }
+              });
+            }
+          });
+        } catch (_) {}
+        // Inicializar a partir de la ubicación actual, pero respetar
+        // shellDesiredIndexProvider (si alguna vista pidió mostrarse).
         final initialLoc = _routeInfoProvider?.value.uri.toString() ?? '/';
         final initialIdx = _indexFromLocation(initialLoc);
         // Si la URL trae ?mode=presupuestos, sincronizamos el modo también
         final initialMode = Uri.tryParse(initialLoc)?.queryParameters['mode'];
-        debugPrint('➡️ [MyHomePage] initial router location=$initialLoc -> idx=$initialIdx, mode=$initialMode');
+        final desired = ref.read(shellDesiredIndexProvider);
+        debugPrint('➡️ [MyHomePage] initial router location=$initialLoc -> idx=$initialIdx, mode=$initialMode, shellDesired=$desired');
         setState(() {
-          if (initialIdx != _pageIndex) _pageIndex = initialIdx;
-          if (initialMode != null && initialMode != _transactionsMode) _transactionsMode = initialMode;
+          // Solo sobrescribimos _pageIndex si no hay desiredIndex activo
+          if (desired == null) {
+            if (initialIdx != _pageIndex) _pageIndex = initialIdx;
+            if (initialMode != null && initialMode != _transactionsMode) _transactionsMode = initialMode;
+          } else {
+            // Mantener _pageIndex tal cual; el build prioriza shellDesired
+            debugPrint('➡️ [MyHomePage] Skipping initial index sync because shellDesired=$desired');
+          }
         });
 
         _routeInfoListener = () {
@@ -71,6 +98,35 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
             final idx = _indexFromLocation(loc);
             final mode = uri?.queryParameters['mode'];
             debugPrint('➡️ [MyHomePage] routeInfoListener detected location=$loc -> idx=$idx, mode=$mode');
+            // Si alguna vista solicitó explícitamente que la Shell muestre
+            // una pestaña concreta (ej. Perfil) durante un flujo externo,
+            // no sobreescribimos ese deseo con la sincronización de rutas.
+            final desired = ref.read(shellDesiredIndexProvider);
+            if (desired != null) {
+              debugPrint('➡️ [MyHomePage] route change ignored because shellDesiredIndex=$desired is active');
+              return;
+            }
+            final shouldBlock = ref.read(routeSyncBlockProvider);
+            if (shouldBlock) {
+              // Si hay una operación externa o auth en curso, o la última
+              // actividad relacionada es reciente, mantenemos el bloqueo
+              // para evitar que la UI/Router hagan redirects o sincronizaciones
+              // prematuras.
+              final lastAuth = ref.read(routeSyncLastAuthProvider);
+              final recentAuth = lastAuth != null && DateTime.now().difference(lastAuth) < const Duration(seconds: 10);
+              final externalActive = ref.read(routeSyncExternalActiveProvider);
+              final authOpActive = ref.read(routeSyncAuthOpProvider);
+              if (externalActive || authOpActive || recentAuth) {
+                debugPrint('➡️ [MyHomePage] route change ignored due to routeSyncBlockProvider (still active). externalActive=$externalActive, authOp=$authOpActive, recentAuth=$recentAuth');
+                return;
+              }
+              // Si ya no hay actividad, restablecemos el flag y permitimos la sincronización
+              try {
+                ref.read(routeSyncBlockProvider.notifier).state = false;
+              } catch (_) {}
+              debugPrint('➡️ [MyHomePage] route change ignored due to routeSyncBlockProvider (cleared)');
+              return;
+            }
             setState(() {
               if (idx != _pageIndex) _pageIndex = idx;
               if (mode != null && mode != _transactionsMode) _transactionsMode = mode;
@@ -99,7 +155,9 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('➡️ [MyHomePage] build: _pageIndex=$_pageIndex, child=${widget.child?.runtimeType}');
+    final shellDesired = ref.watch(shellDesiredIndexProvider);
+    final displayedIndex = shellDesired ?? _pageIndex;
+    debugPrint('➡️ [MyHomePage] build: _pageIndex=$_pageIndex, displayedIndex=$displayedIndex, child=${widget.child?.runtimeType}');
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -119,7 +177,7 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
       extendBody: false,
       extendBodyBehindAppBar: false,
       backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: _pageIndex == 0
+      appBar: displayedIndex == 0
           ? AppBar(
               backgroundColor: theme.appBarTheme.backgroundColor,
               centerTitle: true,
@@ -236,22 +294,29 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
       body: () {
         // Si estamos en la pestaña Inicio y el modo efectivo pide 'presupuestos',
         // mostramos la vista de presupuestos aunque widget.child exista (ShellRoute).
-        if (_pageIndex == 0 && (effectiveMode == 'presupuestos' || _forceShowBudgets)) {
+        if (displayedIndex == 0 && (effectiveMode == 'presupuestos' || _forceShowBudgets)) {
           return const BudgetsOverviewView();
         }
-        // Si hay un child (ShellRoute) y no estamos forzando presupuestos, lo mostramos.
+        // Si alguna vista solicitó explícitamente un índice de Shell, lo mostramos
+        // con prioridad incluso si `widget.child` está presente (evita que la
+        // ruta externa sobrescriba la vista mostrada durante flujos como la
+        // cámara/recortador).
+        if (shellDesired != null) {
+          return _pages[shellDesired];
+        }
+        // Si hay un child (ShellRoute) y no hay requestedIndex, lo mostramos.
         if (widget.child != null) return widget.child!;
         // Caso por defecto: comportamiento basado en _pageIndex/_transactionsMode
-        if (_pageIndex == 0) {
+        if (displayedIndex == 0) {
           return _transactionsMode == 'transacciones' ? const TransactionsListView() : const BudgetsOverviewView();
         }
-        return _pages[_pageIndex];
+        return _pages[displayedIndex];
       }(),
       bottomNavigationBar: SafeArea(
         top: false,
         minimum: EdgeInsets.zero,
         child: MainNavBar(
-          currentIndex: _pageIndex,
+          currentIndex: displayedIndex,
           onTap: _onTap,
           onAdd: _onAddTransaction, // FAB integrado en MainNavBar: pasamos la callback onAdd
         ),
@@ -277,6 +342,10 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
       // al cambiar de pestaña, dejamos de forzar la vista de presupuestos
       _forceShowBudgets = false;
     });
+    // Si el usuario interactúa con la navBar, limpiamos cualquier desiredIndex
+    try {
+      ref.read(shellDesiredIndexProvider.notifier).state = null;
+    } catch (_) {}
     debugPrint('➡️ [MyHomePage] _onTap -> navigating to $path');
     context.go(path);
   }

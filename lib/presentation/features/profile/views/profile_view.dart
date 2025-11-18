@@ -2,13 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 import 'package:intl/intl.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:async';
 
 import '../../../../core/providers/providers.dart';
 import '../../../shared/utils/currency_formatter.dart';
 import '../../transactions/controllers/transactions_controller.dart';
 import '../../auth/views/change_password_view.dart';
 import '../../../../features/transactions/data/last_category_storage.dart';
+import '../../../../../data/models/user_model.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -22,9 +29,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
   late Animation<double> _fadeAnimation;
 
   bool _notificationsEnabled = true;
-  bool _biometricsEnabled = false;
 
   // Estadísticas se obtienen del TransactionsController ahora
+
+  Timer? _clearDesiredTimer;
 
   @override
   void initState() {
@@ -47,9 +55,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
+    final enabled = prefs.getBool('notifications_enabled') ?? true;
+    if (!mounted) return;
     setState(() {
-      _notificationsEnabled = prefs.getBool('notifications_enabled') ?? true;
-      _biometricsEnabled = prefs.getBool('biometrics_enabled') ?? false;
+      _notificationsEnabled = enabled;
     });
   }
 
@@ -58,8 +67,55 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
     await prefs.setBool(key, value);
   }
 
+  void _clearShellDesiredAfterGrace() {
+    // Cancel previous timer
+    _clearDesiredTimer?.cancel();
+    // Usamos un timeout fijo razonable para el flujo externo.
+    const timeout = Duration(milliseconds: 6000);
+    final deadline = DateTime.now().add(timeout + const Duration(milliseconds: 50));
+
+    // Timer de respaldo: limpiará al expirar el timeout
+    _clearDesiredTimer = Timer(timeout + const Duration(milliseconds: 50), () {
+      if (!mounted) return;
+      try {
+        ref.read(shellDesiredIndexProvider.notifier).state = null;
+        try {
+          ref.read(routeSyncBlockProvider.notifier).state = false;
+        } catch (_) {}
+      } catch (_) {}
+      debugPrint('➡️ [Profile] shellDesiredIndex cleared by scheduled timer (timeout)');
+    });
+
+    // Tarea que comprueba periódicamente la ruta actual y limpia cuando esté en /profile
+    () async {
+      try {
+        final provider = GoRouter.of(context).routeInformationProvider;
+        while (DateTime.now().isBefore(deadline)) {
+          if (!mounted) return;
+          final loc = provider.value.uri.toString();
+          if (loc.startsWith('/profile')) {
+            // Ya estamos en /profile: limpiar y desactivar el flag reactivo
+            try {
+              ref.read(shellDesiredIndexProvider.notifier).state = null;
+            } catch (_) {}
+            try {
+              ref.read(routeSyncBlockProvider.notifier).state = false;
+            } catch (_) {}
+            debugPrint('➡️ [Profile] shellDesiredIndex cleared because router is at /profile');
+            _clearDesiredTimer?.cancel();
+            return;
+          }
+          await Future.delayed(const Duration(milliseconds: 200));
+        }
+      } catch (e) {
+        debugPrint('⚠️ [Profile] error while waiting for router to reach /profile: $e');
+      }
+    }();
+  }
+
   @override
   void dispose() {
+    _clearDesiredTimer?.cancel();
     _animationController.dispose();
     super.dispose();
   }
@@ -117,9 +173,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
     }
 
     if (!ctx.mounted) return;
-
-    // GoRouter redirigirá automáticamente a login al detectar que no hay usuario
-    ctx.go('/login');
+    // No invocamos ctx.go('/login') explícitamente: el router principal
+    // detectará que authState es null y redirigirá automáticamente a /login.
+    // Evitamos navegaciones manuales que puedan competir con la lógica del router.
   }
 
   @override
@@ -179,6 +235,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
   }
 
   Widget _buildUserCard(dynamic user) {
+    debugPrint('[ProfileAvatar] building... avatarUri=${user?.avatarUri}');
     final dateFormat = DateFormat('dd/MM/yyyy');
     final registrationDate = user?.fechaRegistro != null
         ? dateFormat.format(user!.fechaRegistro)
@@ -204,25 +261,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
         padding: const EdgeInsets.all(24.0),
         child: Row(
           children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white,
-                  width: 3,
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  user?.nombre.substring(0, 1).toUpperCase() ?? 'U',
-                  style: const TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
+            InkWell(
+              onTap: () => _onAvatarTap(user as User?),
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                  border: Border.all(
                     color: Colors.white,
+                    width: 3,
                   ),
+                ),
+                child: ClipOval(
+                  child: Builder(builder: (ctx) {
+                    final avatarPath = user?.avatarUri;
+                    if (avatarPath != null && avatarPath.isNotEmpty) {
+                      return Image.file(
+                        File(avatarPath),
+                        key: ValueKey('avatar-$avatarPath'),
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stack) {
+                          // If the file can't be loaded (deleted, permission), fallback to initial
+                          return Center(
+                            child: Text(
+                              user?.nombre.substring(0, 1).toUpperCase() ?? 'U',
+                              style: const TextStyle(
+                                fontSize: 36,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    }
+                    return Center(
+                      child: Text(
+                        user?.nombre.substring(0, 1).toUpperCase() ?? 'U',
+                        style: const TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      )
+                    );
+                  }),
                 ),
               ),
             ),
@@ -424,19 +510,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
       child: Column(
         children: [
           _buildSettingTile(
-            icon: Icons.dark_mode,
-            title: 'Tema oscuro',
-            subtitle: 'Activar modo nocturno',
-            trailing: Switch(
-              value: isDark,
-              onChanged: (value) {
-                ref.read(themeStateProvider.notifier).toggle();
-              },
-              activeTrackColor: const Color(0xFF13BB67),
-            ),
-          ),
-          const Divider(height: 1, color: Color(0xFF3D3D3D)),
-          _buildSettingTile(
             icon: Icons.notifications,
             title: 'Notificaciones',
             subtitle: 'Recibir alertas de transacciones',
@@ -445,20 +518,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
               onChanged: (value) {
                 setState(() => _notificationsEnabled = value);
                 _savePreference('notifications_enabled', value);
-              },
-              activeTrackColor: const Color(0xFF13BB67),
-            ),
-          ),
-          const Divider(height: 1, color: Color(0xFF3D3D3D)),
-          _buildSettingTile(
-            icon: Icons.fingerprint,
-            title: 'Biometría',
-            subtitle: 'Desbloqueo con huella digital',
-            trailing: Switch(
-              value: _biometricsEnabled,
-              onChanged: (value) {
-                setState(() => _biometricsEnabled = value);
-                _savePreference('biometrics_enabled', value);
               },
               activeTrackColor: const Color(0xFF13BB67),
             ),
@@ -742,5 +801,241 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
         );
       },
     );
+  }
+
+  Future<void> _onAvatarTap(User? user) async {
+    if (user == null || user.id == null) return;
+
+    final hasAvatar = user.avatarUri != null && user.avatarUri!.isNotEmpty;
+    // No activamos el bloqueo global por defecto. Solo lo haremos si el
+    // usuario elige cámara/galería (actividades externas que abren otra app).
+    var externalActive = false;
+    // Capturamos los providers ahora (antes de awaits) para no usar `ref` luego
+    final container = ProviderScope.containerOf(context);
+    final authNotifier = container.read(authStateProvider.notifier);
+    final repo = container.read(authRepositoryProvider);
+
+    try {
+      final choice = await showModalBottomSheet<String>(
+        context: context,
+        builder: (ctx) {
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('Tomar foto'),
+                  onTap: () => Navigator.pop(ctx, 'camera'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: Text(hasAvatar ? 'Cambiar foto' : 'Agregar foto'),
+                  onTap: () => Navigator.pop(ctx, 'pick'),
+                ),
+                if (hasAvatar)
+                  ListTile(
+                    leading: const Icon(Icons.delete_forever),
+                    title: const Text('Eliminar foto'),
+                    onTap: () => Navigator.pop(ctx, 'delete'),
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.close),
+                  title: const Text('Cancelar'),
+                  onTap: () => Navigator.pop(ctx, ''),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      if (choice == 'pick') {
+        debugPrint('➡️ [Profile] selecting image from gallery');
+        // marcar que hay actividad externa
+        try {
+          ref.read(routeSyncBlockProvider.notifier).state = true;
+          externalActive = true;
+          debugPrint('➡️ [Profile] routeSyncBlockProvider set = true (gallery)');
+        } catch (_) {}
+        await _pickAndSaveAvatar(user.id!, ImageSource.gallery, authNotifier, repo);
+      } else if (choice == 'camera') {
+        debugPrint('➡️ [Profile] taking image from camera');
+        try {
+          ref.read(routeSyncBlockProvider.notifier).state = true;
+          externalActive = true;
+          debugPrint('➡️ [Profile] routeSyncBlockProvider set = true (camera)');
+        } catch (_) {}
+        await _pickAndSaveAvatar(user.id!, ImageSource.camera, authNotifier, repo);
+      } else if (choice == 'delete') {
+        debugPrint('➡️ [Profile] deleting avatar');
+        await _deleteAvatar(user.id!);
+      } else {
+        debugPrint('➡️ [Profile] avatar selection cancelled');
+      }
+    } finally {
+      // Limpiar la marca reactiva que indica actividad externa solo si la activamos
+      if (externalActive) {
+        try {
+          ref.read(routeSyncBlockProvider.notifier).state = false;
+        } catch (_) {}
+        debugPrint('➡️ [Profile] external activity flag cleared');
+      }
+    }
+  }
+
+  Future<void> _pickAndSaveAvatar(int userId, ImageSource source, dynamic authNotifier, dynamic repo) async {
+    // Evitamos usar `ref` si el widget ya fue desmontado
+    if (!mounted) return;
+    final container = ProviderScope.containerOf(context);
+    try {
+      final picked = await ImagePicker().pickImage(source: source, preferredCameraDevice: CameraDevice.rear);
+      if (picked == null) return;
+
+      File? finalFile;
+      try {
+        // Intentar recortar la imagen
+        final cropped = await ImageCropper().cropImage(
+          sourcePath: picked.path,
+          uiSettings: [
+            AndroidUiSettings(toolbarTitle: 'Recortar', lockAspectRatio: false),
+            IOSUiSettings(title: 'Recortar'),
+          ],
+        );
+        if (cropped != null) {
+          finalFile = File(cropped.path);
+        }
+      } catch (e) {
+        // Si el recorte falla (ActivityNotFound o similar), logueamos y usamos el archivo original
+        debugPrint('⚠️ ImageCropper falló o no disponible: $e');
+      }
+
+      // Si no se obtuvo archivo recortado, usamos el original
+      finalFile ??= File(picked.path);
+
+      // Capture previous avatar path to possibly delete later (background)
+      String? prevPath;
+      try {
+        final prevUser = container.read(currentUserProvider);
+        prevPath = prevUser?.avatarUri;
+      } catch (_) {
+        prevPath = null;
+      }
+
+      // Save to application documents directory named by user id (overwrite if exists)
+      final dir = await getApplicationDocumentsDirectory();
+      final targetPath = '${dir.path}/avatar_user_$userId.jpg';
+      await finalFile.copy(targetPath);
+
+      final avatarUri = targetPath;
+
+      // Indicar en logs que iniciamos la operación de actualización de perfil.
+      debugPrint('➡️ [Profile] starting profile update (avatar)');
+      // Update provider/state (usamos authNotifier leído previamente)
+      await authNotifier.updateProfile(avatarUri: avatarUri);
+      // Persistir user_json para evitar que rebuilds temporales de AuthController consideren que no hay usuario.
+      try {
+        final updatedUser = container.read(currentUserProvider);
+        if (updatedUser != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('user_json', jsonEncode(updatedUser.toMap()));
+          debugPrint('➡️ [Profile] user_json actualizado en SharedPreferences');
+        }
+      } catch (e) {
+        debugPrint('⚠️ No se pudo persistir user_json tras updateProfile: $e');
+      }
+
+      // Persist in DB via repo (leído previamente)
+      await repo.updateProfile(userId: userId, avatarUri: avatarUri);
+      // Delete previous file in background if it exists and is different from the new path
+      if (prevPath != null && prevPath.isNotEmpty && prevPath != targetPath) {
+        unawaited(() async {
+          try {
+            final f = File(prevPath!);
+            if (await f.exists()) {
+              await f.delete();
+              debugPrint('➡️ [Profile] background deleted previous avatar file: $prevPath');
+            }
+          } catch (e) {
+            debugPrint('⚠️ [Profile] could not delete previous avatar file in background: $e');
+          }
+        }());
+      }
+      // Terminó la operación crítica; dejamos que la UI y los providers se
+      // actualicen naturalmente. No forzamos navegación ni tocamos shellDesiredIndex.
+      const settleDelay = Duration(milliseconds: 1500);
+      Future.delayed(settleDelay, () {
+        debugPrint('➡️ [Profile] profile update settle delay elapsed (${settleDelay.inMilliseconds}ms)');
+      });
+    } catch (e) {
+      debugPrint('Error al seleccionar/recortar avatar: $e');
+      // En caso de error, limpiamos el desiredIndex después de un periodo de gracia
+      _clearShellDesiredAfterGrace();
+      try {
+        ref.read(routeSyncBlockProvider.notifier).state = false;
+      } catch (_) {}
+      debugPrint('➡️ [Profile] error path: cleared reactive routeSyncBlock flag and scheduled shellDesired clear');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo procesar la imagen')),
+        );
+      }
+    } finally {
+      // No mantenemos estado estático; el flag reactivo se limpia en el caller.
+      debugPrint('➡️ [Profile] finally after avatar flow');
+    }
+  }
+
+  Future<void> _deleteAvatar(int userId) async {
+    try {
+      // Evitar usar `ref` si el widget fue desmontado
+      if (!mounted) {
+        // Si el widget fue desmontado, schedule clear as a fallback
+        debugPrint('➡️ [Profile] widget unmounted during delete flow (delete aborted)');
+        return;
+      }
+      // Use AuthController.deleteAvatar() to update DB + state
+      final container = ProviderScope.containerOf(context);
+      String? prevPath;
+      try {
+        final prevUser = container.read(currentUserProvider);
+        prevPath = prevUser?.avatarUri;
+      } catch (_) {
+        prevPath = null;
+      }
+
+      // Call controller to clear avatar in DB and state
+      final authNotifier = container.read(authStateProvider.notifier);
+      final deleted = await authNotifier.deleteAvatar();
+      if (!deleted) {
+        debugPrint('⚠️ [Profile] deleteAvatar controller returned false');
+        return;
+      }
+
+      // Delete previous file in background (if any)
+      if (prevPath != null && prevPath.isNotEmpty) {
+        unawaited(() async {
+          try {
+            final f = File(prevPath!);
+            if (await f.exists()) {
+              await f.delete();
+              debugPrint('➡️ [Profile] background deleted avatar file: $prevPath');
+            }
+          } catch (e) {
+            debugPrint('⚠️ [Profile] error deleting avatar file on disk (background): $e');
+          }
+        }());
+      }
+      // No llamar a setState: el provider actualiza la UI automáticamente.
+      // Ya terminamos la operación: schedule clearing of desiredIndex if needed
+      debugPrint('➡️ [Profile] delete done');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Foto de perfil eliminada')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error al eliminar avatar: $e');
+    }
   }
 }

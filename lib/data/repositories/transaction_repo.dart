@@ -42,6 +42,8 @@ class TransactionRepo {
     final db = await _dbFuture;
     final raw = t.toMap();
     final filtered = await _filterMapForTable(db, 'transacciones', raw);
+    // Ensure we don't pass an explicit id to SQLite insert; let AUTOINCREMENT assign it
+    filtered.remove('id');
     return db.insert('transacciones', filtered);
   }
 
@@ -49,6 +51,8 @@ class TransactionRepo {
     final db = await _dbFuture;
     final raw = t.toMap();
     final filtered = await _filterMapForTable(db, 'transacciones', raw);
+    // Ensure we don't pass an explicit id to SQLite insert; let AUTOINCREMENT assign it
+    filtered.remove('id');
     return await db.insert('transacciones', filtered);
   }
 

@@ -26,6 +26,7 @@ dependencies:
   curved_navigation_bar: ^1.0.3
   flutter_launcher_icons: ^0.14.4
   image_picker: ^1.1.2
+  image_cropper: ^11.0.0
   flutter_image_compress: ^2.1.0
   equatable: ^2.0.5
 
@@ -37,6 +38,8 @@ dev_dependencies:
   riverpod_generator: ^2.6.2
   riverpod_lint: ^2.6.3
   lints: ^6.0.0
+  sqflite_common_ffi: ^2.3.0
+  path_provider_platform_interface: ^2.0.8
 
 flutter_launcher_icons:
   android: true

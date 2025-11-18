@@ -229,7 +229,8 @@ class _BudgetsOverviewViewState extends ConsumerState<BudgetsOverviewView> {
         principalFromProvider = list.where((c) => c.categoriaPadreId == null).toList();
       },
       loading: () {},
-      error: (_, __) {},
+      // Evitar underscore al inicio de nombres locales para no confundir con identificadores privados
+      error: (error, stack) {},
     );
 
     return Scaffold(

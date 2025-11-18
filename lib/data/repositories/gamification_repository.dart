@@ -3,6 +3,7 @@ import '../../core/database/app_database.dart';
 import '../models/gamification_profile_model.dart';
 import '../models/gamification_achievement_model.dart';
 import '../models/gamification_event_model.dart';
+import '../models/user_achievement_model.dart';
 
 class GamificationRepository {
   final Future<Database>? _overrideDbFuture;
@@ -78,5 +79,33 @@ class GamificationRepository {
     final rows = await db.query('gamification_events', where: where.isEmpty ? null : where.join(' AND '), whereArgs: args.isEmpty ? null : args, orderBy: 'fecha_evento DESC', limit: limit);
     return rows.map((r) => GamificationEvent.fromMap(r)).toList();
   }
-}
 
+  // User achievements: per-user progress records
+  Future<UserAchievement?> getUserAchievement(int usuarioId, int achievementId) async {
+    final db = await _dbFuture;
+    final rows = await db.query('user_achievements', where: 'usuario_id = ? AND achievement_id = ?', whereArgs: [usuarioId, achievementId], limit: 1);
+    if (rows.isEmpty) return null;
+    return UserAchievement.fromMap(rows.first);
+  }
+
+  Future<List<UserAchievement>> listUserAchievements(int usuarioId) async {
+    final db = await _dbFuture;
+    final rows = await db.query('user_achievements', where: 'usuario_id = ?', whereArgs: [usuarioId]);
+    return rows.map((r) => UserAchievement.fromMap(r)).toList();
+  }
+
+  Future<int> upsertUserAchievement(UserAchievement ua) async {
+    final db = await _dbFuture;
+    final now = DateTime.now().toIso8601String();
+    final map = ua.toMap();
+    map['updated_at'] = now;
+    final existing = await db.query('user_achievements', where: 'usuario_id = ? AND achievement_id = ?', whereArgs: [ua.usuarioId, ua.achievementId], limit: 1);
+    if (existing.isEmpty) {
+      map['created_at'] = now;
+      return db.insert('user_achievements', map);
+    } else {
+      // keep same id if exists
+      return db.update('user_achievements', map, where: 'usuario_id = ? AND achievement_id = ?', whereArgs: [ua.usuarioId, ua.achievementId]);
+    }
+  }
+}

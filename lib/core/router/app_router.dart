@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../providers/providers.dart' show authStateProvider;
+import '../providers/providers.dart';
 import '../../presentation/features/auth/views/login_view.dart';
 import '../../presentation/features/auth/views/register_view.dart';
 import '../../presentation/features/auth/views/forgot_password_view.dart';
@@ -22,7 +22,38 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/login',
     debugLogDiagnostics: true,
-    redirect: (BuildContext context, GoRouterState state) {
+    redirect: (BuildContext context, GoRouterState state) async {
+      // Depuración: print del estado de autenticación
+      debugPrint('➡️ [router] authState: isLoading=${authState.isLoading}, isAuthenticated=${authState.value != null}, userId=${authState.value?.id}');
+      // Si el usuario ya está autenticado y se encuentra en /login, forzamos
+      // la redirección al home incluso si hay bloques temporales. Esto evita
+      // quedarse atrapado en la pantalla de login durante flujos externos
+      // (cámara/recorte) donde RouteSyncBlock.blocked puede estar activado.
+      final isAuthenticatedNow = authState.value != null;
+      final isAtLogin = state.matchedLocation == '/login';
+      if (isAuthenticatedNow && isAtLogin) {
+        debugPrint('➡️ [router] Usuario autenticado en /login -> forzando redirect a /profile');
+        return '/profile';
+      }
+
+      // Si un flujo temporal (ej. selección/recorte de avatar) bloqueó la
+      // sincronización de rutas, o si alguna vista pidió mostrarse en la Shell,
+      // no realizamos redirects en este momento. En el código actual estas
+      // condiciones se representan por providers reactivos como
+      // `routeSyncBlockProvider`, `routeSyncUnblockAtProvider`,
+      // `routeSyncExternalActiveProvider` y `routeSyncAuthOpProvider`.
+      final desired = ref.read(shellDesiredIndexProvider);
+      final now = DateTime.now();
+      final inGrace = ref.read(routeSyncUnblockAtProvider) != null && now.isBefore(ref.read(routeSyncUnblockAtProvider)!);
+      final lastAuth = ref.read(routeSyncLastAuthProvider);
+      final recentAuth = lastAuth != null && now.difference(lastAuth) < const Duration(seconds: 10);
+      final blockedFlag = ref.read(routeSyncBlockProvider);
+      final externalActive = ref.read(routeSyncExternalActiveProvider);
+      final authOpActive = ref.read(routeSyncAuthOpProvider);
+      if (blockedFlag || inGrace || desired != null || externalActive || authOpActive || recentAuth) {
+        debugPrint('➡️ [router] Redirect skipped because blocked=$blockedFlag, inGrace=$inGrace, shellDesired=$desired, externalActive=$externalActive, authOp=$authOpActive, recentAuth=$recentAuth, unblockAt=${ref.read(routeSyncUnblockAtProvider)}');
+        return null;
+      }
       final isAuthStateLoading = authState.isLoading;
       final isAuthenticated = authState.value != null;
 
@@ -31,7 +62,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isGoingToForgotPassword = state.matchedLocation == '/forgot-password';
       final isGoingToResetPassword = state.matchedLocation == '/reset-password';
 
-      // Si está cargando, mantener en la ruta actual
+      // Si está cargando, mantener en la ruta current
       if (isAuthStateLoading) {
         return null;
       }
@@ -39,6 +70,17 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Si no está autenticado y no va a rutas públicas, redirigir a login
       if (!isAuthenticated && !isGoingToLogin && !isGoingToRegister &&
           !isGoingToForgotPassword && !isGoingToResetPassword) {
+        // Antes de redirigir, comprobamos si en el secure storage hay una sesión activa
+        try {
+          final secure = ref.read(secureStorageServiceProvider);
+          final has = await secure.hasActiveSession();
+          if (has) {
+            debugPrint('➡️ [router] evitando redirect a /login porque secure.hasActiveSession() == true');
+            return null;
+          }
+        } catch (e) {
+          debugPrint('⚠️ [router] error comprobando secure.hasActiveSession: $e');
+        }
         return '/login';
       }
 

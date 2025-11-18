@@ -3,6 +3,7 @@ import 'package:mype_finanzas/application/services/gamification_service.dart';
 import 'package:mype_finanzas/data/models/gamification_profile_model.dart';
 import 'package:mype_finanzas/data/models/gamification_achievement_model.dart';
 import 'package:mype_finanzas/data/models/gamification_event_model.dart';
+import 'package:mype_finanzas/data/models/user_achievement_model.dart';
 import 'package:mype_finanzas/data/repositories/gamification_repository.dart';
 
 // Fake repository implementing the minimal interface used by the service
@@ -10,6 +11,7 @@ class FakeGamificationRepository implements GamificationRepository {
   final Map<int, GamificationProfile> _profiles = {};
   final List<GamificationAchievement> _achievements = [];
   final List<GamificationEvent> _events = [];
+  final List<UserAchievement> _userAchievements = [];
 
   @override
   Future<GamificationProfile?> getProfile(int usuarioId) async => _profiles[usuarioId];
@@ -36,6 +38,29 @@ class FakeGamificationRepository implements GamificationRepository {
   Future<int> updateAchievement(GamificationAchievement a) async {
     final idx = _achievements.indexWhere((e) => e.id == a.id);
     if (idx >= 0) _achievements[idx] = a;
+    return 1;
+  }
+
+  @override
+  Future<UserAchievement?> getUserAchievement(int usuarioId, int achievementId) async {
+    try {
+      return _userAchievements.firstWhere((u) => u.usuarioId == usuarioId && u.achievementId == achievementId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<List<UserAchievement>> listUserAchievements(int usuarioId) async => _userAchievements.where((u) => u.usuarioId == usuarioId).toList();
+
+  @override
+  Future<int> upsertUserAchievement(UserAchievement ua) async {
+    final idx = _userAchievements.indexWhere((u) => u.usuarioId == ua.usuarioId && u.achievementId == ua.achievementId);
+    if (idx >= 0) {
+      _userAchievements[idx] = ua;
+    } else {
+      _userAchievements.add(ua);
+    }
     return 1;
   }
 
@@ -110,10 +135,10 @@ void main() {
       final profile = await repo.getProfile(3);
       expect(profile!.puntos, equals(10));
 
-      // achievements should be updated (state unlocked)
-      final achievements = await repo.listAchievements();
-      final updated = achievements.firstWhere((a) => a.id == 1);
-      expect(updated.estado, equals('unlocked'));
+      // user achievement should be updated (state unlocked)
+      final userAchs = await repo.listUserAchievements(3);
+      final ua = userAchs.firstWhere((u) => u.achievementId == 1);
+      expect(ua.estado, equals('unlocked'));
 
       // event for achievement unlocked should be recorded
       final events = await repo.listEvents(usuarioId: 3);

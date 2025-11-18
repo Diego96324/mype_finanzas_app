@@ -154,7 +154,7 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
           final displayAmount = (t.esAperturaCuenta && acc != null) ? acc.saldo : t.monto;
           // Crear un onTap que abra el diálogo de cuenta solo si la cuenta existe;
           // si no existe, abrir el detalle de la transacción en su lugar.
-          final VoidCallback onTap = () async {
+          void onTap() async {
             if (t.esAperturaCuenta && t.cuentaId != null && acc != null) {
               await showDialog(
                 context: context,
@@ -164,7 +164,7 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
             } else {
               await Navigator.of(context, rootNavigator: true).push(MaterialPageRoute(builder: (_) => TransactionDetailScreen(tx: t)));
             }
-          };
+          }
 
           return _buildTransactionTile(context, t, theme, colorScheme, meta.typeColor, meta.icon, meta.prefix, displayAmount, onTap: onTap);
         },

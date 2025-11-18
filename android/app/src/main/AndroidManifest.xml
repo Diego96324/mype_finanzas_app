@@ -37,5 +37,11 @@
         </activity>
 
         <meta-data android:name="flutterEmbedding" android:value="2" />
+        <!-- UCrop activity required by image_cropper plugin -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:exported="false"
+            android:theme="@style/AppTheme.AppCompat" />
     </application>
 </manifest>

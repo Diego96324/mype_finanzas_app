@@ -128,7 +128,7 @@ class CategoryBudgetService {
     required DateTime from,
     required DateTime to,
   }) async {
-    String _normalize(String s) {
+    String normalize(String s) {
       final map = {
         'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', 'ü': 'u',
         'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ü': 'U',
@@ -231,7 +231,7 @@ class CategoryBudgetService {
           final catRow = await db.query('categorias', columns: ['id', 'nombre'], where: 'id = ?', whereArgs: [categoriaId]);
           if (catRow.isNotEmpty) {
             final targetNameRaw = (catRow.first['nombre'] as String);
-            final targetName = _normalize(targetNameRaw);
+            final targetName = normalize(targetNameRaw);
             debugPrint('⚠️ [CategoryBudgetService] nombre de categoria objetivo: $targetNameRaw (normalized=$targetName) id=$categoriaId');
 
             // Cargar todas las categorias y normalizar nombres para comparación más robusta
@@ -241,7 +241,7 @@ class CategoryBudgetService {
               final id = r['id'] as int?;
               final name = (r['nombre'] as String?) ?? '';
               if (id == null) continue;
-              final n = _normalize(name);
+              final n = normalize(name);
               if (n == targetName || n.contains(targetName) || targetName.contains(n)) {
                 similarIds.add(id);
               }
@@ -250,7 +250,7 @@ class CategoryBudgetService {
             if (similarIds.isNotEmpty) {
               final similar = similarIds.map((i) => i.toString()).toList();
               debugPrint('⚠️ [CategoryBudgetService] categorias similares por normalización encontradas ids: $similar');
-              final mergedIds = <int>[...idsAceptados, ...similarIds].toSet().toList();
+              final mergedIds = <int>{...idsAceptados, ...similarIds}.toList();
               debugPrint('⚠️ [CategoryBudgetService] reintentando consulta con ids extendidos: $mergedIds');
               final retryList = await _txRepo.listMultiple(
                 usuarioId: usuarioId,
@@ -484,10 +484,10 @@ class CategoryBudgetService {
 
       // Log de depuración de la rama
       try {
-        final namesList = descendants.map((i) => '${i}:${names[i] ?? 'id_$i'}').toList();
+        final namesList = descendants.map((i) => '$i:${names[i] ?? 'id_$i'}').toList();
         debugPrint('🔍 [CategoryBudgetService] rama para root=$rootCategoryId -> $namesList');
         // mostrar tipos de las categorias en la rama para detectar 'ingreso' vs 'egreso'
-        final typesList = descendants.map((i) => '${i}:${types[i] ?? ''}').toList();
+        final typesList = descendants.map((i) => '$i:${types[i] ?? ''}').toList();
         debugPrint('🔍 [CategoryBudgetService] tipos en rama para root=$rootCategoryId -> $typesList');
       } catch (_) {}
     }

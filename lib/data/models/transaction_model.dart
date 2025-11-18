@@ -1,3 +1,6 @@
+// Sentinel to detect omitted parameters in copyWith
+const _noValue = Object();
+
 class AppTransaction {
   final int? id;
   final int usuarioId;
@@ -110,7 +113,7 @@ class AppTransaction {
       );
 
   AppTransaction copyWith({
-    int? id,
+    Object? id = _noValue,
     int? usuarioId,
     int? cuentaId,
     int? cuentaDestinoId,
@@ -137,7 +140,7 @@ class AppTransaction {
     DateTime? updatedAt,
   }) {
     return AppTransaction(
-      id: id ?? this.id,
+      id: identical(id, _noValue) ? this.id : id as int?,
       usuarioId: usuarioId ?? this.usuarioId,
       cuentaId: cuentaId ?? this.cuentaId,
       cuentaDestinoId: cuentaDestinoId ?? this.cuentaDestinoId,
