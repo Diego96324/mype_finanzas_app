@@ -15,7 +15,7 @@ import '../../../shared/utils/currency_formatter.dart';
 import '../../transactions/controllers/transactions_controller.dart';
 import '../../auth/views/change_password_view.dart';
 import '../../../../features/transactions/data/last_category_storage.dart';
-import '../../../../../data/models/user_model.dart';
+import '../../../../data/models/user_model.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -810,10 +810,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
     // No activamos el bloqueo global por defecto. Solo lo haremos si el
     // usuario elige cámara/galería (actividades externas que abren otra app).
     var externalActive = false;
-    // Capturamos los providers ahora (antes de awaits) para no usar `ref` luego
+    // Capturamos el authNotifier ahora (antes de awaits) para no usar `ref` luego
     final container = ProviderScope.containerOf(context);
     final authNotifier = container.read(authStateProvider.notifier);
-    final repo = container.read(authRepositoryProvider);
 
     try {
       final choice = await showModalBottomSheet<String>(
@@ -858,7 +857,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
           externalActive = true;
           debugPrint('➡️ [Profile] routeSyncBlockProvider set = true (gallery)');
         } catch (_) {}
-        await _pickAndSaveAvatar(user.id!, ImageSource.gallery, authNotifier, repo);
+        await _pickAndSaveAvatar(user.id!, ImageSource.gallery, authNotifier);
       } else if (choice == 'camera') {
         debugPrint('➡️ [Profile] taking image from camera');
         try {
@@ -866,7 +865,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
           externalActive = true;
           debugPrint('➡️ [Profile] routeSyncBlockProvider set = true (camera)');
         } catch (_) {}
-        await _pickAndSaveAvatar(user.id!, ImageSource.camera, authNotifier, repo);
+        await _pickAndSaveAvatar(user.id!, ImageSource.camera, authNotifier);
       } else if (choice == 'delete') {
         debugPrint('➡️ [Profile] deleting avatar');
         await _deleteAvatar(user.id!);
@@ -884,7 +883,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
     }
   }
 
-  Future<void> _pickAndSaveAvatar(int userId, ImageSource source, dynamic authNotifier, dynamic repo) async {
+  Future<void> _pickAndSaveAvatar(int userId, ImageSource source, dynamic authNotifier) async {
     // Evitamos usar `ref` si el widget ya fue desmontado
     if (!mounted) return;
     final container = ProviderScope.containerOf(context);
@@ -945,8 +944,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
         debugPrint('⚠️ No se pudo persistir user_json tras updateProfile: $e');
       }
 
-      // Persist in DB via repo (leído previamente)
-      await repo.updateProfile(userId: userId, avatarUri: avatarUri);
+      // Persist via authNotifier (controller) which se encarga de escribir en DB
+      await authNotifier.updateProfile(avatarUri: avatarUri);
       // Delete previous file in background if it exists and is different from the new path
       if (prevPath != null && prevPath.isNotEmpty && prevPath != targetPath) {
         unawaited(() async {

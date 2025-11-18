@@ -2,6 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mype_finanzas/data/repositories/auth_repo.dart';
 
 void main() {
+  // Ensure Flutter bindings are initialized for services used by the repository
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('AuthRepository.updateProfile clearAvatar', () {
     final repo = AuthRepository();
 
@@ -41,4 +44,3 @@ void main() {
     });
   });
 }
-
