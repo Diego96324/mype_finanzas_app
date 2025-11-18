@@ -275,7 +275,7 @@ class AuthController extends AsyncNotifier<User?> {
           apellido: apellido,
           telefono: telefono,
           avatarUri: avatarUri,
-          clearAvatar: clearAvatar || avatarUri == null,
+          clearAvatar: clearAvatar,
         );
       }
     } catch (e) {
