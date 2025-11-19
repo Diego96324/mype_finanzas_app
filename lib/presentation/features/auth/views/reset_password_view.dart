@@ -141,6 +141,7 @@ class _ResetPasswordViewState extends ConsumerState<ResetPasswordView> {
         // Esperar un momento y regresar al login
         await Future.delayed(const Duration(seconds: 1));
         if (mounted) {
+          debugPrint('🚨 [NAV] Forzando go("/login") desde reset_password_view.dart:onSubmitSuccess');
           context.go('/login');
         }
       } else {

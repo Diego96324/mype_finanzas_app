@@ -413,7 +413,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         style: TextStyle(color: Colors.grey[400]),
                       ),
                       TextButton(
-                        onPressed: () => context.go('/login'),
+                        onPressed: () {
+                          debugPrint('🚨 [NAV] Forzando go("/login") desde register_view.dart:onPressed');
+                          context.go('/login');
+                        },
                         child: const Text(
                           'Iniciar Sesión',
                           style: TextStyle(

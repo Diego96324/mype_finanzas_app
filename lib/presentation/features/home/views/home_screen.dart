@@ -60,10 +60,26 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
         try {
           ref.listen<bool>(routeSyncBlockProvider, (previous, next) {
             if (previous == true && next == false) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
+              Future.microtask(() async {
                 try {
                   final loc = _routeInfoProvider?.value.uri.toString() ?? GoRouter.of(context).routeInformationProvider.value.uri.toString();
                   debugPrint('➡️ [MyHomePage] routeSyncBlock cleared -> forcing go($loc)');
+                  if (loc == '/login') {
+                    final authState = ref.read(authStateProvider);
+                    final isAuthenticated = authState.value != null;
+                    var hasSession = false;
+                    try {
+                      hasSession = await ref.read(secureStorageServiceProvider).hasActiveSession();
+                    } catch (e) {
+                      debugPrint('⚠️ [MyHomePage] secure.hasActiveSession() failed while handling routeSyncBlock clear: $e');
+                    }
+                    if (isAuthenticated || hasSession) {
+                      debugPrint('ℹ️ [MyHomePage] Skipping go(/login) because session is active (isAuthenticated=$isAuthenticated, hasSession=$hasSession)');
+                      return;
+                    }
+                    debugPrint('🚨 [NAV] routeSyncBlock listener enviando go("/login") por falta de sesión real');
+                  }
+                  if (!mounted) return;
                   context.go(loc);
                 } catch (e) {
                   debugPrint('⚠️ [MyHomePage] failed forcing route re-eval: $e');
