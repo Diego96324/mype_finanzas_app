@@ -933,9 +933,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
 
       // Indicar en logs que iniciamos la operación de actualización de perfil.
       debugPrint('➡️ [Profile] starting profile update (avatar)');
-      // Update provider/state (usamos authNotifier leído previamente)
+      // Persist via authNotifier (controller) which se encarga de escribir en DB
       await authNotifier.updateProfile(avatarUri: avatarUri);
-      // Persistir user_json para evitar que rebuilds temporales de AuthController consideren que no hay usuario.
+      // Persistir user_json con la información fresca para evitar estados intermedios.
       try {
         final updatedUser = container.read(currentUserProvider);
         if (updatedUser != null) {
@@ -947,8 +947,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
         debugPrint('⚠️ No se pudo persistir user_json tras updateProfile: $e');
       }
 
-      // Persist via authNotifier (controller) which se encarga de escribir en DB
-      await authNotifier.updateProfile(avatarUri: avatarUri);
       // Delete previous file in background if it exists and is different from the new path
       if (prevPath != null && prevPath.isNotEmpty && prevPath != targetPath) {
         unawaited(() async {
