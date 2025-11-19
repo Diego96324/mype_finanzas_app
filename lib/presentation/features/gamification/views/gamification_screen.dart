@@ -162,7 +162,7 @@ class GamificationScreen extends ConsumerWidget {
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
                 ),
                 subtitle: Text(
-                  _formatDate(e.fechaEvento),
+                  _formatDate(e.fecha),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
                 ),
               );

@@ -1,9 +1,13 @@
+/// Modelo que representa el progreso de un usuario en un logro específico.
+/// 
+/// Esta es la tabla intermedia entre [Usuario] y [GamificationAchievement].
+/// Guarda el estado y progreso individual de cada usuario.
 class UserAchievement {
   final int? id;
   final int usuarioId;
   final int achievementId;
   final double progresoActual;
-  final String estado; // locked|unlocked|in_progress
+  final String estado; // locked|in_progress|unlocked
   final DateTime? ultimaActualizacion;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -19,30 +23,56 @@ class UserAchievement {
     required this.updatedAt,
   });
 
+  // =========================================================================
+  // Helpers de estado
+  // =========================================================================
+
+  bool get isLocked => estado == 'locked';
+  bool get isInProgress => estado == 'in_progress';
+  bool get isUnlocked => estado == 'unlocked';
+
+  /// Calcula el porcentaje de progreso (0.0 a 1.0)
+  /// Requiere el objetivo del logro para calcular
+  double porcentaje(double progresoObjetivo) {
+    if (progresoObjetivo <= 0) return 0;
+    return (progresoActual / progresoObjetivo).clamp(0.0, 1.0);
+  }
+
+  // =========================================================================
+  // Serialización
+  // =========================================================================
+
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'usuario_id': usuarioId,
-        'achievement_id': achievementId,
-        'progreso_actual': progresoActual,
-        'estado': estado,
-        'ultima_actualizacion': ultimaActualizacion?.toIso8601String(),
-        'created_at': createdAt.toIso8601String(),
-        'updated_at': updatedAt.toIso8601String(),
-      };
+    'id': id,
+    'usuario_id': usuarioId,
+    'achievement_id': achievementId,
+    'progreso_actual': progresoActual,
+    'estado': estado,
+    'ultima_actualizacion': ultimaActualizacion?.toIso8601String(),
+    'created_at': createdAt.toIso8601String(),
+    'updated_at': updatedAt.toIso8601String(),
+  };
 
   factory UserAchievement.fromMap(Map<String, dynamic> map) => UserAchievement(
-        id: map['id'] as int?,
-        usuarioId: map['usuario_id'] as int,
-        achievementId: map['achievement_id'] as int,
-        progresoActual: (map['progreso_actual'] as num?)?.toDouble() ?? 0,
-        estado: map['estado'] as String? ?? 'locked',
-        ultimaActualizacion: (map['ultima_actualizacion'] as String?) != null ? DateTime.parse(map['ultima_actualizacion'] as String) : null,
-        createdAt: DateTime.parse(map['created_at'] as String),
-        updatedAt: DateTime.parse(map['updated_at'] as String),
-      );
+    id: map['id'] as int?,
+    usuarioId: map['usuario_id'] as int,
+    achievementId: map['achievement_id'] as int,
+    progresoActual: (map['progreso_actual'] as num?)?.toDouble() ?? 0,
+    estado: map['estado'] as String? ?? 'locked',
+    ultimaActualizacion: (map['ultima_actualizacion'] as String?) != null
+        ? DateTime.parse(map['ultima_actualizacion'] as String)
+        : null,
+    createdAt: DateTime.parse(map['created_at'] as String),
+    updatedAt: DateTime.parse(map['updated_at'] as String),
+  );
 
+  // JSON-friendly aliases
   Map<String, dynamic> toJson() => toMap();
   factory UserAchievement.fromJson(Map<String, dynamic> json) => UserAchievement.fromMap(json);
+
+  // =========================================================================
+  // copyWith
+  // =========================================================================
 
   UserAchievement copyWith({
     int? id,
@@ -65,5 +95,25 @@ class UserAchievement {
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
-}
 
+  // =========================================================================
+  // Debugging & Equality
+  // =========================================================================
+
+  @override
+  String toString() =>
+      'UserAchievement(id: $id, oderId: $usuarioId, achievementId: $achievementId, '
+          'progreso: $progresoActual, estado: $estado)';
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+          other is UserAchievement &&
+              runtimeType == other.runtimeType &&
+              id == other.id &&
+              usuarioId == other.usuarioId &&
+              achievementId == other.achievementId;
+
+  @override
+  int get hashCode => id.hashCode ^ usuarioId.hashCode ^ achievementId.hashCode;
+}

@@ -317,7 +317,7 @@ class TransactionsController extends _$TransactionsController {
             usuarioId: userId,
             tipoEvento: eventType,
             transactionType: tx.tipo,
-            fechaEvento: tx.fecha,
+            fecha: tx.fecha,
             descripcion: eventType == 'transaction_created'
                 ? 'Nuevo registro: ${tx.tipo}'
                 : 'Actualización de registro'
