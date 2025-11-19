@@ -9,7 +9,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:async';
-
 import '../../../../core/providers/providers.dart';
 import '../../../shared/utils/currency_formatter.dart';
 import '../../transactions/controllers/transactions_controller.dart';
@@ -180,8 +179,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
-    // Usar providers en lugar de singletons
-    final user = ref.watch(currentUserProvider);
     final isDark = ref.watch(isDarkModeProvider);
 
     return Scaffold(
@@ -208,7 +205,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildUserCard(user),
+                _buildUserCard(),
                 const SizedBox(height: 20),
                 _buildStatsSection(),
                 const SizedBox(height: 20),
@@ -234,129 +231,134 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
     );
   }
 
-  Widget _buildUserCard(dynamic user) {
-    debugPrint('[ProfileAvatar] building... avatarUri=${user?.avatarUri}');
-    final dateFormat = DateFormat('dd/MM/yyyy');
-    final registrationDate = user?.fechaRegistro != null
-        ? dateFormat.format(user!.fechaRegistro)
-        : 'N/A';
+  Widget _buildUserCard() {
+    return Consumer(
+      builder: (context, ref, _) {
+        final user = ref.watch(currentUserProvider);
+        debugPrint('[ProfileAvatar] building... avatarUri=${user?.avatarUri}');
+        final dateFormat = DateFormat('dd/MM/yyyy');
+        final registrationDate = user?.fechaRegistro != null
+            ? dateFormat.format(user!.fechaRegistro)
+            : 'N/A';
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF13BB67), Color(0xFF0F9654)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF13BB67).withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+        return Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF13BB67), Color(0xFF0F9654)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF13BB67).withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Row(
-          children: [
-            InkWell(
-              onTap: () => _onAvatarTap(user as User?),
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white,
-                    width: 3,
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Row(
+              children: [
+                InkWell(
+                  onTap: () => _onAvatarTap(user),
+                  borderRadius: BorderRadius.circular(999),
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 3,
+                      ),
+                    ),
+                    child: ClipOval(
+                      child: Builder(builder: (ctx) {
+                        final avatarPath = user?.avatarUri;
+                        if (avatarPath != null && avatarPath.isNotEmpty) {
+                          return Image.file(
+                            File(avatarPath),
+                            key: ValueKey('avatar-$avatarPath'),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stack) {
+                              // If the file can't be loaded (deleted, permission), fallback to initial
+                              return Center(
+                                child: Text(
+                                  user?.nombre.substring(0, 1).toUpperCase() ?? 'U',
+                                  style: const TextStyle(
+                                    fontSize: 36,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        }
+                        return Center(
+                          child: Text(
+                            user?.nombre.substring(0, 1).toUpperCase() ?? 'U',
+                            style: const TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
                   ),
                 ),
-                child: ClipOval(
-                  child: Builder(builder: (ctx) {
-                    final avatarPath = user?.avatarUri;
-                    if (avatarPath != null && avatarPath.isNotEmpty) {
-                      return Image.file(
-                        File(avatarPath),
-                        key: ValueKey('avatar-$avatarPath'),
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stack) {
-                          // If the file can't be loaded (deleted, permission), fallback to initial
-                          return Center(
-                            child: Text(
-                              user?.nombre.substring(0, 1).toUpperCase() ?? 'U',
-                              style: const TextStyle(
-                                fontSize: 36,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    }
-                    return Center(
-                      child: Text(
-                        user?.nombre.substring(0, 1).toUpperCase() ?? 'U',
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        user?.nombreCompleto ?? 'Usuario',
                         style: const TextStyle(
-                          fontSize: 36,
+                          fontSize: 22,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
-                      )
-                    );
-                  }),
-                ),
-              ),
-            ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    user?.nombreCompleto ?? 'Usuario',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    user?.email ?? '',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white.withValues(alpha: 0.9),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today,
-                        size: 14,
-                        color: Colors.white.withValues(alpha: 0.8),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(height: 4),
                       Text(
-                        'Miembro desde $registrationDate',
+                        user?.email ?? '',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withValues(alpha: 0.8),
+                          fontSize: 14,
+                          color: Colors.white.withValues(alpha: 0.9),
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today,
+                            size: 14,
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Miembro desde $registrationDate',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.8),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -921,9 +923,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
         prevPath = null;
       }
 
-      // Save to application documents directory named by user id (overwrite if exists)
+      // Save to application documents directory. Use timestamp in filename to avoid cache collisions.
       final dir = await getApplicationDocumentsDirectory();
-      final targetPath = '${dir.path}/avatar_user_$userId.jpg';
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final targetPath = '${dir.path}/avatar_user_${userId}_$timestamp.jpg';
       await finalFile.copy(targetPath);
 
       final avatarUri = targetPath;

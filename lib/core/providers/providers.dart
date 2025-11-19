@@ -247,6 +247,7 @@ class AuthController extends AsyncNotifier<User?> {
       apellido: apellido ?? current.apellido,
       telefono: telefono ?? current.telefono,
       avatarUri: newAvatar,
+      updatedAt: DateTime.now(),
     );
     state = AsyncData(updated);
     // Persist user_json so other parts of the app (that read SharedPreferences)

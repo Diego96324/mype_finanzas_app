@@ -12,6 +12,7 @@
         android:label="Mype Finanzas"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"
+        android:enableOnBackInvokedCallback="true"
         tools:targetApi="23">
 
         <activity

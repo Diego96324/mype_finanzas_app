@@ -1,3 +1,5 @@
+const _userNoValue = Object();
+
 class User {
   final int? id;
   final String email;
@@ -76,7 +78,7 @@ class User {
     DateTime? ultimaConexion,
     bool? activo,
     String? rol,
-    String? avatarUri,
+    Object? avatarUri = _userNoValue,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -91,7 +93,7 @@ class User {
       ultimaConexion: ultimaConexion ?? this.ultimaConexion,
       activo: activo ?? this.activo,
       rol: rol ?? this.rol,
-      avatarUri: avatarUri ?? this.avatarUri,
+      avatarUri: identical(avatarUri, _userNoValue) ? this.avatarUri : avatarUri as String?,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
