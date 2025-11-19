@@ -102,9 +102,30 @@ class SecureStorageService {
   // Verificar si hay una sesión activa
   Future<bool> hasActiveSession() async {
     final token = await getAuthToken();
-    final has = token != null;
-    debugPrint('➡️ [SecureStorageService] hasActiveSession() -> $has');
-    return has;
+    if (token != null) {
+      debugPrint('➡️ [SecureStorageService] hasActiveSession() -> true (secure token present)');
+      return true;
+    }
+
+    try {
+      // Algunos flujos (como recordar la sesión solo en memoria local) almacenan
+      // el usuario serializado en SharedPreferences aun cuando no se guardó un
+      // token en el storage seguro. Si existe ese `user_json`, consideramos que
+      // hay una sesión pendiente de restaurar para evitar redirigir al login
+      // durante actividades externas (cámara/recorte) mientras AuthController
+      // vuelve a hidratarse.
+      final prefs = await SharedPreferences.getInstance();
+      final cachedUser = prefs.getString('user_json');
+      if (cachedUser != null && cachedUser.isNotEmpty) {
+        debugPrint('➡️ [SecureStorageService] hasActiveSession() -> true (cached user_json)');
+        return true;
+      }
+    } catch (e) {
+      debugPrint('⚠️ [SecureStorageService] hasActiveSession() SharedPreferences error: $e');
+    }
+
+    debugPrint('➡️ [SecureStorageService] hasActiveSession() -> false');
+    return false;
   }
 
   // Renovar sesión (actualizar timestamp)
