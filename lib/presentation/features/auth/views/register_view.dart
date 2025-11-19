@@ -20,8 +20,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _telefonoController = TextEditingController();
 
   bool _isLoading = false;
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
 
   @override
   void dispose() {
@@ -296,80 +294,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 16),
 
                   // Campo Contraseña
-                  TextFormField(
+                  _PasswordTextField(
                     controller: _passwordController,
                     validator: _validatePassword,
-                    obscureText: _obscurePassword,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Contraseña *',
-                      labelStyle: TextStyle(color: Colors.grey[400]),
-                      prefixIcon: const Icon(Icons.lock, color: Color(0xFF13BB67)),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                          color: Colors.grey[400],
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFF2D2D2D),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF13BB67), width: 2),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Colors.red, width: 1),
-                      ),
-                    ),
+                    labelText: 'Contraseña *',
+                    prefixIcon: Icons.lock,
                   ),
                   const SizedBox(height: 16),
 
                   // Campo Confirmar Contraseña
-                  TextFormField(
+                  _PasswordTextField(
                     controller: _confirmPasswordController,
                     validator: _validateConfirmPassword,
-                    obscureText: _obscureConfirmPassword,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      labelText: 'Confirmar Contraseña *',
-                      labelStyle: TextStyle(color: Colors.grey[400]),
-                      prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF13BB67)),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
-                          color: Colors.grey[400],
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscureConfirmPassword = !_obscureConfirmPassword;
-                          });
-                        },
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFF2D2D2D),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF13BB67), width: 2),
-                      ),
-                      errorBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Colors.red, width: 1),
-                      ),
-                    ),
+                    labelText: 'Confirmar Contraseña *',
+                    prefixIcon: Icons.lock_outline,
                   ),
                   const SizedBox(height: 24),
 
@@ -437,3 +375,63 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 }
 
+class _PasswordTextField extends StatefulWidget {
+  final TextEditingController controller;
+  final String? Function(String?) validator;
+  final String labelText;
+  final IconData prefixIcon;
+
+  const _PasswordTextField({
+    required this.controller,
+    required this.validator,
+    required this.labelText,
+    required this.prefixIcon,
+  });
+
+  @override
+  __PasswordTextFieldState createState() => __PasswordTextFieldState();
+}
+
+class __PasswordTextFieldState extends State<_PasswordTextField> {
+  bool _obscureText = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: widget.controller,
+      validator: widget.validator,
+      obscureText: _obscureText,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: widget.labelText,
+        labelStyle: TextStyle(color: Colors.grey[400]),
+        prefixIcon: Icon(widget.prefixIcon, color: const Color(0xFF13BB67)),
+        suffixIcon: IconButton(
+          icon: Icon(
+            _obscureText ? Icons.visibility_off : Icons.visibility,
+            color: Colors.grey[400],
+          ),
+          onPressed: () {
+            setState(() {
+              _obscureText = !_obscureText;
+            });
+          },
+        ),
+        filled: true,
+        fillColor: const Color(0xFF2D2D2D),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF13BB67), width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.red, width: 1),
+        ),
+      ),
+    );
+  }
+}

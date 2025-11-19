@@ -70,9 +70,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       // Si está autenticado y se encuentra en la pantalla de login,
-      // enviarlo al perfil. No forzamos otras rutas públicas.
+      // enviarlo a la pantalla principal.
       if (isAuthenticated && isGoingToLogin) {
-        return '/profile';
+        return '/';
       }
 
       // No redirigir

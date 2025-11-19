@@ -18,9 +18,6 @@ import '../../../widgets/main_nav_bar.dart';
 class MyHomePage extends ConsumerStatefulWidget {
   const MyHomePage({super.key, required this.title, this.child});
   final String title;
-  // Cuando `MyHomePage` se usa como ShellRoute, recibirá el `child` que
-  // corresponde a la ruta activa (p. ej. AnalyticsScreen). Si es null,
-  // se comporta como antes.
   final Widget? child;
 
   @override
@@ -30,10 +27,8 @@ class MyHomePage extends ConsumerStatefulWidget {
 class _MyHomePageState extends ConsumerState<MyHomePage> {
   int _pageIndex = 0;
   String _transactionsMode = 'transacciones';
-  bool _forceShowBudgets = false;
 
   late final List<Widget> _pages;
-  // Provider de información de ruta y listener para sincronizar el índice
   RouteInformationProvider? _routeInfoProvider;
   VoidCallback? _routeInfoListener;
 
@@ -46,119 +41,40 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
       const reports.ReportsScreen(),
       const ProfileScreen(),
     ];
-    // Restauramos el índice persistido para evitar que se reinicie
-    // cuando volvemos de actividades externas.
     _pageIndex = ref.read(shellCurrentIndexProvider);
 
-    // Nos suscribimos al RouteInformationProvider del GoRouter después del primer frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       try {
         _routeInfoProvider = GoRouter.of(context).routeInformationProvider;
-        // Escuchar cambios en el flag routeSyncBlockProvider para forzar re-evaluación
-        // cuando pase de true a false (desbloqueo), de modo que el router pueda
-        // sincronizar la UI y evitar que el usuario quede en la pestaña equivocada.
-        try {
-          ref.listen<bool>(routeSyncBlockProvider, (previous, next) {
-            if (previous == true && next == false) {
-              Future.microtask(() async {
-                if (!mounted) return;
-                try {
-                  var loc = _routeInfoProvider?.value.uri.toString() ?? GoRouter.of(context).routeInformationProvider.value.uri.toString();
-                  debugPrint('➡️ [MyHomePage] routeSyncBlock cleared -> forcing go($loc)');
-                  if (loc == '/login') {
-                    final authState = ref.read(authStateProvider);
-                    final isAuthenticated = authState.value != null;
-                    var hasSession = false;
-                    try {
-                      hasSession = await ref.read(secureStorageServiceProvider).hasActiveSession();
-                    } catch (e) {
-                      debugPrint('⚠️ [MyHomePage] secure.hasActiveSession() failed while handling routeSyncBlock clear: $e');
-                    }
-                    if (isAuthenticated || hasSession) {
-                      debugPrint('⚠️ [MyHomePage] Router estaba en /login pero existe sesión activa (isAuthenticated=$isAuthenticated, hasSession=$hasSession); forzando /profile');
-                      loc = '/profile';
-                    } else {
-                      debugPrint('🚨 [NAV] routeSyncBlock listener enviando go("/login") por falta de sesión real');
-                    }
-                    debugPrint('🚨 [NAV] routeSyncBlock listener enviando go("/login") por falta de sesión real');
-                  }
-                  if (!mounted) return;
-                  context.go(loc);
-                } catch (e) {
-                  debugPrint('⚠️ [MyHomePage] failed forcing route re-eval: $e');
-                }
-              });
-            }
-          });
-        } catch (_) {}
-        // Inicializar a partir de la ubicación actual, pero respetar
-        // shellDesiredIndexProvider (si alguna vista pidió mostrarse).
+
         final initialLoc = _routeInfoProvider?.value.uri.toString() ?? '/';
         final initialIdx = _indexFromLocation(initialLoc);
-        // Si la URL trae ?mode=presupuestos, sincronizamos el modo también
         final initialMode = Uri.tryParse(initialLoc)?.queryParameters['mode'];
-        final desired = ref.read(shellDesiredIndexProvider);
-        debugPrint('➡️ [MyHomePage] initial router location=$initialLoc -> idx=$initialIdx, mode=$initialMode, shellDesired=$desired');
+
         setState(() {
-          // Solo sobrescribimos _pageIndex si no hay desiredIndex activo
-          if (desired == null) {
-            if (initialIdx != _pageIndex) _pageIndex = initialIdx;
-            if (initialMode != null && initialMode != _transactionsMode) _transactionsMode = initialMode;
-          } else {
-            // Mantener _pageIndex tal cual; el build prioriza shellDesired
-            debugPrint('➡️ [MyHomePage] Skipping initial index sync because shellDesired=$desired');
+          if (initialIdx != _pageIndex) _pageIndex = initialIdx;
+          if (initialMode != null && initialMode != _transactionsMode) {
+            _transactionsMode = initialMode;
           }
         });
-        ref.read(shellCurrentIndexProvider.notifier).state = _pageIndex;
 
         _routeInfoListener = () {
-          try {
-            final loc = _routeInfoProvider?.value.uri.toString() ?? '/';
-            final uri = Uri.tryParse(loc);
-            final idx = _indexFromLocation(loc);
-            final mode = uri?.queryParameters['mode'];
-            debugPrint('➡️ [MyHomePage] routeInfoListener detected location=$loc -> idx=$idx, mode=$mode');
-            // Si alguna vista solicitó explícitamente que la Shell muestre
-            // una pestaña concreta (ej. Perfil) durante un flujo externo,
-            // no sobreescribimos ese deseo con la sincronización de rutas.
-            final desired = ref.read(shellDesiredIndexProvider);
-            if (desired != null) {
-              debugPrint('➡️ [MyHomePage] route change ignored because shellDesiredIndex=$desired is active');
-              return;
-            }
-            final shouldBlock = ref.read(routeSyncBlockProvider);
-            if (shouldBlock) {
-              // Si hay una operación externa o auth en curso, o la última
-              // actividad relacionada es reciente, mantenemos el bloqueo
-              // para evitar que la UI/Router hagan redirects o sincronizaciones
-              // prematuras.
-              final lastAuth = ref.read(routeSyncLastAuthProvider);
-              final recentAuth = lastAuth != null && DateTime.now().difference(lastAuth) < const Duration(seconds: 10);
-              final externalActive = ref.read(routeSyncExternalActiveProvider);
-              final authOpActive = ref.read(routeSyncAuthOpProvider);
-              if (externalActive || authOpActive || recentAuth) {
-                debugPrint('➡️ [MyHomePage] route change ignored due to routeSyncBlockProvider (still active). externalActive=$externalActive, authOp=$authOpActive, recentAuth=$recentAuth');
-                return;
-              }
-              // Si ya no hay actividad, restablecemos el flag y permitimos la sincronización
-              try {
-                ref.read(routeSyncBlockProvider.notifier).state = false;
-              } catch (_) {}
-              debugPrint('➡️ [MyHomePage] route change ignored due to routeSyncBlockProvider (cleared)');
-              return;
-            }
-            setState(() {
-              if (idx != _pageIndex) _pageIndex = idx;
-              if (mode != null && mode != _transactionsMode) _transactionsMode = mode;
-              // Solo actualizamos la bandera si la URL trae explícitamente el mode.
-              if (mode != null) {
-                _forceShowBudgets = (mode == 'presupuestos' && idx == 0);
-              }
-            });
-            ref.read(shellCurrentIndexProvider.notifier).state = _pageIndex;
-          } catch (e) {
-            debugPrint('➡️ [MyHomePage] routeInfoListener error: $e');
-          }
+          if (!mounted) return;
+          final loc = _routeInfoProvider?.value.uri.toString() ?? '/';
+          final idx = _indexFromLocation(loc);
+          final mode = Uri.tryParse(loc)?.queryParameters['mode'];
+          
+          final desired = ref.read(shellDesiredIndexProvider);
+          if (desired != null) return;
+          
+          final shouldBlock = ref.read(routeSyncBlockProvider);
+          if (shouldBlock) return;
+
+          setState(() {
+            if (idx != _pageIndex) _pageIndex = idx;
+            if (mode != null && mode != _transactionsMode) _transactionsMode = mode;
+          });
         };
         _routeInfoProvider?.addListener(_routeInfoListener!);
       } catch (e) {
@@ -176,173 +92,146 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final shellDesired = ref.watch(shellDesiredIndexProvider);
-    final displayedIndex = shellDesired ?? _pageIndex;
-    debugPrint('➡️ [MyHomePage] build: _pageIndex=$_pageIndex, displayedIndex=$displayedIndex, child=${widget.child?.runtimeType}');
+    debugPrint('➡️ [MyHomePage] build: _pageIndex=$_pageIndex, child=${widget.child?.runtimeType}');
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    
+    // Usamos un Consumer para escuchar solo el shellDesiredIndexProvider y reconstruir lo mínimo
+    return Consumer(
+      builder: (context, ref, _) {
+        final shellDesired = ref.watch(shellDesiredIndexProvider);
+        final displayedIndex = shellDesired ?? _pageIndex;
 
-    // Calculamos el modo efectivo: preferimos el parámetro `mode` en la URL
-    // (por ejemplo '/?mode=presupuestos') y si no existe usamos el estado local.
-    final currentLocation = _routeInfoProvider?.value.uri.toString() ?? GoRouter.of(context).routeInformationProvider.value.uri.toString();
-    final urlMode = Uri.tryParse(currentLocation)?.queryParameters['mode'];
-    final effectiveMode = urlMode ?? _transactionsMode;
+        final currentLocation = GoRouter.of(context).routeInformationProvider.value.uri.toString();
+        final urlMode = Uri.tryParse(currentLocation)?.queryParameters['mode'];
+        final effectiveMode = urlMode ?? _transactionsMode;
 
-    debugPrint('➡️ [MyHomePage] effectiveMode=$effectiveMode (urlMode=$urlMode, _transactionsMode=$_transactionsMode)');
+        debugPrint('➡️ [MyHomePage] Consumer build: displayedIndex=$displayedIndex, effectiveMode=$effectiveMode');
 
-    // Usamos el estado local como fuente inmediata para la animación.
-    // Cuando ShellRoute actualice el `child`, sincronizaremos `_pageIndex`
-    // en didUpdateWidget para reflejar la ruta real.
-
-    return Scaffold(
-      extendBody: false,
-      extendBodyBehindAppBar: false,
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: displayedIndex == 0
-          ? AppBar(
-              backgroundColor: theme.appBarTheme.backgroundColor,
-              centerTitle: true,
-              title: Text(
-                'Mis Gastos',
-                style: TextStyle(
-                  color: colorScheme.onSurface,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              leading: IconButton(
-                icon: Icon(Icons.menu_rounded, color: colorScheme.onSurface),
-                onPressed: () async {
-                  await showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    showDragHandle: true,
-                    backgroundColor: theme.scaffoldBackgroundColor,
-                    builder: (_) => TransactionsQuickMenu(
-                      currentMode: _transactionsMode,
-                      onSelectMode: (mode) {
-                        debugPrint('➡️ [MyHomePage] TransactionsQuickMenu selected mode: $mode');
-                        // Actualizamos el modo y navegamos a '/' para forzar que
-                        // la vista de transacciones (Inicio) se muestre incluso
-                        // cuando se usa MyHomePage como ShellRoute.
-                        setState(() {
-                          _transactionsMode = mode;
-                          _pageIndex = 0; // aseguramos que la pestaña Inicio quede activa inmediatamente
-                          _forceShowBudgets = mode == 'presupuestos';
-                        });
-                        ref.read(shellCurrentIndexProvider.notifier).state = _pageIndex;
-                        // Navegar a la ruta de inicio pasando el modo en la query
-                        // para que, si MyHomePage está en un ShellRoute con `child`,
-                        // podamos detectar el modo desde la URL y mostrar la vista adecuada.
-                        final encoded = Uri(queryParameters: {'mode': mode}).query;
-                        context.go('/?$encoded');
-                      },
+        return Scaffold(
+          extendBody: false,
+          extendBodyBehindAppBar: false,
+          backgroundColor: theme.scaffoldBackgroundColor,
+          appBar: displayedIndex == 0
+              ? AppBar(
+                  backgroundColor: theme.appBarTheme.backgroundColor,
+                  centerTitle: true,
+                  title: Text(
+                    'Mis Gastos',
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
-                  );
-                },
-              ),
-              actions: [
-                IconButton(
-                  tooltip: 'Gamificación',
-                  icon: Icon(Icons.emoji_events, color: colorScheme.onSurface),
-                  onPressed: () {
-                    debugPrint('➡️ [MyHomePage] navegando a /gamification');
-                    context.push('/gamification');
-                  },
-                ),
-                IconButton(
-                  icon: Icon(Icons.search, color: colorScheme.onSurface),
-                  onPressed: () async {
-                    final controller = ref.read(transactionsControllerProvider.notifier);
-                    final result = await Navigator.push<Map<String, dynamic>>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => SearchFilterScreen(
-                          initialFilters: {
-                            'tipo': controller.currentTypeFilter,
-                            'order': controller.currentOrder,
-                            'searchTerm': controller.currentSearchTerm,
+                  ),
+                  leading: IconButton(
+                    icon: Icon(Icons.menu_rounded, color: colorScheme.onSurface),
+                    onPressed: () async {
+                      await showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        showDragHandle: true,
+                        backgroundColor: theme.scaffoldBackgroundColor,
+                        builder: (_) => TransactionsQuickMenu(
+                          currentMode: _transactionsMode,
+                          onSelectMode: (mode) {
+                            setState(() {
+                              _transactionsMode = mode;
+                              _pageIndex = 0;
+                            });
+                            ref.read(shellCurrentIndexProvider.notifier).state = 0;
+                            final encoded = Uri(queryParameters: {'mode': mode}).query;
+                            context.go('/?$encoded');
                           },
                         ),
-                      ),
-                    );
-                    if (result != null) {
-                      controller.updateFiltersFromMap(result);
-                    }
-                  },
-                ),
-                IconButton(
-                  tooltip: () {
-                    final state = ref.watch(transactionsControllerProvider);
-                    return state.filters.from != null && state.filters.to != null
-                        ? 'Rango activo'
-                        : 'Filtrar por fecha';
-                  }(),
-                  icon: Icon(Icons.date_range, color: colorScheme.onSurface),
-                  onPressed: () async {
-                    final now = DateTime.now();
-                    final state = ref.read(transactionsControllerProvider);
-                    final currentRange = state.filters.from != null && state.filters.to != null
-                        ? DateTimeRange(start: state.filters.from!, end: state.filters.to!)
-                        : DateTimeRange(
-                            start: DateTime(now.year, now.month, 1),
-                            end: DateTime(now.year, now.month + 1, 0),
-                          );
-
-                    final picked = await showDateRangePicker(
-                      context: context,
-                      firstDate: DateTime(2010),
-                      lastDate: DateTime(2100),
-                      initialDateRange: currentRange,
-                      helpText: 'Selecciona rango',
-                      locale: const Locale('es', 'PE'),
-                      builder: (context, child) {
-                        return Theme(
-                          data: AppDatePickerTheme.darkDateRangePickerTheme(context),
-                          child: child!,
+                      );
+                    },
+                  ),
+                  actions: [
+                    IconButton(
+                      tooltip: 'Gamificación',
+                      icon: Icon(Icons.emoji_events, color: colorScheme.onSurface),
+                      onPressed: () => context.push('/gamification'),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.search, color: colorScheme.onSurface),
+                      onPressed: () async {
+                        final controller = ref.read(transactionsControllerProvider.notifier);
+                        final result = await Navigator.push<Map<String, dynamic>>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SearchFilterScreen(
+                              initialFilters: {
+                                'tipo': controller.currentTypeFilter,
+                                'order': controller.currentOrder,
+                                'searchTerm': controller.currentSearchTerm,
+                              },
+                            ),
+                          ),
                         );
+                        if (result != null) {
+                          controller.updateFiltersFromMap(result);
+                        }
                       },
-                    );
+                    ),
+                    IconButton(
+                      tooltip: 'Filtrar por fecha',
+                      icon: Icon(Icons.date_range, color: colorScheme.onSurface),
+                      onPressed: () async {
+                        final now = DateTime.now();
+                        final state = ref.read(transactionsControllerProvider);
+                        final currentRange = state.filters.from != null && state.filters.to != null
+                            ? DateTimeRange(start: state.filters.from!, end: state.filters.to!)
+                            : DateTimeRange(
+                                start: DateTime(now.year, now.month, 1),
+                                end: DateTime(now.year, now.month + 1, 0),
+                              );
 
-                    if (picked != null && context.mounted) {
-                      ref.read(transactionsControllerProvider.notifier)
-                          .selectDateRange(picked.start, picked.end);
-                    }
-                  },
-                ),
-              ],
-            )
-          : null,
-      body: () {
-        // Si estamos en la pestaña Inicio y el modo efectivo pide 'presupuestos',
-        // mostramos la vista de presupuestos aunque widget.child exista (ShellRoute).
-        if (displayedIndex == 0 && (effectiveMode == 'presupuestos' || _forceShowBudgets)) {
-          return const BudgetsOverviewView();
-        }
-        // Si alguna vista solicitó explícitamente un índice de Shell, lo mostramos
-        // con prioridad incluso si `widget.child` está presente (evita que la
-        // ruta externa sobrescriba la vista mostrada durante flujos como la
-        // cámara/recortador).
-        if (shellDesired != null) {
-          return _pages[shellDesired];
-        }
-        // Si hay un child (ShellRoute) y no hay requestedIndex, lo mostramos.
-        if (widget.child != null) return widget.child!;
-        // Caso por defecto: comportamiento basado en _pageIndex/_transactionsMode
-        if (displayedIndex == 0) {
-          return _transactionsMode == 'transacciones' ? const TransactionsListView() : const BudgetsOverviewView();
-        }
-        return _pages[displayedIndex];
-      }(),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        minimum: EdgeInsets.zero,
-        child: MainNavBar(
-          currentIndex: displayedIndex,
-          onTap: _onTap,
-          onAdd: _onAddTransaction, // FAB integrado en MainNavBar: pasamos la callback onAdd
-        ),
-      ),
+                        final picked = await showDateRangePicker(
+                          context: context,
+                          firstDate: DateTime(2010),
+                          lastDate: DateTime(2100),
+                          initialDateRange: currentRange,
+                          locale: const Locale('es', 'PE'),
+                          builder: (context, child) => Theme(
+                            data: AppDatePickerTheme.darkDateRangePickerTheme(context),
+                            child: child!,
+                          ),
+                        );
+
+                        if (picked != null && context.mounted) {
+                          ref.read(transactionsControllerProvider.notifier)
+                              .selectDateRange(picked.start, picked.end);
+                        }
+                      },
+                    ),
+                  ],
+                )
+              : null,
+          body: () {
+            if (displayedIndex == 0 && effectiveMode == 'presupuestos') {
+              return const BudgetsOverviewView();
+            }
+            if (shellDesired != null) {
+              return _pages[shellDesired];
+            }
+            if (widget.child != null) return widget.child!;
+            if (displayedIndex == 0) {
+              return _transactionsMode == 'transacciones' ? const TransactionsListView() : const BudgetsOverviewView();
+            }
+            return _pages[displayedIndex];
+          }(),
+          bottomNavigationBar: SafeArea(
+            top: false,
+            minimum: EdgeInsets.zero,
+            child: MainNavBar(
+              currentIndex: displayedIndex,
+              onTap: _onTap,
+              onAdd: _onAddTransaction,
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -358,27 +247,14 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
   void _onTap(int index) {
     const paths = ['/', '/analytics', '/reports', '/profile'];
     final path = paths[index];
-    debugPrint('➡️ [MyHomePage] _onTap -> setting _pageIndex = $index (path: $path)');
     setState(() {
       _pageIndex = index;
-      // al cambiar de pestaña, dejamos de forzar la vista de presupuestos
-      _forceShowBudgets = false;
     });
     ref.read(shellCurrentIndexProvider.notifier).state = _pageIndex;
-    // Si el usuario interactúa con la navBar, limpiamos cualquier desiredIndex
     try {
       ref.read(shellDesiredIndexProvider.notifier).state = null;
     } catch (_) {}
-    debugPrint('➡️ [MyHomePage] _onTap -> navigating to $path');
     context.go(path);
-  }
-
-  @override
-  void didUpdateWidget(covariant MyHomePage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    debugPrint('➡️ [MyHomePage] didUpdateWidget: oldChild=${oldWidget.child?.runtimeType} newChild=${widget.child?.runtimeType}');
-    // No intentamos sincronizar aquí: el listener sobre routeInformationProvider
-    // hará la actualización de índice cuando la ubicación cambie.
   }
 
   @override

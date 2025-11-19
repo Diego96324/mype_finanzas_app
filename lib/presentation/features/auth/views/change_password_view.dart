@@ -26,11 +26,6 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen>
   late final AnimationController _successController;
   late final Animation<double> _successAnimation;
 
-  // Fortaleza de la contraseña
-  double _passwordStrength = 0.0;
-  String _strengthText = '';
-  Color _strengthColor = Colors.grey;
-
   @override
   void initState() {
     super.initState();
@@ -53,64 +48,6 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen>
       parent: _successController,
       curve: Curves.elasticOut,
     );
-
-    // Calcular fortaleza en tiempo real
-    _newPasswordCtrl.addListener(_calculatePasswordStrength);
-  }
-
-  void _calculatePasswordStrength() {
-    final password = _newPasswordCtrl.text;
-
-    if (password.isEmpty) {
-      setState(() {
-        _passwordStrength = 0.0;
-        _strengthText = '';
-        _strengthColor = Colors.grey;
-      });
-      return;
-    }
-
-    double strength = 0.0;
-
-    // Longitud (hasta 30 puntos)
-    if (password.length >= 8) strength += 0.15;
-    if (password.length >= 12) strength += 0.10;
-    if (password.length >= 16) strength += 0.05;
-
-    // Mayúsculas (20 puntos)
-    if (password.contains(RegExp(r'[A-Z]'))) strength += 0.20;
-
-    // Minúsculas (20 puntos)
-    if (password.contains(RegExp(r'[a-z]'))) strength += 0.20;
-
-    // Números (15 puntos)
-    if (password.contains(RegExp(r'[0-9]'))) strength += 0.15;
-
-    // Caracteres especiales (15 puntos)
-    if (password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>\-_=+\[\]\\~`/]'))) {
-      strength += 0.15;
-    }
-
-    setState(() {
-      _passwordStrength = strength.clamp(0.0, 1.0);
-
-      if (_passwordStrength < 0.3) {
-        _strengthText = 'Muy débil';
-        _strengthColor = Colors.red;
-      } else if (_passwordStrength < 0.5) {
-        _strengthText = 'Débil';
-        _strengthColor = Colors.orange;
-      } else if (_passwordStrength < 0.7) {
-        _strengthText = 'Media';
-        _strengthColor = Colors.yellow.shade700;
-      } else if (_passwordStrength < 0.9) {
-        _strengthText = 'Fuerte';
-        _strengthColor = Colors.lightGreen;
-      } else {
-        _strengthText = 'Muy fuerte';
-        _strengthColor = Colors.green;
-      }
-    });
   }
 
   Future<void> _changePassword() async {
@@ -347,15 +284,23 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen>
                 const SizedBox(height: 20),
 
                 // Medidor de fortaleza de contraseña
-                if (_newPasswordCtrl.text.isNotEmpty)
-                  _buildPasswordStrengthMeter(
-                    textColor: textColor,
-                    cardColor: cardColor,
-                    isDark: isDark,
-                  ),
-
-                if (_newPasswordCtrl.text.isNotEmpty)
-                  const SizedBox(height: 24),
+                AnimatedBuilder(
+                  animation: _newPasswordCtrl,
+                  builder: (context, _) {
+                    if (_newPasswordCtrl.text.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: _PasswordStrengthMeter(
+                        passwordController: _newPasswordCtrl,
+                        textColor: textColor,
+                        cardColor: cardColor,
+                        isDark: isDark,
+                      ),
+                    );
+                  },
+                ),
 
                 // Botón de cambiar contraseña
                 SizedBox(
@@ -531,17 +476,119 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen>
       ),
     );
   }
+}
 
-  Widget _buildPasswordStrengthMeter({
-    required Color textColor,
-    required Color cardColor,
-    required bool isDark,
-  }) {
+class _PasswordStrengthMeter extends StatefulWidget {
+  final TextEditingController passwordController;
+  final Color textColor;
+  final Color cardColor;
+  final bool isDark;
+
+  const _PasswordStrengthMeter({
+    required this.passwordController,
+    required this.textColor,
+    required this.cardColor,
+    required this.isDark,
+  });
+
+  @override
+  State<_PasswordStrengthMeter> createState() => _PasswordStrengthMeterState();
+}
+
+class _PasswordStrengthMeterState extends State<_PasswordStrengthMeter> {
+  double _passwordStrength = 0.0;
+  String _strengthText = '';
+  Color _strengthColor = Colors.grey;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.passwordController.addListener(_calculatePasswordStrength);
+    _calculatePasswordStrength();
+  }
+
+  @override
+  void dispose() {
+    widget.passwordController.removeListener(_calculatePasswordStrength);
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PasswordStrengthMeter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.passwordController != oldWidget.passwordController) {
+      oldWidget.passwordController.removeListener(_calculatePasswordStrength);
+      widget.passwordController.addListener(_calculatePasswordStrength);
+    }
+  }
+
+  void _calculatePasswordStrength() {
+    if (!mounted) return;
+    final password = widget.passwordController.text;
+
+    if (password.isEmpty) {
+      setState(() {
+        _passwordStrength = 0.0;
+        _strengthText = '';
+        _strengthColor = Colors.grey;
+      });
+      return;
+    }
+
+    double strength = 0.0;
+    if (password.length >= 8) strength += 0.15;
+    if (password.length >= 12) strength += 0.10;
+    if (password.length >= 16) strength += 0.05;
+    if (password.contains(RegExp(r'[A-Z]'))) strength += 0.20;
+    if (password.contains(RegExp(r'[a-z]'))) strength += 0.20;
+    if (password.contains(RegExp(r'[0-9]'))) strength += 0.15;
+    if (password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>\-_=+\[\]\\~`/]'))) {
+      strength += 0.15;
+    }
+
+    setState(() {
+      _passwordStrength = strength.clamp(0.0, 1.0);
+
+      if (_passwordStrength < 0.3) {
+        _strengthText = 'Muy débil';
+        _strengthColor = Colors.red;
+      } else if (_passwordStrength < 0.5) {
+        _strengthText = 'Débil';
+        _strengthColor = Colors.orange;
+      } else if (_passwordStrength < 0.7) {
+        _strengthText = 'Media';
+        _strengthColor = Colors.yellow.shade700;
+      } else if (_passwordStrength < 0.9) {
+        _strengthText = 'Fuerte';
+        _strengthColor = Colors.lightGreen;
+      } else {
+        _strengthText = 'Muy fuerte';
+        _strengthColor = Colors.green;
+      }
+    });
+  }
+
+  String _getPasswordTip() {
+    if (_passwordStrength < 0.3) {
+      return 'Usa mayúsculas, minúsculas, números y símbolos para mayor seguridad';
+    } else if (_passwordStrength < 0.5) {
+      return 'Buen comienzo. Agrega más caracteres o símbolos especiales';
+    } else if (_passwordStrength < 0.7) {
+      return 'Contraseña decente. Considera hacerla más larga para mayor protección';
+    } else if (_passwordStrength < 0.9) {
+      return '¡Muy bien! Tu contraseña es bastante segura';
+    } else {
+      return '¡Excelente! Has creado una contraseña muy segura';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: widget.cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: _strengthColor.withValues(alpha: 0.3),
@@ -551,7 +598,6 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Título
           Row(
             children: [
               Icon(
@@ -565,14 +611,12 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen>
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: textColor,
+                  color: widget.textColor,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-
-          // Barra de progreso
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: TweenAnimationBuilder<double>(
@@ -582,7 +626,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen>
               builder: (context, value, _) => LinearProgressIndicator(
                 value: value,
                 minHeight: 12,
-                backgroundColor: isDark
+                backgroundColor: widget.isDark
                     ? Colors.grey.shade800
                     : Colors.grey.shade300,
                 valueColor: AlwaysStoppedAnimation<Color>(_strengthColor),
@@ -590,8 +634,6 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen>
             ),
           ),
           const SizedBox(height: 12),
-
-          // Texto de nivel de seguridad
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -608,14 +650,12 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen>
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: textColor.withValues(alpha: 0.7),
+                  color: widget.textColor.withValues(alpha: 0.7),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-
-          // Sugerencias opcionales
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -638,7 +678,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen>
                     _getPasswordTip(),
                     style: TextStyle(
                       fontSize: 12,
-                      color: isDark ? Colors.blue.shade200 : Colors.blue.shade900,
+                      color: widget.isDark ? Colors.blue.shade200 : Colors.blue.shade900,
                       height: 1.3,
                     ),
                   ),
@@ -650,19 +690,4 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen>
       ),
     );
   }
-
-  String _getPasswordTip() {
-    if (_passwordStrength < 0.3) {
-      return 'Usa mayúsculas, minúsculas, números y símbolos para mayor seguridad';
-    } else if (_passwordStrength < 0.5) {
-      return 'Buen comienzo. Agrega más caracteres o símbolos especiales';
-    } else if (_passwordStrength < 0.7) {
-      return 'Contraseña decente. Considera hacerla más larga para mayor protección';
-    } else if (_passwordStrength < 0.9) {
-      return '¡Muy bien! Tu contraseña es bastante segura';
-    } else {
-      return '¡Excelente! Has creado una contraseña muy segura';
-    }
-  }
 }
-

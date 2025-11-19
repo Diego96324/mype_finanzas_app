@@ -17,7 +17,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
   final _formKey = GlobalKey<FormState>();
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
-  bool _obscure = true;
   bool _loading = false;
   bool _rememberMe = false;
 
@@ -141,7 +140,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
+                    color: Colors.black.withOpacity(0.1),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -193,7 +192,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                       child: Container(
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: primaryColor.withValues(alpha: 0.1),
+                          color: primaryColor.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
                         child: SvgPicture.asset(
@@ -221,7 +220,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                       'Inicia sesión para continuar',
                       style: TextStyle(
                         fontSize: 16,
-                        color: textColor.withValues(alpha: 0.7),
+                        color: textColor.withOpacity(0.7),
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -242,26 +241,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                     ),
                     const SizedBox(height: 16),
 
-                    // Campo de contraseña
-                    AnimatedFormField(
+                    // Campo de contraseña (AHORA CON ESTADO AISLADO)
+                    _PasswordFormField(
                       controller: _passCtrl,
-                      label: 'Contraseña',
-                      hint: '••••••',
-                      icon: Icons.lock_rounded,
-                      obscureText: _obscure,
                       cardColor: cardColor,
                       textColor: textColor,
                       primaryColor: primaryColor,
-                      validator: FormValidators.validatePassword,
-                      autoValidate: false,
-                      showSuccessIcon: false,
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscure ? Icons.visibility_off : Icons.visibility,
-                          color: textColor.withValues(alpha: 0.6),
-                        ),
-                        onPressed: () => setState(() => _obscure = !_obscure),
-                      ),
                     ),
                     const SizedBox(height: 12),
 
@@ -310,7 +295,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                             borderRadius: BorderRadius.circular(16),
                           ),
                           elevation: 4,
-                          shadowColor: primaryColor.withValues(alpha: 0.5),
+                          shadowColor: primaryColor.withOpacity(0.5),
                         ),
                         onPressed: _loading ? null : _login,
                         child: _loading
@@ -349,7 +334,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                       children: [
                         Expanded(
                           child: Divider(
-                            color: textColor.withValues(alpha: 0.3),
+                            color: textColor.withOpacity(0.3),
                             thickness: 1,
                           ),
                         ),
@@ -358,7 +343,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                           child: Text(
                             'o',
                             style: TextStyle(
-                              color: textColor.withValues(alpha: 0.6),
+                              color: textColor.withOpacity(0.6),
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
                             ),
@@ -366,7 +351,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
                         ),
                         Expanded(
                           child: Divider(
-                            color: textColor.withValues(alpha: 0.3),
+                            color: textColor.withOpacity(0.3),
                             thickness: 1,
                           ),
                         ),
@@ -411,6 +396,52 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// WIDGET CON ESTADO AISLADO PARA EL CAMPO DE CONTRASEÑA
+class _PasswordFormField extends StatefulWidget {
+  final TextEditingController controller;
+  final Color cardColor;
+  final Color textColor;
+  final Color primaryColor;
+
+  const _PasswordFormField({
+    required this.controller,
+    required this.cardColor,
+    required this.textColor,
+    required this.primaryColor,
+  });
+
+  @override
+  State<_PasswordFormField> createState() => _PasswordFormFieldState();
+}
+
+class _PasswordFormFieldState extends State<_PasswordFormField> {
+  bool _obscure = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedFormField(
+      controller: widget.controller,
+      label: 'Contraseña',
+      hint: '••••••',
+      icon: Icons.lock_rounded,
+      obscureText: _obscure,
+      cardColor: widget.cardColor,
+      textColor: widget.textColor,
+      primaryColor: widget.primaryColor,
+      validator: FormValidators.validatePassword,
+      autoValidate: false,
+      showSuccessIcon: false,
+      suffixIcon: IconButton(
+        icon: Icon(
+          _obscure ? Icons.visibility_off : Icons.visibility,
+          color: widget.textColor.withOpacity(0.6),
+        ),
+        onPressed: () => setState(() => _obscure = !_obscure),
       ),
     );
   }
