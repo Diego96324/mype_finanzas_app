@@ -43,7 +43,8 @@ class GamificationScreen extends ConsumerWidget {
         data: (dashboard) {
           final profile = dashboard['profile'] as GamificationProfile?;
           final achievements =
-              dashboard['achievements'] as List<GamificationAchievement>? ?? [];
+              dashboard['achievements'] as List<GamificationAchievement>? ??
+                  [];
 
           final userProgressList =
               dashboard['user_progress'] as List<UserAchievement>? ?? [];
@@ -76,32 +77,27 @@ class GamificationScreen extends ConsumerWidget {
                   ),
                 ),
 
-                // Grid de logros
+                // LISTA de logros (ya no grid)
                 if (achievements.isEmpty)
                   _buildEmptyAchievementsState(context, ref, userId)
                 else
                   SliverPadding(
                     padding:
                     const EdgeInsets.symmetric(horizontal: 16.0),
-                    sliver: SliverGrid(
-                      gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 8,
-                        crossAxisSpacing: 8,
-                        // Altura fija cómoda para evitar overflow
-                        mainAxisExtent: 96,
-                      ),
+                    sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
                             (context, index) {
                           final achievement = achievements[index];
                           final userProgress =
                           userProgressMap[achievement.id];
 
-                          return _buildAchievementCard(
-                            context,
-                            achievement,
-                            userProgress,
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: _buildAchievementCard(
+                              context,
+                              achievement,
+                              userProgress,
+                            ),
                           );
                         },
                         childCount: achievements.length,
