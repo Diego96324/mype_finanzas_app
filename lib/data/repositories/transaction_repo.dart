@@ -55,7 +55,16 @@ class TransactionRepo {
 
       final usuarioId = t.usuarioId;
       final monto = t.monto;
-      final descripcion = t.etiqueta ?? t.nota ?? t.descripcion;
+      // IMPORTANTE: No usamos `etiqueta` como descripción del evento de gamificación
+      // porque la etiqueta es metadata y no debe aparecer como motivo para otorgar puntos.
+      String? descripcion;
+      if (t.descripcion != null && t.descripcion!.trim().isNotEmpty) {
+        descripcion = t.descripcion!.trim();
+      } else if (t.nota != null && t.nota!.trim().isNotEmpty) {
+        descripcion = t.nota!.trim();
+      } else {
+        descripcion = null;
+      }
 
       switch (t.tipo) {
         case 'ingreso':
