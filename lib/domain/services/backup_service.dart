@@ -1,74 +1,104 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart'; // Para compute
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import '../../core/database/app_database.dart';
 
-/// Servicio para respaldo y restauración ligera de datos críticos.
-/// No pretende ser un dump completo, pero evita pérdida total accidental.
 class BackupService {
   static const _backupFileName = 'backup_mype_finanzas.json';
   static const _backupMetaName = 'backup_meta.txt';
 
-  Future<File> _getBackupFile() async {
+  Future<String> get _localPath async {
     final dir = await getApplicationDocumentsDirectory();
-    return File('${dir.path}/$_backupFileName');
+    return dir.path;
   }
 
-  Future<File> _getMetaFile() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return File('${dir.path}/$_backupMetaName');
-  }
-
-  /// Exporta tablas clave a un archivo JSON.
-  /// Se llama tras login/registro y podría llamarse tras operaciones masivas.
+  /// Exporta TODAS las tablas en SEGUNDO PLANO.
   Future<void> exportBackup() async {
     try {
       final db = await AppDatabase().database;
 
-      // Tablas críticas (añade más si hace falta): usuarios, cuentas, categorias, transacciones
-      final usuarios = await db.query('usuarios');
+      // 1. Recolectar datos (Rápido en lectura, pesado en memoria si son miles)
+      // He agregado todas las tablas que vi en tu AppDatabase
+      final usuarios = await _safeQuery(db, 'usuarios');
       final cuentas = await _safeQuery(db, 'cuentas');
-      final categorias = await db.query('categorias', where: 'usuario_id IS NOT NULL');
-      final transacciones = await db.query('transacciones');
+      final categorias = await _safeQuery(db, 'categorias');
+      final transacciones = await _safeQuery(db, 'transacciones');
+      final presupuestos = await _safeQuery(db, 'presupuestos');
+      final metas = await _safeQuery(db, 'metas_financieras');
+      final recordatorios = await _safeQuery(db, 'recordatorios');
 
-      final payload = {
+      // Gamification (Nuevas tablas v14)
+      final gamificationProfiles = await _safeQuery(db, 'gamification_profiles');
+      final gamificationAchievements = await _safeQuery(db, 'gamification_achievements');
+      final gamificationEvents = await _safeQuery(db, 'gamification_events');
+
+      // Construir el objeto gigante
+      final Map<String, dynamic> payload = {
         'version': 1,
         'timestamp': DateTime.now().toIso8601String(),
         'usuarios': usuarios,
         'cuentas': cuentas,
         'categorias': categorias,
         'transacciones': transacciones,
+        'presupuestos': presupuestos,
+        'metas_financieras': metas,
+        'recordatorios': recordatorios,
+        'gamification_profiles': gamificationProfiles,
+        'gamification_achievements': gamificationAchievements,
+        'gamification_events': gamificationEvents,
       };
 
-      final file = await _getBackupFile();
-      await file.writeAsString(jsonEncode(payload));
+      final path = await _localPath;
 
-      final meta = await _getMetaFile();
-      await meta.writeAsString('last_backup=${DateTime.now().toIso8601String()}\nrows_usuarios=${usuarios.length}');
+      // 2. 🔥 EL SECRETO: Procesar JSON y guardar en otro hilo
+      await compute(_writeBackupInBackground, {
+        'path': path,
+        'payload': payload,
+        'fileName': _backupFileName,
+        'metaName': _backupMetaName,
+        'countTrans': transacciones.length,
+      });
 
-      debugPrint('💾 Backup exportado (${usuarios.length} usuarios, ${transacciones.length} transacciones)');
+      debugPrint('💾 Backup completo exportado en segundo plano');
+
     } catch (e) {
       debugPrint('⚠️ Error exportando backup: $e');
     }
   }
 
-  /// Restaura datos si la BD está vacía (sin usuarios). Evita sobreescribir si ya hay datos.
+  // Esta función estática corre en un hilo aislado
+  static Future<void> _writeBackupInBackground(Map<String, dynamic> params) async {
+    final String path = params['path'];
+    final Map<String, dynamic> payload = params['payload'];
+    final String fileName = params['fileName'];
+    final String metaName = params['metaName'];
+
+    // Esto es lo que mataba tu app: convertir mapas gigantes a texto
+    final jsonString = jsonEncode(payload);
+
+    final file = File('$path/$fileName');
+    await file.writeAsString(jsonString); // Escribir al disco
+
+    final meta = File('$path/$metaName');
+    await meta.writeAsString('last_backup=${DateTime.now().toIso8601String()}');
+  }
+
   Future<bool> restoreIfEmpty() async {
     try {
       final db = await AppDatabase().database;
       final usuarioCount = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM usuarios')) ?? 0;
-      if (usuarioCount > 0) {
-        debugPrint('🔁 Restauración omitida (ya hay $usuarioCount usuarios)');
-        return false; // no restauró
-      }
 
-      final file = await _getBackupFile();
-      if (!(await file.exists())) {
-        debugPrint('📂 No existe archivo de backup para restaurar');
+      if (usuarioCount > 0) {
+        debugPrint('🔁 Restauración omitida (ya hay datos)');
         return false;
       }
+
+      final path = await _localPath;
+      final file = File('$path/$_backupFileName');
+
+      if (!(await file.exists())) return false;
 
       final content = await file.readAsString();
       final map = jsonDecode(content) as Map<String, dynamic>;
@@ -79,28 +109,37 @@ class BackupService {
         if (rows == null) return;
         for (final r in rows) {
           final row = Map<String, Object?>.from(r as Map);
-          // Eliminar id para permitir autoincrement (excepto si realmente quieres mantenerlo)
-          row.remove('id');
+          row.remove('id'); // Dejar que SQLite asigne nuevos IDs
           batch.insert(table, row, conflictAlgorithm: ConflictAlgorithm.ignore);
         }
       }
 
+      // Restaurar en orden de dependencia
       insertList('usuarios', map['usuarios'] as List?);
       insertList('cuentas', map['cuentas'] as List?);
       insertList('categorias', map['categorias'] as List?);
       insertList('transacciones', map['transacciones'] as List?);
+      insertList('presupuestos', map['presupuestos'] as List?);
+      insertList('metas_financieras', map['metas_financieras'] as List?);
+      insertList('recordatorios', map['recordatorios'] as List?);
+
+      // Restaurar Gamification
+      insertList('gamification_profiles', map['gamification_profiles'] as List?);
+      insertList('gamification_achievements', map['gamification_achievements'] as List?);
+      insertList('gamification_events', map['gamification_events'] as List?);
 
       await batch.commit(noResult: true);
-      debugPrint('🧩 Restauración desde backup completada');
+      debugPrint('🧩 Restauración completa exitosa');
       return true;
     } catch (e) {
-      debugPrint('❌ Error restaurando backup: $e');
+      debugPrint('❌ Error restaurando: $e');
       return false;
     }
   }
 
   Future<List<Map<String, Object?>>> _safeQuery(Database db, String table) async {
     try {
+      // Verificamos si la tabla existe antes de consultar para evitar crashes en versiones viejas
       return await db.query(table);
     } catch (_) {
       return [];

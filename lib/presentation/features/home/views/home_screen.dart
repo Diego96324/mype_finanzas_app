@@ -61,6 +61,7 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
           ref.listen<bool>(routeSyncBlockProvider, (previous, next) {
             if (previous == true && next == false) {
               Future.microtask(() async {
+                if (!mounted) return;
                 try {
                   var loc = _routeInfoProvider?.value.uri.toString() ?? GoRouter.of(context).routeInformationProvider.value.uri.toString();
                   debugPrint('➡️ [MyHomePage] routeSyncBlock cleared -> forcing go($loc)');

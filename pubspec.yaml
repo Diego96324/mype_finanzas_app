@@ -29,6 +29,8 @@ dependencies:
   image_cropper: ^11.0.0
   flutter_image_compress: ^2.1.0
   equatable: ^2.0.5
+  http: ^1.6.0
+  flutter_markdown_plus: ^1.0.5
 
 dev_dependencies:
   flutter_test:

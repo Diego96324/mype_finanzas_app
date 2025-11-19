@@ -30,7 +30,7 @@ class AppDatabase {
     final path = p.join(dir.path, 'mype_finanzas.db');
     return openDatabase(
       path,
-      version: 14, // bump para añadir tablas de gamification (v14)
+      version: 15, // bump para añadir tablas de gamification (v15)
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -318,10 +318,28 @@ class AppDatabase {
         FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
       )
     ''');
+    // 👇 AGREGA ESTO:
+    await db.execute('''
+      CREATE TABLE user_achievements(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario_id INTEGER NOT NULL,
+        achievement_id INTEGER NOT NULL,
+        progreso_actual REAL NOT NULL DEFAULT 0,
+        estado TEXT NOT NULL DEFAULT 'locked',
+        ultima_actualizacion TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        FOREIGN KEY(achievement_id) REFERENCES gamification_achievements(id) ON DELETE CASCADE,
+        UNIQUE(usuario_id, achievement_id)
+      )
+    ''');
 
     await db.execute('CREATE INDEX IF NOT EXISTS idx_gamification_profiles_usuario ON gamification_profiles(usuario_id)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_gamification_achievements_tipo ON gamification_achievements(tipo)');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_gamification_events_usuario ON gamification_events(usuario_id)');
+    await db.execute('CREATE INDEX idx_user_achievements_user ON user_achievements(usuario_id)');
+
     // --- fin gamification ---
 
     await db.execute('CREATE INDEX idx_usuarios_email ON usuarios(email)');
@@ -896,6 +914,31 @@ class AppDatabase {
       debugPrint('✅ Migración v14 (gamification) aplicada');
     }
 
+    if (oldVersion < 15) {
+      debugPrint('🔄 Migrando a v15: Creando tabla user_achievements');
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS user_achievements(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL,
+            achievement_id INTEGER NOT NULL,
+            progreso_actual REAL NOT NULL DEFAULT 0,
+            estado TEXT NOT NULL DEFAULT 'locked',
+            ultima_actualizacion TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+            FOREIGN KEY(achievement_id) REFERENCES gamification_achievements(id) ON DELETE CASCADE,
+            UNIQUE(usuario_id, achievement_id)
+          )
+        ''');
+
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements(usuario_id)');
+        debugPrint('✅ Tabla user_achievements creada correctamente');
+      } catch (e) {
+        debugPrint('⚠️ Error creando user_achievements: $e');
+      }
+    }
   }
 
   Future<void> ensureSeedUser() async {

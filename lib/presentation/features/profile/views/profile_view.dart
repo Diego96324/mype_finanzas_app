@@ -13,6 +13,7 @@ import '../../../../core/providers/providers.dart';
 import '../../../shared/utils/currency_formatter.dart';
 import '../../transactions/controllers/transactions_controller.dart';
 import '../../auth/views/change_password_view.dart';
+import '../../../../features/support/views/faq_assistant_view.dart';
 import '../../../../features/transactions/data/last_category_storage.dart';
 import '../../../../data/models/user_model.dart';
 
@@ -621,32 +622,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
           _buildSettingTile(
             icon: Icons.help_outline,
             title: 'Ayuda y soporte',
-            subtitle: 'Obtener ayuda',
+            subtitle: 'Asistente virtual',
             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Funcionalidad en desarrollo'),
-                  backgroundColor: Color(0xFF13BB67),
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const FaqAssistantView(),
                 ),
               );
             },
           ),
-          const Divider(height: 1, color: Color(0xFF3D3D3D)),
-          _buildSettingTile(
-            icon: Icons.privacy_tip,
-            title: 'Privacidad',
-            subtitle: 'Política de privacidad',
-            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Funcionalidad en desarrollo'),
-                  backgroundColor: Color(0xFF13BB67),
-                ),
-              );
-            },
-          ),
+
           const Divider(height: 1, color: Color(0xFF3D3D3D)),
           _buildSettingTile(
             icon: Icons.info_outline,
@@ -780,7 +766,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
                 const Text('Versión: 1.0.0'),
                 const SizedBox(height: 8),
                 Text(
-                  'Aplicación de gestión financiera para micro y pequeñas empresas.',
+                  'Aplicación de gestión financiera para gastos personales y microempresas',
                   style: TextStyle(color: Colors.grey[400]),
                 ),
                 const SizedBox(height: 16),
@@ -1039,3 +1025,4 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
     }
   }
 }
+
