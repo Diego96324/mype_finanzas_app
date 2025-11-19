@@ -62,7 +62,7 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
             if (previous == true && next == false) {
               Future.microtask(() async {
                 try {
-                  final loc = _routeInfoProvider?.value.uri.toString() ?? GoRouter.of(context).routeInformationProvider.value.uri.toString();
+                  var loc = _routeInfoProvider?.value.uri.toString() ?? GoRouter.of(context).routeInformationProvider.value.uri.toString();
                   debugPrint('➡️ [MyHomePage] routeSyncBlock cleared -> forcing go($loc)');
                   if (loc == '/login') {
                     final authState = ref.read(authStateProvider);
@@ -74,8 +74,10 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
                       debugPrint('⚠️ [MyHomePage] secure.hasActiveSession() failed while handling routeSyncBlock clear: $e');
                     }
                     if (isAuthenticated || hasSession) {
-                      debugPrint('ℹ️ [MyHomePage] Skipping go(/login) because session is active (isAuthenticated=$isAuthenticated, hasSession=$hasSession)');
-                      return;
+                      debugPrint('⚠️ [MyHomePage] Router estaba en /login pero existe sesión activa (isAuthenticated=$isAuthenticated, hasSession=$hasSession); forzando /profile');
+                      loc = '/profile';
+                    } else {
+                      debugPrint('🚨 [NAV] routeSyncBlock listener enviando go("/login") por falta de sesión real');
                     }
                     debugPrint('🚨 [NAV] routeSyncBlock listener enviando go("/login") por falta de sesión real');
                   }

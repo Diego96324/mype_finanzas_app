@@ -27,6 +27,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
   @override
   void initState() {
     super.initState();
+    debugPrint('🧪 [LoginScreen] initState called');
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3000),
@@ -39,6 +40,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
     Future.microtask(() async {
       final remember = await ref.read(secureStorageServiceProvider).getRememberMe();
       if (mounted) setState(() => _rememberMe = remember);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final authState = ref.read(authStateProvider);
+      final isAuthenticated = authState.value != null;
+      final userId = authState.value?.id;
+      final location = GoRouter.of(context).routeInformationProvider.value.uri.toString();
+      debugPrint('🧪 [LoginScreen] postFrame auth check -> isAuthenticated=$isAuthenticated userId=$userId location=$location');
     });
   }
 
@@ -85,6 +94,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authStateProvider);
+    final isAuthenticated = authState.value != null;
+    final userId = authState.value?.id;
+    final router = GoRouter.of(context);
+    final location = router.routeInformationProvider.value.uri.toString();
+    final routeSyncBlocked = ref.watch(routeSyncBlockProvider);
+    debugPrint('🧪 [LoginScreen] build() -> isAuthenticated=$isAuthenticated userId=$userId location=$location blocked=$routeSyncBlocked');
+
+    if (isAuthenticated) {
+      // Si hay sesión activa pero el router todavía intenta mostrar /login,
+      // forzamos regresar al perfil y evitamos mostrar el formulario.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final currentLoc = GoRouter.of(context).routeInformationProvider.value.uri.toString();
+        if (currentLoc != '/profile') {
+          debugPrint('🧪 [LoginScreen] authenticated user detected while en $currentLoc -> forcing /profile');
+          context.go('/profile');
+        }
+      });
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     final isDark = ref.watch(themeStateProvider); // ahora bool directo
 
     final bgColor = isDark ? Colors.black : Colors.green.shade50;
