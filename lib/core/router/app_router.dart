@@ -25,16 +25,6 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (BuildContext context, GoRouterState state) async {
       // Depuración: print del estado de autenticación
       debugPrint('➡️ [router] authState: isLoading=${authState.isLoading}, isAuthenticated=${authState.value != null}, userId=${authState.value?.id}');
-      // Si el usuario ya está autenticado y se encuentra en /login, forzamos
-      // la redirección al home incluso si hay bloques temporales. Esto evita
-      // quedarse atrapado en la pantalla de login durante flujos externos
-      // (cámara/recorte) donde RouteSyncBlock.blocked puede estar activado.
-      final isAuthenticatedNow = authState.value != null;
-      final isAtLogin = state.matchedLocation == '/login';
-      if (isAuthenticatedNow && isAtLogin) {
-        debugPrint('➡️ [router] Usuario autenticado en /login -> forzando redirect a /profile');
-        return '/profile';
-      }
 
       // Si un flujo temporal (ej. selección/recorte de avatar) bloqueó la
       // sincronización de rutas, o si alguna vista pidió mostrarse en la Shell,
@@ -84,10 +74,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/login';
       }
 
-      // Si está autenticado y va a rutas públicas, redirigir a home
-      if (isAuthenticated && (isGoingToLogin || isGoingToRegister ||
-          isGoingToForgotPassword || isGoingToResetPassword)) {
-        return '/';
+      // Si está autenticado y se encuentra en la pantalla de login,
+      // enviarlo al perfil. No forzamos otras rutas públicas.
+      if (isAuthenticated && isGoingToLogin) {
+        return '/profile';
       }
 
       // No redirigir

@@ -347,6 +347,12 @@ final routeSyncLastAuthProvider = StateProvider<DateTime?>((ref) => null);
 // abren actividades externas (cámara/recorte) y queremos mantener la UI.
 final shellDesiredIndexProvider = StateProvider<int?>((ref) => null);
 
+/// Índice actual de la pestaña principal del ShellRoute.
+///
+/// Se usa para persistir la pestaña seleccionada cuando `MyHomePage`
+/// se reconstruye tras volver de actividades externas (cámara/recorte).
+final shellCurrentIndexProvider = StateProvider<int>((ref) => 0);
+
 // ================= LEGACY STUBS (anterior) =================
 // Se mantiene para evitar rupturas si algún archivo antiguo lo usa.
 class AuthState {

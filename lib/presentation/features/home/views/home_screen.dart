@@ -46,9 +46,9 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
       const reports.ReportsScreen(),
       const ProfileScreen(),
     ];
-    // Dejamos _pageIndex en 0 inicialmente; en el post frame handler
-    // leeremos la ubicación actual del router y sincronizaremos el índice.
-    _pageIndex = 0;
+    // Restauramos el índice persistido para evitar que se reinicie
+    // cuando volvemos de actividades externas.
+    _pageIndex = ref.read(shellCurrentIndexProvider);
 
     // Nos suscribimos al RouteInformationProvider del GoRouter después del primer frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -90,6 +90,7 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
             debugPrint('➡️ [MyHomePage] Skipping initial index sync because shellDesired=$desired');
           }
         });
+        ref.read(shellCurrentIndexProvider.notifier).state = _pageIndex;
 
         _routeInfoListener = () {
           try {
@@ -135,6 +136,7 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
                 _forceShowBudgets = (mode == 'presupuestos' && idx == 0);
               }
             });
+            ref.read(shellCurrentIndexProvider.notifier).state = _pageIndex;
           } catch (e) {
             debugPrint('➡️ [MyHomePage] routeInfoListener error: $e');
           }
@@ -209,6 +211,7 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
                           _pageIndex = 0; // aseguramos que la pestaña Inicio quede activa inmediatamente
                           _forceShowBudgets = mode == 'presupuestos';
                         });
+                        ref.read(shellCurrentIndexProvider.notifier).state = _pageIndex;
                         // Navegar a la ruta de inicio pasando el modo en la query
                         // para que, si MyHomePage está en un ShellRoute con `child`,
                         // podamos detectar el modo desde la URL y mostrar la vista adecuada.
@@ -342,6 +345,7 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
       // al cambiar de pestaña, dejamos de forzar la vista de presupuestos
       _forceShowBudgets = false;
     });
+    ref.read(shellCurrentIndexProvider.notifier).state = _pageIndex;
     // Si el usuario interactúa con la navBar, limpiamos cualquier desiredIndex
     try {
       ref.read(shellDesiredIndexProvider.notifier).state = null;
