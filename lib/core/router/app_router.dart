@@ -26,12 +26,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Depuración: print del estado de autenticación
       debugPrint('➡️ [router] authState: isLoading=${authState.isLoading}, isAuthenticated=${authState.value != null}, userId=${authState.value?.id}');
 
-      // Si un flujo temporal (ej. selección/recorte de avatar) bloqueó la
-      // sincronización de rutas, o si alguna vista pidió mostrarse en la Shell,
-      // no realizamos redirects en este momento. En el código actual estas
-      // condiciones se representan por providers reactivos como
-      // `routeSyncBlockProvider`, `routeSyncUnblockAtProvider`,
-      // `routeSyncExternalActiveProvider` y `routeSyncAuthOpProvider`.
       final desired = ref.read(shellDesiredIndexProvider);
       final now = DateTime.now();
       final inGrace = ref.read(routeSyncUnblockAtProvider) != null && now.isBefore(ref.read(routeSyncUnblockAtProvider)!);
@@ -54,6 +48,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Si está cargando, mantener en la ruta current
       if (isAuthStateLoading) {
+        debugPrint('➡️ [router] Redirect skipped because authState.isLoading=true');
         return null;
       }
 

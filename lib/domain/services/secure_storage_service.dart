@@ -95,6 +95,7 @@ class SecureStorageService {
     // limpiar información no intencional almacenada por otros módulos.
     await deleteAuthToken();
     final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_json');
     await prefs.remove(_rememberMeKey);
     debugPrint('➡️ [SecureStorageService] clearSession() completed');
   }
