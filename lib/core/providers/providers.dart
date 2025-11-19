@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../data/models/user_model.dart';
-import '../../data/repositories/auth_repo.dart';
-import '../../data/repositories/gamification_repository.dart';
-import '../../domain/services/secure_storage_service.dart';
-import '../../domain/services/backup_service.dart';
-import '../../application/services/gamification_service.dart';
+import '../../models/dtos/user_model.dart';
+import '../../models/repositories/auth_repository.dart';
+import '../../models/repositories/gamification_repository.dart';
+import '../../models/services/secure_storage_service.dart';
+import '../../models/services/backup_service.dart';
+import '../../controllers/services/gamification_service.dart';
 
 // ================= THEME =================
 // Nota: el proyecto ha migrado a Riverpod para el control del tema. Usa

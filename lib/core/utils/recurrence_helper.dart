@@ -1,4 +1,4 @@
-import '../../data/models/transaction_model.dart';
+import '../../models/dtos/transaction_model.dart';
 
 class RecurrenceHelper {
   static DateTime? computeNextOccurrence({

@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/providers.dart';
-import '../../presentation/features/auth/views/login_view.dart';
-import '../../presentation/features/auth/views/register_view.dart';
-import '../../presentation/features/auth/views/forgot_password_view.dart';
-import '../../presentation/features/auth/views/reset_password_view.dart';
-import '../../presentation/features/home/views/home_screen.dart';
-import '../../presentation/features/transactions/views/add_transaction_view.dart';
-import '../../presentation/features/analytics/views/analytics_view.dart';
-import '../../presentation/features/reports/views/reports_view.dart' as reports;
-import '../../presentation/features/profile/views/profile_view.dart';
-import '../../presentation/features/transactions/views/transactions_list_view.dart';
-import '../../presentation/features/gamification/views/gamification_screen.dart';
-import '../../presentation/features/categories/views/categories_management_view.dart';
+import '../../views/auth/login_view.dart';
+import '../../views/auth/register_view.dart';
+import '../../views/auth/forgot_password_view.dart';
+import '../../views/auth/reset_password_view.dart';
+import '../home/home_screen.dart';
+import 'package:mype_finanzas/views/transactions/add_transaction_view.dart';
+import '../../views/analytics/analytics_view.dart';
+import '../../views/reports/reports_view.dart' as reports;
+import '../../views/profile/profile_view.dart';
+import '../../views/transactions/transactions_list_view.dart';
+import '../../views/gamification/gamification_screen.dart';
+import '../../views/categories/categories_management_view.dart';
 
 /// Provider del GoRouter que integra el estado de autenticación
 final routerProvider = Provider<GoRouter>((ref) {

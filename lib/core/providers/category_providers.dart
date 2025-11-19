@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart' show Ref;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../../data/repositories/category_repository.dart';
-import '../../data/models/category_model.dart';
+import '../../models/repositories/category_repository.dart';
+import '../../models/dtos/category_model.dart';
 
 part 'category_providers.g.dart';
 

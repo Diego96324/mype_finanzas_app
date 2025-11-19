@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
-import '../../domain/services/budget_notification_service.dart';
+import '../../models/services/budget_notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Estado de las notificaciones de presupuesto

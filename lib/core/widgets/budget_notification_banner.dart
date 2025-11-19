@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app.dart';
-import '../../domain/services/budget_notification_service.dart';
+import '../../models/services/budget_notification_service.dart';
 import '../providers/budget_notifications_provider.dart';
 
 /// Widget global que muestra notificaciones de presupuesto en toda la app

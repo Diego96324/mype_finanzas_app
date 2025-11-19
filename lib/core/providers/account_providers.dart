@@ -1,8 +1,8 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/repositories/account_repository.dart';
-import '../../data/models/account_model.dart';
-import '../../presentation/features/transactions/controllers/transactions_controller.dart';
+import '../../models/repositories/account_repository.dart';
+import '../../models/dtos/account_model.dart';
+import '../../controllers/transactions/transactions_controller.dart';
 
 part 'account_providers.g.dart';
 
