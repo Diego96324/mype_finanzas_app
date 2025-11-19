@@ -251,6 +251,9 @@ class TransactionsController extends _$TransactionsController {
         return false;
       }
 
+      // Obtener la versión previa para detectar cambios que solo afecten la etiqueta
+      final previousTransaction = await _transactionRepo.getById(transaction.id!);
+
       final updatedTransaction = transaction.copyWith(updatedAt: DateTime.now());
 
       await _transactionRepo.update(updatedTransaction);
@@ -262,7 +265,11 @@ class TransactionsController extends _$TransactionsController {
 
       _cacheService.invalidateUser(userId);
 
-      _handleGamification(userId, 'transaction_updated', updatedTransaction);
+      // Si el único cambio fue la etiqueta, NO disparamos gamificación
+      final onlyTagChanged = _onlyTagChanged(previousTransaction, updatedTransaction);
+      if (!onlyTagChanged) {
+        _handleGamification(userId, 'transaction_updated', updatedTransaction);
+      }
 
       if (updatedTransaction.tipo == 'egreso' && updatedTransaction.categoriaId != null) {
         _handleBudgetCheck(updatedTransaction.categoriaId!, updatedTransaction.fecha);
@@ -571,4 +578,52 @@ class TransactionsController extends _$TransactionsController {
       }
     } catch (_) {}
   }
+
+  // Helper: determina si la única diferencia entre oldTx y newTx es la etiqueta.
+  bool _onlyTagChanged(AppTransaction? oldTx, AppTransaction newTx) {
+    if (oldTx == null) return false; // conservador: si no existe prev, no asumimos que solo cambió etiqueta
+
+    Map<String, dynamic> normalizeMap(Map<String, dynamic> m) {
+      final out = Map<String, dynamic>.from(m);
+      // Normalizar etiqueta: null si vacío, trim y lowercase para comparar de forma robusta
+      if (out.containsKey('etiqueta')) {
+        final raw = out['etiqueta'] as String?;
+        final norm = (raw == null || raw.trim().isEmpty) ? null : raw.trim().toLowerCase();
+        out['etiqueta'] = norm;
+      }
+      // Eliminar campos que cambian por timestamps o procesos internos
+      out.remove('created_at');
+      out.remove('updated_at');
+      out.remove('next_occurrence');
+      return out;
+    }
+
+    final oldMap = normalizeMap(oldTx.toMap());
+    final newMap = normalizeMap(newTx.toMap());
+
+    // Remover la clave etiqueta para comparar el resto de campos
+    oldMap.remove('etiqueta');
+    newMap.remove('etiqueta');
+
+    // Comparación simple de igualdad de mapas
+    if (oldMap.length != newMap.length) return false;
+    for (final key in oldMap.keys) {
+      final a = oldMap[key];
+      final b = newMap[key];
+      if (a is num && b is num) {
+        if (a != b) return false;
+      } else if (a is String && b is String) {
+        if (a != b) return false;
+      } else if (a is bool && b is bool) {
+        if (a != b) return false;
+      } else if (a == null && b == null) {
+        continue;
+      } else if (a != b) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 }
+

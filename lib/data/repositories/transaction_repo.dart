@@ -1,6 +1,8 @@
 import 'package:sqflite/sqflite.dart';
 import '../../core/database/app_database.dart';
 import '../../../data/models/transaction_model.dart';
+import '../../../data/repositories/gamification_repository.dart';
+import '../../../application/services/gamification_service.dart';
 
 class TransactionRepo {
   final Future<Database>? _overrideDbFuture;
@@ -11,6 +13,13 @@ class TransactionRepo {
 
   // Cache simple de columnas por tabla para evitar múltiples PRAGMA
   final Map<String, Set<String>> _tableColumnsCache = {};
+
+  // Servicio de gamificación (lazy initialization)
+  GamificationService? _gamificationService;
+  GamificationService get _gamification {
+    _gamificationService ??= GamificationService(GamificationRepository());
+    return _gamificationService!;
+  }
 
   Future<Set<String>> _getTableColumns(Database db, String tableName) async {
     if (_tableColumnsCache.containsKey(tableName)) return _tableColumnsCache[tableName]!;
@@ -38,13 +47,45 @@ class TransactionRepo {
     return out;
   }
 
+  /// Registra evento de gamificación según el tipo de transacción
+  Future<void> _recordGamificationEvent(AppTransaction t) async {
+    try {
+      // No registrar gamificación para transacciones de apertura de cuenta
+      if (t.esAperturaCuenta) return;
+
+      final usuarioId = t.usuarioId;
+      final monto = t.monto;
+      final descripcion = t.etiqueta ?? t.nota ?? t.descripcion;
+
+      switch (t.tipo) {
+        case 'ingreso':
+          await _gamification.recordIncome(usuarioId, monto, descripcion: descripcion);
+          break;
+        case 'egreso':
+          await _gamification.recordExpense(usuarioId, monto, descripcion: descripcion);
+          break;
+        case 'transferencia':
+          await _gamification.recordTransfer(usuarioId, monto, descripcion: descripcion);
+          break;
+      }
+    } catch (e) {
+      // No bloquear la transacción si falla la gamificación
+      // debugPrint('⚠️ Error registrando gamificación: $e');
+    }
+  }
+
   Future<int> insert(AppTransaction t) async {
     final db = await _dbFuture;
     final raw = t.toMap();
     final filtered = await _filterMapForTable(db, 'transacciones', raw);
     // Ensure we don't pass an explicit id to SQLite insert; let AUTOINCREMENT assign it
     filtered.remove('id');
-    return db.insert('transacciones', filtered);
+    final id = await db.insert('transacciones', filtered);
+
+    // 🎮 Registrar evento de gamificación
+    await _recordGamificationEvent(t);
+
+    return id;
   }
 
   Future<int> insertAndGetId(AppTransaction t) async {
@@ -53,7 +94,12 @@ class TransactionRepo {
     final filtered = await _filterMapForTable(db, 'transacciones', raw);
     // Ensure we don't pass an explicit id to SQLite insert; let AUTOINCREMENT assign it
     filtered.remove('id');
-    return await db.insert('transacciones', filtered);
+    final id = await db.insert('transacciones', filtered);
+
+    // 🎮 Registrar evento de gamificación
+    await _recordGamificationEvent(t);
+
+    return id;
   }
 
   Future<List<AppTransaction>> list({

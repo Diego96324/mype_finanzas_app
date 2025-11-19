@@ -7,7 +7,6 @@ import 'package:mype_finanzas/domain/services/auth_service.dart';
 import 'package:mype_finanzas/data/models/gamification_profile_model.dart';
 import 'package:mype_finanzas/data/models/gamification_achievement_model.dart';
 import 'package:mype_finanzas/data/models/gamification_event_model.dart';
-// Asegúrate de importar el modelo de progreso de usuario
 import 'package:mype_finanzas/data/models/user_achievement_model.dart';
 
 class GamificationScreen extends ConsumerWidget {
@@ -39,12 +38,9 @@ class GamificationScreen extends ConsumerWidget {
       ),
       body: dashboardAsync.when(
         data: (dashboard) {
-          // 1. Extraer datos del Dashboard
           final profile = dashboard['profile'] as GamificationProfile?;
           final achievements = dashboard['achievements'] as List<GamificationAchievement>? ?? [];
 
-          // 🔥 LÓGICA CRÍTICA: Obtener el progreso específico del usuario
-          // Convertimos la lista de progreso en un Mapa para buscar rápido por ID
           final userProgressList = dashboard['user_progress'] as List<UserAchievement>? ?? [];
           final userProgressMap = {
             for (var ua in userProgressList) ua.achievementId: ua
@@ -53,17 +49,14 @@ class GamificationScreen extends ConsumerWidget {
           return RefreshIndicator(
             onRefresh: () async {
               ref.invalidate(gamificationDashboardProvider(userId));
-              // Esperar recarga
               await ref.read(gamificationDashboardProvider(userId).future);
             },
             child: CustomScrollView(
               slivers: [
-                // --- Header (Puntos, Nivel) ---
                 SliverToBoxAdapter(
                   child: _buildHeader(context, profile),
                 ),
 
-                // --- Título Logros ---
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -71,7 +64,6 @@ class GamificationScreen extends ConsumerWidget {
                   ),
                 ),
 
-                // --- Grid de Logros ---
                 if (achievements.isEmpty)
                   _buildEmptyAchievementsState(context, ref, userId)
                 else
@@ -82,12 +74,11 @@ class GamificationScreen extends ConsumerWidget {
                         crossAxisCount: 2,
                         mainAxisSpacing: 8,
                         crossAxisSpacing: 8,
-                        childAspectRatio: 2.5, // Ajustado para que quepa mejor
+                        childAspectRatio: 2.5,
                       ),
                       delegate: SliverChildBuilderDelegate(
                             (context, index) {
                           final achievement = achievements[index];
-                          // Buscamos si el usuario tiene progreso en este logro específico
                           final userProgress = userProgressMap[achievement.id];
 
                           return _buildAchievementCard(context, achievement, userProgress);
@@ -97,7 +88,6 @@ class GamificationScreen extends ConsumerWidget {
                     ),
                   ),
 
-                // --- Título Historial ---
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
@@ -105,7 +95,6 @@ class GamificationScreen extends ConsumerWidget {
                   ),
                 ),
 
-                // --- Lista de Eventos (Historial) ---
                 _buildEventsList(ref, userId),
 
                 const SliverToBoxAdapter(child: SizedBox(height: 48)),
@@ -156,7 +145,6 @@ class GamificationScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                // 🔥 AQUÍ ESTÁ EL ARREGLO VISUAL: Usamos descripcion en vez de tipoEvento
                 title: Text(
                   e.descripcion ?? _formatEventType(e.tipoEvento),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
@@ -214,20 +202,36 @@ class GamificationScreen extends ConsumerWidget {
   }
 
   Widget _buildAchievementCard(BuildContext context, GamificationAchievement a, UserAchievement? userProgress) {
-    // Determinamos si está desbloqueado mirando el progreso del usuario, no el catálogo
     final isUnlocked = userProgress?.estado == 'unlocked';
-    // Si no está desbloqueado, calculamos porcentaje (si es de tipo puntos/racha)
     final progressVal = userProgress?.progresoActual ?? 0.0;
     final target = a.progresoObjetivo;
     final percent = (target > 0) ? (progressVal / target).clamp(0.0, 1.0) : 0.0;
 
+    // 🎨 COLORES MEJORADOS PARA CONTRASTE
+    final backgroundColor = isUnlocked
+        ? Colors.green[600]  // Fondo verde sólido para completados
+        : Theme.of(context).cardColor;  // Color del tema para no completados
+
+    final textColor = isUnlocked
+        ? Colors.white  // Texto blanco sobre fondo verde
+        : Theme.of(context).textTheme.bodyMedium?.color ?? Colors.black87;
+
+    final subtextColor = isUnlocked
+        ? Colors.white70  // Subtexto blanco semi-transparente
+        : Colors.grey[600];
+
+    final iconColor = isUnlocked
+        ? Colors.amber[300]  // Icono dorado brillante
+        : Colors.grey[400];
+
     return Card(
-      elevation: 1,
-      color: isUnlocked ? Colors.green.withValues(alpha: 0.1) : Colors.grey[50],
+      elevation: isUnlocked ? 3 : 1,
+      color: backgroundColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isUnlocked ? Colors.green.withValues(alpha: 0.3) : Colors.transparent,
+          color: isUnlocked ? Colors.green[700]! : Colors.transparent,
+          width: isUnlocked ? 2 : 0,
         ),
       ),
       child: Padding(
@@ -235,8 +239,8 @@ class GamificationScreen extends ConsumerWidget {
         child: Row(
           children: [
             Icon(
-              isUnlocked ? Icons.emoji_events : Icons.lock,
-              color: isUnlocked ? Colors.orange : Colors.grey[400],
+              isUnlocked ? Icons.emoji_events : _getIconFromName(a.iconName),
+              color: iconColor,
               size: 28,
             ),
             const SizedBox(width: 10),
@@ -249,22 +253,37 @@ class GamificationScreen extends ConsumerWidget {
                     a.nombre,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: isUnlocked ? Colors.black87 : Colors.grey[600],
+                      color: textColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
                   if (isUnlocked)
-                    Text('¡Completado!', style: TextStyle(fontSize: 10, color: Colors.green[700], fontWeight: FontWeight.bold))
+                    Row(
+                      children: [
+                        Icon(Icons.check_circle, size: 12, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text(
+                          '¡Completado! +${a.puntos} pts',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    )
                   else
-                  // Barra de progreso miniatura
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                             a.descripcion ?? 'Sigue así',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontSize: 10,
+                              color: subtextColor,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis
                         ),
@@ -272,7 +291,7 @@ class GamificationScreen extends ConsumerWidget {
                         LinearProgressIndicator(
                           value: percent,
                           minHeight: 4,
-                          backgroundColor: Colors.grey[200],
+                          backgroundColor: Colors.grey[300],
                           color: Colors.blueAccent,
                           borderRadius: BorderRadius.circular(2),
                         )
@@ -285,6 +304,30 @@ class GamificationScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Convierte el nombre del icono guardado en BD a un IconData de Material
+  IconData _getIconFromName(String iconName) {
+    switch (iconName) {
+      case 'login':
+        return Icons.login;
+      case 'arrow_downward':
+        return Icons.arrow_downward;
+      case 'arrow_upward':
+        return Icons.arrow_upward;
+      case 'local_fire_department':
+        return Icons.local_fire_department;
+      case 'savings':
+        return Icons.savings;
+      case 'emoji_events':
+        return Icons.emoji_events;
+      case 'star':
+        return Icons.star;
+      case 'trending_up':
+        return Icons.trending_up;
+      default:
+        return Icons.emoji_events;
+    }
   }
 
   Widget _buildEmptyAchievementsState(BuildContext context, WidgetRef ref, int userId) {
@@ -308,7 +351,6 @@ class GamificationScreen extends ConsumerWidget {
     );
   }
 
-  // Fallback por si la descripción viene nula (para eventos viejos)
   String _formatEventType(String type) {
     return type.replaceAll('_', ' ').capitalize();
   }

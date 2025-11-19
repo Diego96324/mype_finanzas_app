@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/models/user_model.dart';
 import '../../data/repositories/auth_repo.dart';
+import '../../data/repositories/gamification_repository.dart';
 import '../../domain/services/secure_storage_service.dart';
 import '../../domain/services/backup_service.dart';
+import '../../application/services/gamification_service.dart';
 
 // ================= THEME =================
 // Nota: el proyecto ha migrado a Riverpod para el control del tema. Usa
@@ -25,6 +27,12 @@ final isDarkModeProvider = themeStateProvider;
 final authRepositoryProvider = Provider<AuthRepository>((ref) => AuthRepository());
 final secureStorageServiceProvider = Provider<SecureStorageService>((ref) => SecureStorageService());
 final backupServiceProvider = Provider<BackupService>((ref) => BackupService());
+
+// 🎮 Provider de gamificación
+final gamificationRepositoryProvider = Provider<GamificationRepository>((ref) => GamificationRepository());
+final gamificationServiceProvider = Provider<GamificationService>((ref) {
+  return GamificationService(ref.read(gamificationRepositoryProvider));
+});
 
 class AuthController extends AsyncNotifier<User?> {
   final Map<String, String> _resetTokens = {};
@@ -100,6 +108,16 @@ class AuthController extends AsyncNotifier<User?> {
     await prefs.setString('user_json', jsonEncode(user.toMap()));
 
     state = AsyncData(user);
+
+    // 🎮 Registrar evento de login en gamificación
+    try {
+      final gamificationService = ref.read(gamificationServiceProvider);
+      await gamificationService.recordLogin(user.id!);
+      debugPrint('🎮 Gamificación: Login registrado para usuario ${user.id}');
+    } catch (e) {
+      debugPrint('⚠️ Error registrando login en gamificación: $e');
+    }
+
     // Exportar respaldo tras login exitoso
     await ref.read(backupServiceProvider).exportBackup();
     return {'success': true, 'message': 'Inicio de sesión correcto'};
@@ -138,6 +156,17 @@ class AuthController extends AsyncNotifier<User?> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('user_json', jsonEncode(user.toMap()));
     state = AsyncData(user);
+
+    // 🎮 Inicializar gamificación para nuevo usuario y registrar primer login
+    try {
+      final gamificationService = ref.read(gamificationServiceProvider);
+      await gamificationService.initializeForUser(user.id!);
+      await gamificationService.recordLogin(user.id!);
+      debugPrint('🎮 Gamificación: Usuario ${user.id} inicializado y login registrado');
+    } catch (e) {
+      debugPrint('⚠️ Error inicializando gamificación para nuevo usuario: $e');
+    }
+
     // Exportar respaldo tras registro exitoso
     await ref.read(backupServiceProvider).exportBackup();
     return {'success': true, 'message': 'Registro exitoso'};
