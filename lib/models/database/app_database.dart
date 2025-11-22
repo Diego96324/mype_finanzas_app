@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter/foundation.dart';
+import 'database_seeder.dart';
 
 class AppDatabase {
   static final AppDatabase _instance = AppDatabase._internal();
@@ -41,103 +42,9 @@ class AppDatabase {
   // 🆕 ON OPEN - Se ejecuta cada vez que se abre la BD
   // =========================================================================
   Future<void> _onOpen(Database db) async {
-    await _seedAchievements(db);
-  }
-
-  // =========================================================================
-  // 🆕 SEED ACHIEVEMENTS - Inserta logros por defecto si la tabla está vacía
-  // =========================================================================
-  Future<void> _seedAchievements(Database db) async {
-    try {
-      // Verificar si la tabla existe
-      final tables = await db.rawQuery(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name='gamification_achievements'"
-      );
-      if (tables.isEmpty) {
-        debugPrint('⚠️ Tabla gamification_achievements no existe, omitiendo seed');
-        return;
-      }
-
-      // Verificar si ya hay logros
-      final count = Sqflite.firstIntValue(
-          await db.rawQuery('SELECT COUNT(*) FROM gamification_achievements')
-      ) ?? 0;
-
-      if (count > 0) {
-        debugPrint('✅ Achievements ya poblados ($count registros)');
-        return;
-      }
-
-      // Insertar logros por defecto
-      final now = DateTime.now().toIso8601String();
-      final achievements = [
-        {
-          'code': 'FIRST_LOGIN',
-          'nombre': 'Primer Inicio',
-          'descripcion': 'Iniciaste sesión por primera vez en la app',
-          'puntos': 10,
-          'progreso_objetivo': 1.0,
-          'tipo': 'login',
-          'icon_name': 'login',
-          'created_at': now,
-          'updated_at': now,
-        },
-        {
-          'code': 'FIRST_INCOME',
-          'nombre': 'Primer Ingreso',
-          'descripcion': 'Registraste tu primer ingreso',
-          'puntos': 15,
-          'progreso_objetivo': 1.0,
-          'tipo': 'transaccion',
-          'icon_name': 'arrow_downward',
-          'created_at': now,
-          'updated_at': now,
-        },
-        {
-          'code': 'FIRST_EXPENSE',
-          'nombre': 'Primer Gasto',
-          'descripcion': 'Registraste tu primer gasto',
-          'puntos': 15,
-          'progreso_objetivo': 1.0,
-          'tipo': 'transaccion',
-          'icon_name': 'arrow_upward',
-          'created_at': now,
-          'updated_at': now,
-        },
-        {
-          'code': 'STREAK_3_DAYS',
-          'nombre': 'Racha de 3 Días',
-          'descripcion': 'Usaste la app 3 días consecutivos',
-          'puntos': 25,
-          'progreso_objetivo': 3.0,
-          'tipo': 'racha',
-          'icon_name': 'local_fire_department',
-          'created_at': now,
-          'updated_at': now,
-        },
-        {
-          'code': 'SAVER',
-          'nombre': 'Ahorrador',
-          'descripcion': 'Tus ingresos superaron tus gastos este mes',
-          'puntos': 50,
-          'progreso_objetivo': 1.0,
-          'tipo': 'ahorro',
-          'icon_name': 'savings',
-          'created_at': now,
-          'updated_at': now,
-        },
-      ];
-
-      final batch = db.batch();
-      for (final achievement in achievements) {
-        batch.insert('gamification_achievements', achievement);
-      }
-      await batch.commit(noResult: true);
-
-      debugPrint('🎮 ${achievements.length} logros seed insertados correctamente');
-    } catch (e) {
-      debugPrint('⚠️ Error en _seedAchievements: $e');
-    }
+    // Los seeds se centralizan aquí para cubrir creaciones y migraciones.
+    await DatabaseSeeder.seedAchievements(db);
+    await DatabaseSeeder.seedCategoryTemplates(db);
   }
 
   // =========================================================================
@@ -542,8 +449,6 @@ class AppDatabase {
       'updated_at': now,
     });
 
-    // Llamar al seed de achievements
-    await _seedAchievements(db);
   }
 
   // =========================================================================
@@ -1133,8 +1038,6 @@ class AppDatabase {
         debugPrint('⚠️ Error en migración v16: $e');
       }
 
-      // Llamar al seed después de la migración
-      await _seedAchievements(db);
     }
   }
 
