@@ -99,10 +99,11 @@ class _MyHomePageState extends ConsumerState<MyHomePage> {
     // Usamos un Consumer para escuchar solo el shellDesiredIndexProvider y reconstruir lo mínimo
     return Consumer(
       builder: (context, ref, _) {
-        final shellDesired = ref.watch(shellDesiredIndexProvider);
-        final displayedIndex = shellDesired ?? _pageIndex;
 
         final currentLocation = GoRouter.of(context).routeInformationProvider.value.uri.toString();
+        final shellDesired = ref.watch(shellDesiredIndexProvider);
+        final locationIndex = _indexFromLocation(currentLocation);
+        final displayedIndex = shellDesired ?? locationIndex;
         final urlMode = Uri.tryParse(currentLocation)?.queryParameters['mode'];
         final effectiveMode = urlMode ?? _transactionsMode;
 
