@@ -253,6 +253,7 @@ class CategoryRepository {
         'categorias',
         where: 'id = ? AND usuario_id = ? AND es_predeterminada = 0',
         whereArgs: [categoryId, userId],
+        limit: 1,
       );
 
       if (existing.isEmpty) {
@@ -273,52 +274,38 @@ class CategoryRepository {
         return false;
       }
 
-      // Verificar si tiene transacciones asociadas
-      final transacciones = await database.query(
-        'transacciones',
-        where: 'categoria_id = ?',
-        whereArgs: [categoryId],
-        limit: 1,
-      );
-
-      if (transacciones.isNotEmpty) {
-        // Si tiene transacciones, solo desactivar
-        final rowsAffected = await database.update(
-          'categorias',
+      // Ejecutar la limpieza y eliminación en una transacción para asegurar consistencia
+      return await database.transaction((txn) async {
+        // Desasociar transacciones existentes para permitir la eliminación física
+        await txn.update(
+          'transacciones',
           {
-            'activa': 0,
+            'categoria_id': null,
             'updated_at': DateTime.now().toIso8601String(),
           },
-          where: 'id = ?',
-          whereArgs: [categoryId],
+          where: 'categoria_id = ? AND usuario_id = ?',
+          whereArgs: [categoryId, userId],
         );
-        if (rowsAffected > 0) {
-          try {
-            // Desactivar presupuestos asociados a esta categoría para que no sigan apareciendo
-            await database.update(
-              'presupuestos',
-              {'activo': 0, 'updated_at': DateTime.now().toIso8601String()},
-              where: 'categoria_id = ?',
-              whereArgs: [categoryId],
-            );
-          } catch (_) {}
-        }
-        return rowsAffected > 0;
-      } else {
-        // Si no tiene transacciones, eliminar permanentemente
-        final rowsAffected = await database.delete(
+
+        // Eliminar presupuestos relacionados (por si el ON DELETE no está activo)
+        await txn.delete(
+          'presupuestos',
+          where: 'categoria_id = ? AND usuario_id = ?',
+          whereArgs: [categoryId, userId],
+        );
+
+        // Borrar la categoría definitivamente
+        final rowsAffected = await txn.delete(
           'categorias',
-          where: 'id = ?',
-          whereArgs: [categoryId],
+          where: 'id = ? AND usuario_id = ?',
+          whereArgs: [categoryId, userId],
         );
         if (rowsAffected > 0) {
-          try {
-            // Borrar presupuestos asociados si la categoría se elimina físicamente
-            await database.delete('presupuestos', where: 'categoria_id = ?', whereArgs: [categoryId]);
-          } catch (_) {}
+          debugPrint('✅ Categoría $categoryId eliminada junto a dependencias');
         }
+
         return rowsAffected > 0;
-      }
+      });
     } catch (e) {
       debugPrint('❌ Error al eliminar categoría: $e');
       return false;
