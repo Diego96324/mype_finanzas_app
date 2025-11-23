@@ -68,6 +68,23 @@ class BackupService {
     }
   }
 
+  Future<DateTime?> getLastBackupDate() async {
+    try {
+      final path = await _localPath;
+      final meta = File('$path/$_backupMetaName');
+      if (!(await meta.exists())) return null;
+
+      final content = await meta.readAsString();
+      final parts = content.split('=');
+      if (parts.length != 2) return null;
+
+      return DateTime.tryParse(parts.last.trim());
+    } catch (e) {
+      debugPrint('⚠️ No se pudo leer metadata de backup: $e');
+      return null;
+    }
+  }
+
   // Esta función estática corre en un hilo aislado
   static Future<void> _writeBackupInBackground(Map<String, dynamic> params) async {
     final String path = params['path'];

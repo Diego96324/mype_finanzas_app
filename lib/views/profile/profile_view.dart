@@ -32,6 +32,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
   late Animation<double> _fadeAnimation;
 
   bool _notificationsEnabled = true;
+  bool _isBackupInProgress = false;
+  DateTime? _lastBackupDate;
   Timer? _clearDesiredTimer;
 
   @override
@@ -47,6 +49,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
     );
     _animationController.forward();
     _loadPreferences();
+    _loadLastBackupDate();
   }
 
   Future<void> _loadPreferences() async {
@@ -61,6 +64,45 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
   Future<void> _savePreference(String key, bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
+  }
+
+  Future<void> _loadLastBackupDate() async {
+    final backupService = ref.read(backupServiceProvider);
+    final lastBackup = await backupService.getLastBackupDate();
+    if (!mounted) return;
+    setState(() {
+      _lastBackupDate = lastBackup;
+    });
+  }
+
+  Future<void> _exportBackup() async {
+    if (_isBackupInProgress) return;
+    setState(() => _isBackupInProgress = true);
+
+    final backupService = ref.read(backupServiceProvider);
+    try {
+      await backupService.exportBackup();
+      await _loadLastBackupDate();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Copia de seguridad generada'),
+            backgroundColor: Color(0xFF13BB67),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo generar la copia de seguridad')),
+        );
+      }
+      debugPrint('⚠️ Error exportando backup: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isBackupInProgress = false);
+      }
+    }
   }
 
   void _clearShellDesiredAfterGrace() {
@@ -274,6 +316,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
               activeTrackColor: const Color(0xFF13BB67),
             ),
           ),
+          const Divider(height: 1, color: Color(0xFF3D3D3D)),
+          _buildSettingTile(
+            icon: isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+            title: 'Tema',
+            subtitle: isDark ? 'Modo oscuro activo' : 'Modo claro activo',
+            trailing: Switch(
+              value: isDark,
+              onChanged: (_) => ref.read(themeStateProvider.notifier).toggle(),
+              activeTrackColor: const Color(0xFF13BB67),
+            ),
+          ),
         ],
       ),
     );
@@ -336,16 +389,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
           _buildSettingTile(
             icon: Icons.backup,
             title: 'Copia de seguridad',
-            subtitle: 'Respaldar tus datos',
-            trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Ojala existiera :)'),
-                  backgroundColor: Color(0xFF13BB67),
-                ),
-              );
-            },
+            subtitle: _lastBackupDate != null
+                ? 'Última copia: ${DateFormat('dd/MM/yyyy – HH:mm').format(_lastBackupDate!.toLocal())}'
+                : 'Aún no se ha generado',
+            trailing: _isBackupInProgress
+                ? const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation(Color(0xFF13BB67)),
+              ),
+            )
+                : const Icon(Icons.cloud_upload, color: Colors.grey),
+            onTap: _exportBackup,
           ),
         ],
       ),

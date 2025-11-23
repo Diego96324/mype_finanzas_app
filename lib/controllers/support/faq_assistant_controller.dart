@@ -36,6 +36,31 @@ class FaqAssistantNotifier extends StateNotifier<FaqAssistantState> {
     _addWelcomeMessage();
   }
 
+  /// Registra un evento de copia para futuros analytics
+  void handleCopy(ChatMessage message) {
+    debugPrint('📋 [FaqAssistant] Mensaje copiado: ${message.content}');
+  }
+
+  /// Reintenta el envío de un mensaje según su origen
+  Future<void> retryMessage(ChatMessage message) async {
+    if (message.isUser) {
+      debugPrint('🔄 [FaqAssistant] Reintentando mensaje del usuario');
+      await sendMessage(message.content);
+      return;
+    }
+
+    // Si es un mensaje de error del asistente, intenta reenviar el último mensaje válido del usuario
+    final lastUserMessage = state.messages.lastWhere(
+          (m) => m.isUser,
+      orElse: () => ChatMessage(content: '', isUser: true),
+    );
+
+    if (lastUserMessage.content.isNotEmpty) {
+      debugPrint('🔄 [FaqAssistant] Reintentando última consulta del usuario');
+      await sendMessage(lastUserMessage.content);
+    }
+  }
+
   void _addWelcomeMessage() {
     final welcomeMessage = ChatMessage(
       content: '¡Hola! 👋 Soy tu asistente virtual de Numeria.\n\n'

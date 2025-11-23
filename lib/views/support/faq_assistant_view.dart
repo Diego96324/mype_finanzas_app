@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../../models/services/gemini_service.dart';
 import '../../controllers/support/faq_assistant_controller.dart';
@@ -15,13 +18,33 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final FocusNode _focusNode = FocusNode();
+  final FlutterTts _tts = FlutterTts();
+
+  // Mensaje actualmente seleccionado (estilo WhatsApp: aparecer acciones en AppBar)
+  ChatMessage? _selectedMessage;
+
+  double _fontScale = 1.0;
+  bool _highContrast = false;
+  bool _ttsEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupTts();
+  }
 
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
+    _tts.stop();
     super.dispose();
+  }
+
+  Future<void> _setupTts() async {
+    await _tts.setLanguage('es-ES');
+    await _tts.setSpeechRate(0.5);
   }
 
   void _scrollToBottom() {
@@ -50,6 +73,10 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
     _scrollToBottom();
   }
 
+  void _clearSelection() {
+    setState(() => _selectedMessage = null);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(faqAssistantProvider);
@@ -57,97 +84,198 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
 
     ref.listen(faqAssistantProvider, (previous, next) {
       if (previous?.messages.length != next.messages.length) {
+        if (next.messages.isNotEmpty) {
+          final lastMessage = next.messages.last;
+          HapticFeedback.lightImpact();
+          if (!lastMessage.isUser) {
+            _speakMessage(lastMessage.content);
+          }
+        }
         _scrollToBottom();
       }
     });
 
     return Scaffold(
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: _highContrast ? Colors.black : const Color(0xFF1E1E1E),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2D2D2D),
+        backgroundColor: _highContrast ? Colors.black : const Color(0xFF2D2D2D),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFF13BB67).withValues(alpha: 0.2),
-                shape: BoxShape.circle,
+        leading: _selectedMessage != null
+            ? IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: _clearSelection,
+              )
+            : IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.of(context).pop(),
               ),
-              child: const Icon(
-                Icons.support_agent,
-                color: Color(0xFF13BB67),
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        title: _selectedMessage != null
+            ? Row(
                 children: [
+                  const SizedBox(width: 4),
                   Text(
-                    'NumeriaBot',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                    '1 mensaje',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              )
+            : Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF13BB67).withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.support_agent,
+                      color: Color(0xFF13BB67),
+                      size: 24,
                     ),
                   ),
-                  Text(
-                    'En línea',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF13BB67),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'NumeriaBot',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'En línea',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF13BB67),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            tooltip: 'Nuevo chat',
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  backgroundColor: const Color(0xFF2D2D2D),
-                  title: const Text(
-                    'Nuevo chat',
-                    style: TextStyle(color: Colors.white),
+        actions: _selectedMessage != null
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.copy, color: Colors.white),
+                  tooltip: 'Copiar',
+                  onPressed: () {
+                    if (_selectedMessage == null) return;
+                    Clipboard.setData(ClipboardData(text: _selectedMessage!.content));
+                    ref.read(faqAssistantProvider.notifier).handleCopy(_selectedMessage!);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Mensaje copiado'), duration: Duration(seconds: 1)),
+                    );
+                    _clearSelection();
+                  },
+                ),
+                if (!_selectedMessage!.isUser || _selectedMessage!.isError)
+                  IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.white),
+                    tooltip: 'Reintentar',
+                    onPressed: () {
+                      if (_selectedMessage == null) return;
+                      ref.read(faqAssistantProvider.notifier).retryMessage(_selectedMessage!);
+                      _clearSelection();
+                    },
                   ),
-                  content: const Text(
-                    '¿Deseas iniciar una nueva conversación? Se borrará el historial actual.',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancelar'),
-                    ),
-                    FilledButton(
-                      onPressed: () {
-                        ref.read(faqAssistantProvider.notifier).clearChat();
-                        Navigator.pop(context);
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF13BB67),
+              ]
+            : [
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.tune, color: Colors.white),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'font_up':
+                        setState(() => _fontScale = (_fontScale + 0.1).clamp(0.8, 1.6));
+                        break;
+                      case 'font_down':
+                        setState(() => _fontScale = (_fontScale - 0.1).clamp(0.8, 1.6));
+                        break;
+                      case 'contrast':
+                        setState(() => _highContrast = !_highContrast);
+                        break;
+                      case 'tts':
+                        setState(() => _ttsEnabled = !_ttsEnabled);
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'font_up',
+                      child: ListTile(
+                        leading: Icon(Icons.text_increase),
+                        title: Text('Aumentar fuente'),
                       ),
-                      child: const Text('Confirmar'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'font_down',
+                      child: ListTile(
+                        leading: Icon(Icons.text_decrease),
+                        title: Text('Reducir fuente'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'contrast',
+                      child: ListTile(
+                        leading: Icon(
+                          _highContrast ? Icons.contrast : Icons.contrast_outlined,
+                        ),
+                        title: const Text('Modo alto contraste'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'tts',
+                      child: ListTile(
+                        leading: Icon(
+                          _ttsEnabled ? Icons.volume_up : Icons.volume_off,
+                        ),
+                        title: const Text('Leer respuestas (TTS)'),
+                      ),
                     ),
                   ],
                 ),
-              );
-            },
-          ),
-        ],
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: Colors.white),
+                  tooltip: 'Nuevo chat',
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        backgroundColor: const Color(0xFF2D2D2D),
+                        title: const Text(
+                          'Nuevo chat',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        content: const Text(
+                          '¿Deseas iniciar una nueva conversación? Se borrará el historial actual.',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Cancelar'),
+                          ),
+                          FilledButton(
+                            onPressed: () {
+                              ref.read(faqAssistantProvider.notifier).clearChat();
+                              Navigator.pop(context);
+                            },
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF13BB67),
+                            ),
+                            child: const Text('Confirmar'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
       ),
       body: Column(
         children: [
@@ -177,6 +305,12 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
     );
   }
 
+  Future<void> _speakMessage(String message) async {
+    if (!_ttsEnabled || message.isEmpty) return;
+    await _tts.stop();
+    await _tts.speak(message);
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -185,14 +319,14 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
           Icon(
             Icons.chat_bubble_outline,
             size: 64,
-            color: Colors.grey[600],
+            color: _highContrast ? Colors.white70 : Colors.grey[600],
           ),
           const SizedBox(height: 16),
           Text(
             'Inicia una conversación',
             style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[400],
+              fontSize: 16 * _fontScale,
+              color: _highContrast ? Colors.white70 : Colors.grey[400],
             ),
           ),
         ],
@@ -202,6 +336,7 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
 
   Widget _buildMessageBubble(ChatMessage message) {
     final isUser = message.isUser;
+    final isSelected = _selectedMessage == message;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -228,100 +363,136 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.85, // Un poco más ancho para Markdown
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-              decoration: BoxDecoration(
-                color: isUser
-                    ? const Color(0xFF13BB67)
-                    : message.isError
-                    ? Colors.red.withValues(alpha: 0.2)
-                    : const Color(0xFF2D2D2D),
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(20),
-                  topRight: const Radius.circular(20),
-                  bottomLeft: Radius.circular(isUser ? 20 : 4),
-                  bottomRight: Radius.circular(isUser ? 4 : 20),
+            child: RawGestureDetector(
+              behavior: HitTestBehavior.opaque,
+              gestures: {
+                LongPressGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+                  () => LongPressGestureRecognizer(),
+                  (LongPressGestureRecognizer instance) {
+                    instance.onLongPress = () {
+                      setState(() {
+                        _selectedMessage = message;
+                      });
+                    };
+                  },
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+                TapGestureRecognizer:
+                    GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+                  () => TapGestureRecognizer(),
+                  (TapGestureRecognizer instance) {
+                    instance.onTap = () {
+                      if (_selectedMessage != null) {
+                        _clearSelection();
+                      }
+                    };
+                  },
+                ),
+              },
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.85, // Un poco más ancho para Markdown
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: isUser
+                      ? const Color(0xFF13BB67)
+                      : message.isError
+                      ? Colors.red.withValues(alpha: 0.2)
+                      : _highContrast
+                      ? Colors.grey[900]
+                      : const Color(0xFF2D2D2D),
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(20),
+                    topRight: const Radius.circular(20),
+                    bottomLeft: Radius.circular(isUser ? 20 : 4),
+                    bottomRight: Radius.circular(isUser ? 4 : 20),
                   ),
-                ],
-              ),
-              // ✅ USO DE MARKDOWN PLUS
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  MarkdownBody(
-                    data: message.content,
-                    selectable: true,
-                    onTapLink: (text, href, title) {
-                      debugPrint('Link tocado: $href');
-                    },
-                    styleSheet: MarkdownStyleSheet(
-                      // Párrafos normales
-                      p: TextStyle(
-                        fontSize: 14,
-                        height: 1.4,
-                        color: isUser
-                            ? Colors.white
-                            : message.isError
-                            ? Colors.red[300]
-                            : Colors.white,
-                      ),
-                      // Negritas (Strong)
-                      strong: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: isUser ? Colors.white : Colors.white,
-                      ),
-                      // Listas
-                      listBullet: TextStyle(
-                        color: isUser ? Colors.white : Colors.white,
-                      ),
-                      // Código en línea (`codigo`)
-                      code: TextStyle(
-                        backgroundColor: Colors.black26,
-                        color: Colors.orangeAccent,
-                        fontFamily: 'monospace',
-                        fontSize: 13,
-                      ),
-                      // Bloques de código
-                      codeblockDecoration: BoxDecoration(
-                        color: Colors.black38,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      // Tablas (Muy comunes en Gemini)
-                      tableBorder: TableBorder.all(
-                        color: Colors.grey.withValues(alpha: 0.3),
-                      ),
-                      tableHead: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                      tableBody: const TextStyle(
-                        color: Colors.white70,
+                  // Resaltar si está seleccionado
+                  border: isSelected ? Border.all(color: Colors.white24, width: 1.5) : null,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                // ✅ USO DE MARKDOWN PLUS
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    MarkdownBody(
+                      data: message.content,
+                      // Evitar que el long-press seleccione texto nativamente;
+                      // el long-press selecciona la burbuja y las acciones salen en la AppBar.
+                      selectable: false,
+                      onTapLink: (text, href, title) {
+                        debugPrint('Link tocado: $href');
+                      },
+                      styleSheet: MarkdownStyleSheet(
+                        // Párrafos normales
+                        p: TextStyle(
+                          fontSize: 14 * _fontScale,
+                          height: 1.4,
+                          color: isUser
+                              ? Colors.white
+                              : message.isError
+                              ? Colors.red[300]
+                              : Colors.white,
+                        ),
+                        // Negritas (Strong)
+                        strong: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: isUser ? Colors.white : Colors.white,
+                        ),
+                        // Listas
+                        listBullet: TextStyle(
+                          color: isUser ? Colors.white : Colors.white,
+                        ),
+                        // Código en línea (`codigo`)
+                        code: TextStyle(
+                          backgroundColor: Colors.black26,
+                          color: Colors.orangeAccent,
+                          fontFamily: 'monospace',
+                          fontSize: 13 * _fontScale,
+                        ),
+                        // Bloques de código
+                        codeblockDecoration: BoxDecoration(
+                          color: Colors.black38,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        // Tablas (Muy comunes en Gemini)
+                        tableBorder: TableBorder.all(
+                          color: Colors.grey.withValues(alpha: 0.3),
+                        ),
+                        tableHead: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        tableBody: const TextStyle(
+                          color: Colors.white70,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatTime(message.timestamp),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isUser
-                          ? Colors.white.withValues(alpha: 0.7)
-                          : Colors.grey[500],
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        _formatTime(message.timestamp),
+                        style: TextStyle(
+                          fontSize: 10 * _fontScale,
+                          color: isUser
+                              ? Colors.white.withValues(alpha: 0.7)
+                              : Colors.grey[500],
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -373,7 +544,7 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
               vertical: 12,
             ),
             decoration: BoxDecoration(
-              color: const Color(0xFF2D2D2D),
+              color: _highContrast ? Colors.grey[900] : const Color(0xFF2D2D2D),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(20),
                 topRight: Radius.circular(20),
@@ -416,6 +587,7 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
     );
   }
 
+
   Widget _buildQuickSuggestions(List<String> suggestions) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -427,14 +599,15 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: ActionChip(
-                backgroundColor: const Color(0xFF2D2D2D),
+                backgroundColor:
+                _highContrast ? Colors.grey[900] : const Color(0xFF2D2D2D),
                 side: BorderSide(
                   color: const Color(0xFF13BB67).withValues(alpha: 0.5),
                 ),
                 label: Text(
                   suggestion,
-                  style: const TextStyle(
-                    fontSize: 12,
+                  style: TextStyle(
+                    fontSize: 12 * _fontScale,
                     color: Colors.white70,
                   ),
                 ),
@@ -456,7 +629,7 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
         bottom: MediaQuery.of(context).padding.bottom + 12,
       ),
       decoration: BoxDecoration(
-        color: const Color(0xFF2D2D2D),
+        color: _highContrast ? Colors.black : const Color(0xFF2D2D2D),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.2),
@@ -470,14 +643,14 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF1E1E1E),
+                color: _highContrast ? Colors.black : const Color(0xFF1E1E1E),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: TextField(
                 controller: _messageController,
                 focusNode: _focusNode,
                 enabled: !isLoading,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: Colors.white, fontSize: 14 * _fontScale),
                 maxLines: 4,
                 minLines: 1,
                 textCapitalization: TextCapitalization.sentences,
@@ -485,7 +658,10 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
                   hintText: isLoading
                       ? 'Esperando respuesta...'
                       : 'Escribe tu mensaje...',
-                  hintStyle: TextStyle(color: Colors.grey[500]),
+                  hintStyle: TextStyle(
+                    color: Colors.grey[500],
+                    fontSize: 14 * _fontScale,
+                  ),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
