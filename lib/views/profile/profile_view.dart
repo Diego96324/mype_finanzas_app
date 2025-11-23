@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:async';
+import 'edit_profile_view.dart';
 
 // Asegúrate de que estas importaciones sean correctas según tu estructura de carpetas
 import '../../core/providers/providers.dart';
@@ -309,10 +310,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
             subtitle: 'Actualizar información personal',
             trailing: const Icon(Icons.chevron_right, color: Colors.grey),
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Funcionalidad en desarrollo'),
-                  backgroundColor: Color(0xFF13BB67),
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const EditProfileView(),
                 ),
               );
             },
