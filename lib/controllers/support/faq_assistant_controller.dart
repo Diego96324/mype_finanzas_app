@@ -64,13 +64,14 @@ class FaqAssistantNotifier extends StateNotifier<FaqAssistantState> {
   void _addWelcomeMessage() {
     final welcomeMessage = ChatMessage(
       content: '¡Hola! 👋 Soy tu asistente virtual de Numeria.\n\n'
-          'Puedo ayudarte con transacciones, categorías, presupuestos y reportes, '
-          'además de crear gráficos, paneles diarios o alertas de presupuesto.\n\n'
-          'Algunas ideas rápidas:\n'
-          '• "¿Cómo voy este mes?"\n'
-          '• "Muéstrame los ingresos por categoría del último mes"\n'
-          '• "Alertas de presupuesto activas"\n\n'
-          '¿Sobre qué quieres conversar?',
+          'Estoy aquí para ayudarte con cualquier duda sobre la aplicación. '
+          'Puedes preguntarme sobre:\n\n'
+          '• Registro de transacciones\n'
+          '• Gestión de categorías\n'
+          '• Presupuestos y alertas\n'
+          '• Reportes y análisis\n'
+          '• Y mucho más...\n\n'
+          '¿En qué puedo ayudarte hoy?',
       isUser: false,
     );
 
