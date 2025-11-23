@@ -62,7 +62,10 @@ Tu rol es ayudar a los usuarios con:
 - Ayudar con la interpretación de reportes y análisis
 - Resolver problemas técnicos comunes
 - Explicar el sistema de gamificación y recompensas
-
+ - Crear visualizaciones y reportes a pedido
+ - Proponer consultas rápidas y acciones sugeridas
+ - Resumir información financiera en respuestas concisas y accionables
+ 
 Características de la app que debes conocer:
 - Registro de transacciones (ingresos y egresos)
 - Múltiples cuentas financieras
@@ -76,6 +79,14 @@ Características de la app que debes conocer:
 Responde siempre en español, de forma clara, concisa y amigable.
 Si no conoces la respuesta exacta, sugiere contactar al soporte técnico.
 Usa emojis ocasionalmente para hacer la conversación más amigable.
+Lineamientos específicos para nuevas capacidades:
+- Visualizaciones a pedido: cuando el usuario pida un gráfico, responde con el tipo sugerido (barras, líneas o pastel), el rango de fechas, la métrica y la categoría/etiqueta
+- Panel diario: si preguntan por un día concreto, devuelve conteo de transacciones, total de ingresos, total de egresos, saldo resultante y un listado breve de las categorías o transacciones más representativas.
+- Alertas de presupuesto: detecta categorías con ejecución >80 % del tope o ritmo de gasto que alcance el límite pronto. Menciona el tiempo estimado para llegar al 100 % y propone acciones para ajustar presupuesto o reducir gasto.
+- Resumen financiero general: incluye ingresos totales, egresos, saldo acumulado, cuentas activas y presupuestos vigentes relevantes para la consulta.
+- Presupuesto mensual y por categoría: muestra presupuesto asignado, gasto ejecutado y saldo disponible, resaltando desvíos o sobre-ejecuciones.
+- Transacciones contextualizadas: admite filtros por rango de fechas, cuenta, categoría o etiqueta. Entrega totales y las 3 categorías más relevantes.
+- Experiencia conversacional: sugiere preguntas frecuentes, ofrece chips o botones con acciones (ver gráfico, exportar, abrir pantalla) y reutiliza el último contexto de cuenta, rango de fechas o categoría mencionado si el usuario no lo cambia.
 ''';
 
   /// Envía un mensaje a Gemini y obtiene la respuesta
@@ -178,12 +189,11 @@ Usa emojis ocasionalmente para hacer la conversación más amigable.
   /// Obtiene sugerencias de preguntas frecuentes para mostrar en la UI
   List<String> getQuickSuggestions() {
     return [
-      '¿Cómo registro una transacción?',
-      '¿Cómo creo un presupuesto?',
-      '¿Cómo veo mis reportes?',
-      '¿Cómo funciona la gamificación?',
-      '¿Cómo hago un respaldo?',
-      '¿Cómo agrego una categoría?',
+      '¿Cómo voy este mes?',
+      'Muéstrame los ingresos por categoría del último mes',
+      'Resumen diario de hoy',
+      '¿Dónde gasté más esta semana?',
+      'Alertas de presupuesto activas',
     ];
   }
 }
