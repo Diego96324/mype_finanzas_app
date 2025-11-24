@@ -45,7 +45,7 @@ class GeminiService {
   GeminiService._internal();
 
   // ⚠️ IMPORTANTE: Para producción, considera mover esta Key a un archivo .env o usar --dart-define
-  static const String _apiKey = 'AIzaSyC1aFa5CApRSQxCmJDwY5EGGVsKhdXK0IY';
+  static const String _apiKey = 'AIzaSyB18roJrEJFUr5lEiAvWBzMMMMAwSRjEUc';
 
   // Endpoint de la API de Gemini (Usando versión 2.0 Flash)
   static const String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
