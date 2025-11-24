@@ -397,32 +397,42 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    TextStyle sectionTitle(ColorScheme cs) => TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: cs.onSurface,
+        );
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: theme.appBarTheme.backgroundColor,
         elevation: 0,
+        centerTitle: true,
         title: Text(
           'Buscar y Filtrar',
           style: TextStyle(
             color: colorScheme.onSurface,
             fontSize: 20,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
+      body: SafeArea(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const SizedBox(height: 16),
+
+              // 🔍 Buscador principal
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
+                      color: Colors.black.withValues(alpha: 0.06),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -466,7 +476,7 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide(
-                        color: colorScheme.onSurface.withValues(alpha: 0.1),
+                        color: colorScheme.onSurface.withValues(alpha: 0.10),
                         width: 1,
                       ),
                     ),
@@ -477,58 +487,42 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                         width: 2,
                       ),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                    ),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
                   ),
-                  onChanged: (value) {
-                    setState(() {});
-                  },
+                  onChanged: (_) => setState(() {}),
                 ),
               ),
-              const SizedBox(height: 32),
-              _buildDateRange(context),
+
               const SizedBox(height: 28),
-              _buildCategories(context),
-              const SizedBox(height: 28),
-              _buildAmountRange(context),
+
+              // 📅 Fechas
+              Text('Rango de fechas', style: sectionTitle(colorScheme)),
               const SizedBox(height: 12),
-              SwitchListTile(
-                title: const Text('Buscar solo en etiqueta'),
-                value: _tagOnly,
-                onChanged: (v) => setState(() => _tagOnly = v),
-              ),
-              SwitchListTile(
-                title: const Text('Buscar solo en nota'),
-                value: !_tagOnly && _noteOnly,
-                onChanged: (v) => setState(() {
-                  _noteOnly = v;
-                  if (v) _tagOnly = false;
-                }),
-              ),
-              SwitchListTile(
-                title: const Text('Solo recurrentes'),
-                value: _onlyRecurrent,
-                onChanged: (v) => setState(() => _onlyRecurrent = v),
-              ),
-              SwitchListTile(
-                title: const Text('Con comprobante'),
-                value: _hasAttachment,
-                onChanged: (v) => setState(() => _hasAttachment = v),
-              ),
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: 'Frecuencia'),
-                initialValue: _frecuencia,
-                items: const [
-                  DropdownMenuItem(value: null, child: Text('Cualquiera')),
-                  DropdownMenuItem(value: 'semanal', child: Text('Semanal')),
-                  DropdownMenuItem(value: 'quincenal', child: Text('Quincenal')),
-                  DropdownMenuItem(value: 'mensual', child: Text('Mensual')),
-                  DropdownMenuItem(value: 'personalizada', child: Text('Personalizada')),
-                ],
-                onChanged: (val) => setState(() => _frecuencia = val),
-              ),
+              _buildDateRange(context),
+
               const SizedBox(height: 28),
+
+              // 🏷 Categorías
+              Text('Categorías', style: sectionTitle(colorScheme)),
+              const SizedBox(height: 12),
+              _buildCategories(context),
+
+              const SizedBox(height: 28),
+
+              // 💸 Montos
+              Text('Rango de montos', style: sectionTitle(colorScheme)),
+              const SizedBox(height: 12),
+              _buildAmountRange(context),
+
+              const SizedBox(height: 24),
+
+              // 🔧 Filtros avanzados (switches + frecuencia)
+              _buildAdvancedFiltersCard(context),
+
+              const SizedBox(height: 28),
+
+              // 🎯 Tipo de transacción
               _buildMultiFilterSection(
                 context,
                 'Tipo de transacción',
@@ -538,7 +532,10 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                   setState(() => _tipos = selectedList);
                 },
               ),
-              const SizedBox(height: 28),
+
+              const SizedBox(height: 24),
+
+              // ↕ Orden
               _buildMultiFilterSection(
                 context,
                 'Ordenar por',
@@ -548,91 +545,104 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
                   setState(() => _orders = selectedList);
                 },
               ),
-              const SizedBox(height: 48),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _tipos = ['todos'];
-                          _orders = [];
-                          _searchTermController.clear();
-                          _fromDate = null;
-                          _toDate = null;
-                          _selectedCategoryIds.clear();
-                          _minAmountCtrl.clear();
-                          _maxAmountCtrl.clear();
-                          _tagOnly = false;
-                          _noteOnly = false;
-                          _onlyRecurrent = false;
-                          _hasAttachment = false;
-                          _frecuencia = null;
-                        });
-                      },
-                      icon: const Icon(Icons.refresh_rounded, size: 20),
-                      label: const Text(
-                        'Limpiar',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: colorScheme.onSurface,
-                        side: BorderSide(
-                          color: colorScheme.onSurface.withValues(alpha: 0.3),
-                          width: 1.5,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        List<String> finalTipos = _tipos.isEmpty ? ['todos'] : _tipos;
 
-                        Navigator.pop(context, {
-                          'tipos': finalTipos,
-                          'orders': _orders,
-                          'searchTerm': _searchTermController.text,
-                          'from': _fromDate,
-                          'to': _toDate,
-                          'categoriaIds': _selectedCategoryIds.toList(),
-                          'minAmount': double.tryParse(_minAmountCtrl.text.replaceAll(',', '.')),
-                          'maxAmount': double.tryParse(_maxAmountCtrl.text.replaceAll(',', '.')),
-                          'tagOnly': _tagOnly,
-                          'noteOnly': _noteOnly,
-                          'onlyRecurrent': _onlyRecurrent,
-                          'hasAttachment': _hasAttachment,
-                          'frecuencia': _frecuencia,
-                        });
-                      },
-                      icon: const Icon(Icons.check_rounded, size: 20),
-                      label: const Text(
-                        'Aplicar',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: colorScheme.primary,
-                        foregroundColor: colorScheme.onPrimary,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
+              const SizedBox(height: 80), // espacio para los botones de abajo
+            ],
+          ),
+        ),
+      ),
+
+      // 🟢 Botones fijos abajo
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _tipos = ['todos'];
+                      _orders = [];
+                      _searchTermController.clear();
+                      _fromDate = null;
+                      _toDate = null;
+                      _selectedCategoryIds.clear();
+                      _minAmountCtrl.clear();
+                      _maxAmountCtrl.clear();
+                      _tagOnly = false;
+                      _noteOnly = false;
+                      _onlyRecurrent = false;
+                      _hasAttachment = false;
+                      _frecuencia = null;
+                    });
+                  },
+                  icon: const Icon(Icons.refresh_rounded, size: 20),
+                  label: const Text(
+                    'Limpiar',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                ],
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colorScheme.onSurface,
+                    side: BorderSide(
+                      color: colorScheme.onSurface.withValues(alpha: 0.30),
+                      width: 1.5,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final finalTipos = _tipos.isEmpty ? ['todos'] : _tipos;
+
+                    Navigator.pop(context, {
+                      'tipos': finalTipos,
+                      'orders': _orders,
+                      'searchTerm': _searchTermController.text,
+                      'from': _fromDate,
+                      'to': _toDate,
+                      'categoriaIds': _selectedCategoryIds.toList(),
+                      'minAmount': double.tryParse(
+                        _minAmountCtrl.text.replaceAll(',', '.'),
+                      ),
+                      'maxAmount': double.tryParse(
+                        _maxAmountCtrl.text.replaceAll(',', '.'),
+                      ),
+                      'tagOnly': _tagOnly,
+                      'noteOnly': _noteOnly,
+                      'onlyRecurrent': _onlyRecurrent,
+                      'hasAttachment': _hasAttachment,
+                      'frecuencia': _frecuencia,
+                    });
+                  },
+                  icon: const Icon(Icons.check_rounded, size: 20),
+                  label: const Text(
+                    'Aplicar',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colorScheme.primary,
+                    foregroundColor: colorScheme.onPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -940,22 +950,197 @@ class _SearchFilterScreenState extends State<SearchFilterScreen> {
 
 
   Widget _buildAmountRange(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: colorScheme.onSurface.withValues(alpha: 0.10),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _minAmountCtrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Monto mínimo',
+                prefixText: 'S/. ',
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _maxAmountCtrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Monto máximo',
+                prefixText: 'S/. ',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdvancedFiltersCard(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: colorScheme.onSurface.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune_rounded, size: 20, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Filtros avanzados',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          _buildSwitchRow(
+            context,
+            icon: Icons.label_outline,
+            title: 'Buscar solo en etiqueta',
+            subtitle: 'Ignorar el contenido de la nota',
+            value: _tagOnly,
+            onChanged: (v) {
+              setState(() {
+                _tagOnly = v;
+                if (v) _noteOnly = false;
+              });
+            },
+          ),
+          const Divider(height: 16),
+
+          _buildSwitchRow(
+            context,
+            icon: Icons.sticky_note_2_outlined,
+            title: 'Buscar solo en nota',
+            subtitle: 'Ignorar la etiqueta cuando esté activo',
+            value: !_tagOnly && _noteOnly,
+            onChanged: (v) {
+              setState(() {
+                _noteOnly = v;
+                if (v) _tagOnly = false;
+              });
+            },
+          ),
+          const Divider(height: 16),
+
+          _buildSwitchRow(
+            context,
+            icon: Icons.repeat_rounded,
+            title: 'Solo recurrentes',
+            subtitle: 'Transacciones con frecuencia definida',
+            value: _onlyRecurrent,
+            onChanged: (v) => setState(() => _onlyRecurrent = v),
+          ),
+          const Divider(height: 16),
+
+          _buildSwitchRow(
+            context,
+            icon: Icons.attachment_rounded,
+            title: 'Con comprobante',
+            subtitle: 'Recibos, vouchers o imágenes adjuntas',
+            value: _hasAttachment,
+            onChanged: (v) => setState(() => _hasAttachment = v),
+          ),
+
+          const SizedBox(height: 16),
+
+          DropdownButtonFormField<String>(
+            decoration: const InputDecoration(labelText: 'Frecuencia'),
+            initialValue: _frecuencia,
+            items: const [
+              DropdownMenuItem(value: null, child: Text('Cualquiera')),
+              DropdownMenuItem(value: 'semanal', child: Text('Semanal')),
+              DropdownMenuItem(value: 'quincenal', child: Text('Quincenal')),
+              DropdownMenuItem(value: 'mensual', child: Text('Mensual')),
+              DropdownMenuItem(value: 'personalizada', child: Text('Personalizada')),
+            ],
+            onChanged: (val) => setState(() => _frecuencia = val),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSwitchRow(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Row(
       children: [
-        Expanded(
-          child: TextField(
-            controller: _minAmountCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Monto mínimo'),
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(10),
           ),
+          child: Icon(icon, size: 18, color: colorScheme.primary.withValues(alpha: 0.9)),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: TextField(
-            controller: _maxAmountCtrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Monto máximo'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ],
           ),
+        ),
+        Switch.adaptive(
+          value: value,
+          onChanged: onChanged,
         ),
       ],
     );

@@ -457,6 +457,7 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
         return StatefulBuilder(
           builder: (context, setDialogState) {
             final dialogPrimaryColor = const Color(0xFF13BB67);
+            final media = MediaQuery.of(dialogContext);
 
             return Theme(
               data: ThemeData.dark().copyWith(
@@ -468,337 +469,348 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
                   surface: Color(0xFF2D2D2D),
                 ),
               ),
-              child: AlertDialog(
-                title: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: dialogPrimaryColor.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.account_balance_wallet,
-                        color: dialogPrimaryColor,
-                      ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: 480,
+                    maxHeight: media.size.height * 0.85,
+                  ),
+                  child: AlertDialog(
+                    backgroundColor: const Color(0xFF2D2D2D),
+                    insetPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
                     ),
-                    const SizedBox(width: 12),
-                    const Text('Añadir Nueva Cuenta'),
-                  ],
-                ),
-                content: SingleChildScrollView(
-                  child: Form(
-                    key: formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                    scrollable: true,
+                    title: Row(
                       children: [
-                        TextFormField(
-                          controller: nombreController,
-                          autofocus: true,
-                          decoration: InputDecoration(
-                            labelText: 'Nombre de la cuenta *',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: dialogPrimaryColor,
-                                width: 2,
-                              ),
-                            ),
-                            errorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(
-                                color: Colors.redAccent,
-                                width: 1,
-                              ),
-                            ),
-                            hintText: 'Ej: Cuenta Corriente BCP',
-                            prefixIcon: Icon(Icons.edit, color: dialogPrimaryColor),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: dialogPrimaryColor.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          validator: (value) {
-                            if (value == null || value.trim().isEmpty) {
-                              return 'El nombre es obligatorio';
-                            }
-                            if (value.length > 100) {
-                              return 'Máximo 100 caracteres';
-                            }
-                            return null;
-                          },
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                        ),
-                        const SizedBox(height: 16),
-
-                        DropdownButtonFormField<String>(
-                          initialValue: tipoSeleccionado,
-                          decoration: InputDecoration(
-                            labelText: 'Tipo de cuenta *',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: dialogPrimaryColor,
-                                width: 2,
-                              ),
-                            ),
-                            prefixIcon: Icon(
-                              _getAccountIcon(tipoSeleccionado),
-                              color: dialogPrimaryColor,
-                            ),
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'efectivo',
-                              child: Text('Efectivo'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'debito',
-                              child: Text('Tarjeta de Débito'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'credito',
-                              child: Text('Tarjeta de Crédito'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'virtual',
-                              child: Text('Billetera Virtual'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'inversion',
-                              child: Text('Inversión'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'por_cobrar',
-                              child: Text('Por Cobrar'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'por_pagar',
-                              child: Text('Por Pagar'),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            setDialogState(() {
-                              tipoSeleccionado = value!;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Institución opcional
-                        TextFormField(
-                          controller: institucionController,
-                          decoration: InputDecoration(
-                            labelText: 'Institución financiera',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: dialogPrimaryColor,
-                                width: 2,
-                              ),
-                            ),
-                            hintText: 'Ej: Banco de Crédito del Perú',
-                            prefixIcon: Icon(Icons.business, color: dialogPrimaryColor),
+                          child: Icon(
+                            Icons.account_balance_wallet,
+                            color: dialogPrimaryColor,
                           ),
                         ),
-                        const SizedBox(height: 16),
-
-                        // Saldo y Moneda
-                        Row(
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                controller: saldoController,
-                                decoration: InputDecoration(
-                                  labelText: 'Saldo inicial *',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: dialogPrimaryColor,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  errorBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(
-                                      color: Colors.redAccent,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  prefixIcon: Icon(Icons.attach_money, color: dialogPrimaryColor),
-                                ),
-                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'El saldo es obligatorio';
-                                  }
-                                  final saldo = double.tryParse(value.trim());
-                                  if (saldo == null) {
-                                    return 'Ingrese un número válido';
-                                  }
-                                  final esPasivo = tipoSeleccionado == 'credito' ||
-                                      tipoSeleccionado == 'por_pagar';
-                                  if (!esPasivo && saldo < 0) {
-                                    return 'Los activos no pueden ser negativos';
-                                  }
-                                  return null;
-                                },
-                                autovalidateMode: AutovalidateMode.onUserInteraction,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                initialValue: monedaSeleccionada,
-                                decoration: InputDecoration(
-                                  labelText: 'Moneda',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: BorderSide(
-                                      color: dialogPrimaryColor,
-                                      width: 2,
-                                    ),
-                                  ),
-                                ),
-                                items: const [
-                                  DropdownMenuItem(value: 'PEN', child: Text('PEN')),
-                                  DropdownMenuItem(value: 'USD', child: Text('USD')),
-                                  DropdownMenuItem(value: 'EUR', child: Text('EUR')),
-                                ],
-                                onChanged: (value) {
-                                  setDialogState(() {
-                                    monedaSeleccionada = value!;
-                                  });
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Nota opcional
-                        TextFormField(
-                          controller: notaController,
-                          decoration: InputDecoration(
-                            labelText: 'Nota (opcional)',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(
-                                color: dialogPrimaryColor,
-                                width: 2,
-                              ),
-                            ),
-                            hintText: 'Agregar alguna observación...',
-                            prefixIcon: Icon(Icons.note, color: dialogPrimaryColor),
-                          ),
-                          maxLines: 2,
-                        ),
+                        const SizedBox(width: 12),
+                        const Text('Añadir Nueva Cuenta'),
                       ],
                     ),
+                    content: Form(
+                      key: formKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Nombre
+                          TextFormField(
+                            controller: nombreController,
+                            autofocus: true,
+                            decoration: InputDecoration(
+                              labelText: 'Nombre de la cuenta *',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: dialogPrimaryColor,
+                                  width: 2,
+                                ),
+                              ),
+                              errorBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Colors.redAccent,
+                                  width: 1,
+                                ),
+                              ),
+                              hintText: 'Ej: Cuenta Corriente BCP',
+                              prefixIcon: Icon(Icons.edit,
+                                  color: dialogPrimaryColor),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'El nombre es obligatorio';
+                              }
+                              if (value.length > 100) {
+                                return 'Máximo 100 caracteres';
+                              }
+                              return null;
+                            },
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Tipo de cuenta
+                          DropdownButtonFormField<String>(
+                            initialValue: tipoSeleccionado,
+                            decoration: InputDecoration(
+                              labelText: 'Tipo de cuenta *',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: dialogPrimaryColor,
+                                  width: 2,
+                                ),
+                              ),
+                              prefixIcon: Icon(
+                                _getAccountIcon(tipoSeleccionado),
+                                color: dialogPrimaryColor,
+                              ),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'efectivo', child: Text('Efectivo')),
+                              DropdownMenuItem(
+                                  value: 'debito',
+                                  child: Text('Tarjeta de Débito')),
+                              DropdownMenuItem(
+                                  value: 'credito',
+                                  child: Text('Tarjeta de Crédito')),
+                              DropdownMenuItem(
+                                  value: 'virtual',
+                                  child: Text('Billetera Virtual')),
+                              DropdownMenuItem(
+                                  value: 'inversion',
+                                  child: Text('Inversión')),
+                              DropdownMenuItem(
+                                  value: 'por_cobrar',
+                                  child: Text('Por Cobrar')),
+                              DropdownMenuItem(
+                                  value: 'por_pagar',
+                                  child: Text('Por Pagar')),
+                            ],
+                            onChanged: (value) {
+                              setDialogState(() {
+                                tipoSeleccionado = value!;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Institución
+                          TextFormField(
+                            controller: institucionController,
+                            decoration: InputDecoration(
+                              labelText: 'Institución financiera',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: dialogPrimaryColor,
+                                  width: 2,
+                                ),
+                              ),
+                              hintText: 'Ej: Banco de Crédito del Perú',
+                              prefixIcon: Icon(Icons.business,
+                                  color: dialogPrimaryColor),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Saldo y moneda (fila)
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: TextFormField(
+                                  controller: saldoController,
+                                  decoration: InputDecoration(
+                                    labelText: 'Saldo inicial *',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: dialogPrimaryColor,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    errorBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                        color: Colors.redAccent,
+                                        width: 1,
+                                      ),
+                                    ),
+                                    prefixIcon: Icon(Icons.attach_money,
+                                        color: dialogPrimaryColor),
+                                  ),
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                          decimal: true),
+                                  validator: (value) {
+                                    if (value == null ||
+                                        value.trim().isEmpty) {
+                                      return 'El saldo es obligatorio';
+                                    }
+                                    final saldo =
+                                        double.tryParse(value.trim());
+                                    if (saldo == null) {
+                                      return 'Ingrese un número válido';
+                                    }
+                                    final esPasivo =
+                                        tipoSeleccionado == 'credito' ||
+                                            tipoSeleccionado == 'por_pagar';
+                                    if (!esPasivo && saldo < 0) {
+                                      return 'Los activos no pueden ser negativos';
+                                    }
+                                    return null;
+                                  },
+                                  autovalidateMode:
+                                      AutovalidateMode.onUserInteraction,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  initialValue: monedaSeleccionada,
+                                  decoration: InputDecoration(
+                                    labelText: 'Moneda',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide(
+                                        color: dialogPrimaryColor,
+                                        width: 2,
+                                      ),
+                                    ),
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(
+                                        value: 'PEN', child: Text('PEN')),
+                                    DropdownMenuItem(
+                                        value: 'USD', child: Text('USD')),
+                                    DropdownMenuItem(
+                                        value: 'EUR', child: Text('EUR')),
+                                  ],
+                                  onChanged: (value) {
+                                    setDialogState(() {
+                                      monedaSeleccionada = value!;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Nota
+                          TextFormField(
+                            controller: notaController,
+                            decoration: InputDecoration(
+                              labelText: 'Nota (opcional)',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(
+                                  color: dialogPrimaryColor,
+                                  width: 2,
+                                ),
+                              ),
+                              hintText: 'Agregar alguna observación...',
+                              prefixIcon:
+                                  Icon(Icons.note, color: dialogPrimaryColor),
+                            ),
+                            maxLines: 2,
+                          ),
+                        ],
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: isLoading
+                            ? null
+                            : () => Navigator.pop(dialogContext),
+                        child: const Text('Cancelar'),
+                      ),
+                      ElevatedButton(
+                        onPressed: isLoading
+                            ? null
+                            : () async {
+                                if (!formKey.currentState!.validate()) return;
+
+                                setDialogState(() => isLoading = true);
+
+                                final saldo =
+                                    double.parse(saldoController.text.trim());
+
+                                // Capturar Navigator y Messenger antes del await
+                                final navigator = Navigator.of(dialogContext);
+                                final messenger = ScaffoldMessenger.of(context);
+
+                                final result = await ref
+                                    .read(accountsControllerProvider.notifier)
+                                    .createAccount(
+                                      nombre: nombreController.text.trim(),
+                                      tipo: tipoSeleccionado,
+                                      saldo: saldo,
+                                      moneda: monedaSeleccionada,
+                                      institucion: institucionController.text.trim().isEmpty
+                                          ? null
+                                          : institucionController.text.trim(),
+                                    );
+
+                                setDialogState(() => isLoading = false);
+
+                                // Usar las referencias capturadas y comprobar que el widget sigue montado
+                                if (context.mounted) {
+                                  if (result.success) {
+                                    // cerrar diálogo usando la referencia al Navigator del diálogo
+                                    navigator.pop();
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(result.message),
+                                        backgroundColor: const Color(0xFF13BB67),
+                                      ),
+                                    );
+                                  } else {
+                                    messenger.showSnackBar(
+                                      SnackBar(
+                                        content: Text(result.message),
+                                        backgroundColor: Colors.redAccent,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: dialogPrimaryColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: isLoading
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Guardar'),
+                      ),
+                    ],
                   ),
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: isLoading ? null : () => Navigator.pop(dialogContext),
-                    child: const Text('Cancelar'),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: isLoading
-                        ? null
-                        : () async {
-                            if (formKey.currentState!.validate()) {
-                              setDialogState(() => isLoading = true);
-
-                              await _createAccount(
-                                nombre: nombreController.text.trim(),
-                                tipo: tipoSeleccionado,
-                                saldo: double.parse(saldoController.text.trim()),
-                                moneda: monedaSeleccionada,
-                                institucion: institucionController.text.trim().isEmpty
-                                    ? null
-                                    : institucionController.text.trim(),
-                              );
-
-                              if (dialogContext.mounted) {
-                                Navigator.pop(dialogContext);
-                              }
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: dialogPrimaryColor,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey,
-                    ),
-                    icon: isLoading
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.save),
-                    label: Text(isLoading ? 'Guardando...' : 'Guardar'),
-                  ),
-                ],
               ),
             );
           },
         );
       },
     );
-  }
-
-  Future<void> _createAccount({
-    required String nombre,
-    required String tipo,
-    required double saldo,
-    required String moneda,
-    String? institucion,
-  }) async {
-    try {
-      final result = await ref.read(accountsControllerProvider.notifier).createAccount(
-        nombre: nombre,
-        tipo: tipo,
-        saldo: saldo,
-        moneda: moneda,
-        institucion: institucion,
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result.message),
-            backgroundColor: result.success ? const Color(0xFF13BB67) : Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   void _showAccountDetails(Account account) {
@@ -1064,10 +1076,12 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
 
   Future<void> _updateAccount({required Account account}) async {
     try {
+      // Capturar el messenger antes del await para no usar BuildContext en el gap async
+      final messenger = ScaffoldMessenger.of(context);
       final result = await ref.read(accountsControllerProvider.notifier).updateAccount(account);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text(result.message),
             backgroundColor: result.success ? const Color(0xFF13BB67) : Colors.red,
@@ -1076,7 +1090,8 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
             backgroundColor: Colors.red,
@@ -1119,10 +1134,11 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
 
   Future<void> _deleteAccount(int accountId) async {
     try {
+      final messenger = ScaffoldMessenger.of(context);
       final result = await ref.read(accountsControllerProvider.notifier).deleteAccount(accountId);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text(result.message),
             backgroundColor: result.success ? const Color(0xFF13BB67) : Colors.red,
@@ -1131,7 +1147,8 @@ class _AccountsTabState extends ConsumerState<AccountsTab> with AutomaticKeepAli
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
             backgroundColor: Colors.red,

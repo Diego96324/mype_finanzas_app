@@ -18,11 +18,25 @@ class TransactionsListView extends ConsumerStatefulWidget {
 
 class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
   final ScrollController _scrollController = ScrollController();
+  late final PageController _statsPageController;
   Timer? _loadMoreDebounce;
+  double _currentStatsPage = 0;
 
   @override
   void initState() {
     super.initState();
+
+    const initialVirtualPage = 1000; // grande para simular loop infinito
+
+    _statsPageController = PageController(
+      viewportFraction: 0.55, // ≈ 3 tarjetas visibles
+      initialPage: initialVirtualPage,
+    )..addListener(() {
+        setState(() {
+          _currentStatsPage = _statsPageController.page ?? 0;
+        });
+      });
+
     _scrollController.addListener(_onScroll);
   }
 
@@ -44,6 +58,7 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
   void dispose() {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _statsPageController.dispose();
     _loadMoreDebounce?.cancel();
     super.dispose();
   }
@@ -59,28 +74,134 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
     final ingresos = stats['ingresos'] ?? 0.0;
     final saldo = ingresos - egresos;
 
+    final statCards = [
+      _StatCardData(
+        'Gastos',
+        egresos,
+        Icons.trending_down_rounded,
+        const Color(0xFFE74C3C), // rojo
+        false,
+      ),
+      _StatCardData(
+        'Saldo Total',
+        saldo,
+        Icons.account_balance_wallet_rounded,
+        const Color(0xFF00B894), // verde turquesa
+        true,
+      ),
+      _StatCardData(
+        'Ingresos',
+        ingresos,
+        Icons.trending_up_rounded,
+        const Color(0xFF2ECC71), // verde
+        false,
+      ),
+    ];
+
+
     return SafeArea(
       child: Column(
         children: [
-          // Header
+          // HEADER PREMIUM
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.only(bottom: 8, top: 4),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [colorScheme.surfaceContainerHighest, colorScheme.surface],
+                colors: [
+                  colorScheme.surfaceContainerHighest,
+                  colorScheme.surface,
+                ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
-              border: Border(bottom: BorderSide(color: theme.dividerColor.withValues(alpha: 0.5), width: 1.5)),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(28),
+                bottomRight: Radius.circular(28),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(child: _buildEnhancedStatCard(context, 'Gastos', egresos, Icons.receipt_long_rounded, Colors.redAccent, false)),
-                const SizedBox(width: 10),
-                Expanded(flex: 2, child: _buildEnhancedStatCard(context, 'Saldo Total', saldo, Icons.account_balance_wallet_rounded, saldo >= 0 ? const Color(0xFF10A05B) : const Color(0xFFFF9800), true)),
-                const SizedBox(width: 10),
-                Expanded(child: _buildEnhancedStatCard(context, 'Ingresos', ingresos, Icons.attach_money_rounded, Colors.greenAccent, false)),
+                // Carrusel
+                SizedBox(
+                  height: 130, // más compacto
+                  child: PageView.builder(
+                    controller: _statsPageController,
+                    physics: const BouncingScrollPhysics(),
+                    // itemCount SIN límite para simular infinito
+                    itemBuilder: (context, index) {
+                      // índice real (0,1,2) -> gastos / saldo / ingresos
+                      final realIndex = index % statCards.length;
+                      final card = statCards[realIndex];
+
+                      // página actual (puede ser 999.2, 1000.7, etc)
+                      final currentPage = _currentStatsPage;
+
+                      // distancia de esta página al centro
+                      final delta = index - currentPage; // centro ≈ 0, lados ≈ -1 / +1
+                      final clamped = delta.clamp(-1.0, 1.0);
+
+                      // SOLO la tarjeta central se ve plana
+                      const maxAngle = 0.25; // rad ≈ 20°
+                      final isCenter = clamped.abs() < 0.001;
+
+                      final rotationY = isCenter ? 0.0 : clamped.sign * maxAngle;
+                      final scale = isCenter ? 1.0 : 0.85;
+                      final opacity = isCenter ? 1.0 : 0.65;
+
+                      return AnimatedOpacity(
+                        duration: const Duration(milliseconds: 150),
+                        opacity: opacity,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: Transform(
+                            alignment: Alignment.center,
+                            transform: Matrix4.identity()
+                              ..setEntry(3, 2, 0.001) // perspectiva
+                              ..multiply(Matrix4.diagonal3Values(scale, scale, scale))
+                              ..rotateY(rotationY),
+                            child: FractionallySizedBox(
+                              widthFactor: 0.9, // más angostas de los costados
+                              child: GestureDetector(
+                                onTap: () {
+                                  // animar a la página virtual tocada
+                                  _statsPageController.animateToPage(
+                                    index,
+                                    duration: const Duration(milliseconds: 260),
+                                    curve: Curves.easeOut,
+                                  );
+                                },
+                                child: _buildEnhancedStatCard(
+                                  context,
+                                  card.label,
+                                  card.amount,
+                                  card.icon,
+                                  card.color,
+                                  card.isHighlighted,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // Indicadores (premium)
+                _buildCarouselIndicators(context, statCards.length),
+
+                const SizedBox(height: 10),
               ],
             ),
           ),
@@ -205,7 +326,10 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: typeColor.withValues(alpha: 0.35), width: 1.5),
+        border: Border.all(
+          color: typeColor.withValues(alpha: 0.35),
+          width: 1.5,
+        ),
       ),
       child: ListTile(
         onTap: onTap ?? () async {
@@ -230,53 +354,105 @@ class _TransactionsListViewState extends ConsumerState<TransactionsListView> {
   }
 
   // Helpers UI
-  Widget _buildEnhancedStatCard(BuildContext context, String label, double amount, IconData icon, Color color, bool isHighlighted) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+  Widget _buildEnhancedStatCard(
+    BuildContext context,
+    String label,
+    double amount,
+    IconData icon,
+    Color color,        // color propio de la tarjeta (gastos, saldo, ingresos)
+    bool isHighlighted, // lo dejamos por si quieres usarlo luego
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      padding: EdgeInsets.all(isHighlighted ? 14 : 12),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
       decoration: BoxDecoration(
-        color: isHighlighted ? null : colorScheme.surface,
-        borderRadius: BorderRadius.circular(14),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF25262C),
+            Color(0xFF18191D),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: color.withValues(alpha: isHighlighted ? 0.35 : 0.25),
-          width: isHighlighted ? 2 : 1.5,
+          color: color.withValues(alpha: 0.9),
+          width: 1.2,
         ),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          // ICONO (más chico)
           Container(
-            padding: EdgeInsets.all(isHighlighted ? 10 : 8),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
               shape: BoxShape.circle,
+              color: colorScheme.onSurface.withValues(alpha: 0.06),
             ),
-            child: Icon(icon, color: color, size: isHighlighted ? 28 : 20),
+            child: Icon(
+              icon,
+              size: 20,
+              color: colorScheme.onSurface.withValues(alpha: 0.9),
+            ),
           ),
-          const SizedBox(height: 8),
+
+          // LABEL (un poco más chico)
           Text(
             label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: colorScheme.onSurface.withValues(alpha: 0.65),
-              fontSize: isHighlighted ? 11 : 10,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface.withValues(alpha: 0.9),
             ),
           ),
-          const SizedBox(height: 4),
+
+          // MONTO (compacto pero claro)
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
               'S/. ${CurrencyFormatter.formatAmount(amount)}',
               style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
                 color: color,
-                fontWeight: FontWeight.bold,
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCarouselIndicators(BuildContext context, int length) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    // página actual real (0..length-1)
+    final raw = _currentStatsPage.round();
+    final currentIndex = ((raw % length) + length) % length;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(length, (index) {
+        final isActive = index == currentIndex;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          height: 6,
+          width: isActive ? 22 : 8,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            color: isActive
+                ? colorScheme.primary
+                : colorScheme.outlineVariant.withValues(alpha: 0.7),
+          ),
+        );
+      }),
     );
   }
 
@@ -469,4 +645,15 @@ class _VisualMeta {
   final IconData icon;
   final String prefix;
   _VisualMeta(this.typeColor, this.icon, this.prefix);
+}
+
+
+class _StatCardData {
+  final String label;
+  final double amount;
+  final IconData icon;
+  final Color color;
+  final bool isHighlighted;
+
+  _StatCardData(this.label, this.amount, this.icon, this.color, this.isHighlighted);
 }
