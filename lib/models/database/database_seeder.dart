@@ -2,9 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DatabaseSeeder {
-  // =========================================================================
-  // 🆕 SEED ACHIEVEMENTS - Inserta logros por defecto si la tabla está vacía
-  // =========================================================================
+  // Seed de logros por defecto si la tabla está vacía
   static Future<void> seedAchievements(Database db) async {
     try {
       // Verificar si la tabla existe

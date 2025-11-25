@@ -17,7 +17,7 @@ class AppDatabase {
     return _db!;
   }
 
-  // NO TOCAR
+  // Helper para limpiar la base en caso de errores
   Future<void> resetDatabase() async {
     final dir = await getApplicationDocumentsDirectory();
     final path = p.join(dir.path, 'mype_finanzas.db');
@@ -31,25 +31,21 @@ class AppDatabase {
     final path = p.join(dir.path, 'mype_finanzas.db');
     return openDatabase(
       path,
-      version: 16, // bump para reestructurar gamification y agregar seed (v16)
+      version: 16, // actual, se actualizó cuando se reordenó el sistema de gamificación
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
-      onOpen: _onOpen, // 🆕 Conectar seed en apertura
+      onOpen: _onOpen,
     );
   }
 
-  // =========================================================================
-  // 🆕 ON OPEN - Se ejecuta cada vez que se abre la BD
-  // =========================================================================
+  // ON OPEN: corre cada vez que abrimos la app
   Future<void> _onOpen(Database db) async {
-    // Los seeds se centralizan aquí para cubrir creaciones y migraciones.
+    // Dejamos los seeds aquí por si acaso.
     await DatabaseSeeder.seedAchievements(db);
     await DatabaseSeeder.seedCategoryTemplates(db);
   }
 
-  // =========================================================================
-  // ON CREATE - Crear todas las tablas desde cero
-  // =========================================================================
+  // ON CREATE: crea tdo desde cero
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE usuarios(
@@ -98,7 +94,7 @@ class AppDatabase {
       )
     ''');
 
-    // Tabla categorias ya con soporte de jerarquía y plantillas (versión 9 consolidada)
+    // Tabla categorias con jerarquía y plantillas (versión 9 consolidada)
     await db.execute('''
       CREATE TABLE categorias(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -273,7 +269,7 @@ class AppDatabase {
       )
     ''');
 
-    // Tabla de plantillas de categorías por tipo de negocio (versión 9)
+    // Plantillas de categorías por tipo de negocio (versión 9)
     await db.execute('''
       CREATE TABLE plantillas_categorias(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -290,9 +286,7 @@ class AppDatabase {
       )
     ''');
 
-    // =========================================================================
-    // --- TABLAS DE GAMIFICATION (v16 - Estructura corregida) ---
-    // =========================================================================
+    // TABLAS DE GAMIFICATION (v16 - estructura corregida)
 
     // Perfiles de gamificación por usuario
     await db.execute('''
@@ -309,7 +303,7 @@ class AppDatabase {
       )
     ''');
 
-    // Catálogo de logros disponibles (estructura corregida v16)
+    // Catálogo de logros disponibles (estructura v16)
     await db.execute('''
       CREATE TABLE gamification_achievements(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -339,7 +333,7 @@ class AppDatabase {
       )
     ''');
 
-    // Tabla intermedia: progreso del usuario en cada logro
+    // Progreso del usuario en cada logro
     await db.execute('''
       CREATE TABLE user_achievements(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -356,9 +350,7 @@ class AppDatabase {
       )
     ''');
 
-    // =========================================================================
-    // --- ÍNDICES ---
-    // =========================================================================
+    // ÍNDICES
 
     // Índices de gamification
     await db.execute('CREATE INDEX idx_gamification_profiles_usuario ON gamification_profiles(usuario_id)');
@@ -394,9 +386,7 @@ class AppDatabase {
     await db.execute('CREATE INDEX idx_budget_periods_usuario ON budget_periods(usuario_id, periodo, mes, anio)');
     await db.execute('CREATE INDEX idx_cuentas_usuario ON cuentas(usuario_id)');
 
-    // =========================================================================
-    // --- DATOS INICIALES ---
-    // =========================================================================
+    // DATOS INICIALES
 
     final now = DateTime.now().toIso8601String();
 
