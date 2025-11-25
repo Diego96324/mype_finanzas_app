@@ -5,13 +5,13 @@ import '../../models/dtos/category_model.dart';
 
 part 'category_providers.g.dart';
 
-// Repository provider
+// Repositorio de categorías
 @riverpod
 CategoryRepository categoryRepository(Ref ref) {
   return CategoryRepository();
 }
 
-// Estado de las categorías del usuario
+// Estado general de las categorías del usuario
 @riverpod
 class CategoriesState extends _$CategoriesState {
   @override
@@ -28,14 +28,14 @@ class CategoriesState extends _$CategoriesState {
     }
   }
 
-  // Permite refrescar manualmente desde la UI si se requiere
+  // Refrescar desde la UI
   Future<void> refresh() async {
     state = const AsyncLoading();
     final data = await _loadCategories();
     state = AsyncData(data);
   }
 
-  // Crear nueva categoría
+  // Crear una nueva categoría
   Future<bool> createCategory({
     required String nombre,
     required String tipo,
@@ -58,7 +58,7 @@ class CategoriesState extends _$CategoriesState {
       );
 
       if (category != null) {
-        // Refrescamos el estado
+        // Volver a cargar la lista para que aparezca
         final updated = await _loadCategories();
         state = AsyncData(updated);
       }
@@ -69,7 +69,7 @@ class CategoriesState extends _$CategoriesState {
     }
   }
 
-  // Actualizar categoría
+  // Actualizar datos de categoría
   Future<bool> updateCategory({
     required int categoryId,
     String? nombre,
@@ -102,7 +102,7 @@ class CategoriesState extends _$CategoriesState {
     }
   }
 
-  // Eliminar categoría (puede desactivar si tiene transacciones)
+  // Eliminar o desactivar si ya tiene movidas las categorías
   Future<bool> deleteCategory(int categoryId) async {
     try {
       final repo = ref.read(categoryRepositoryProvider);
@@ -190,7 +190,7 @@ Future<Map<int, int>> categoryUsageStats(Ref ref) async {
   return await repo.getCategoryUsageStats();
 }
 
-// Provider para plantillas de negocio disponibles
+// Plantillas disponibles para rellenar rápido
 @riverpod
 List<BusinessTemplate> businessTemplates(Ref ref) {
   return [

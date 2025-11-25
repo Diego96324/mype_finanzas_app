@@ -20,7 +20,7 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
   final FocusNode _focusNode = FocusNode();
   final FlutterTts _tts = FlutterTts();
 
-  // Mensaje actualmente seleccionado (estilo WhatsApp: aparecer acciones en AppBar)
+  // Mensaje seleccionado (tipo WhatsApp para mostrar acciones)
   ChatMessage? _selectedMessage;
 
   double _fontScale = 1.0;
@@ -421,20 +421,20 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
                     ),
                   ],
                 ),
-                // ✅ USO DE MARKDOWN PLUS
+                // Usamos markdown_plus
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     MarkdownBody(
                       data: message.content,
-                      // Evitar que el long-press seleccione texto nativamente;
-                      // el long-press selecciona la burbuja y las acciones salen en la AppBar.
+                      // Evito que el long-press seleccione el texto;
+                      // el long-press selecciona la burbuja y salen las acciones arriba.
                       selectable: false,
                       onTapLink: (text, href, title) {
                         debugPrint('Link tocado: $href');
                       },
                       styleSheet: MarkdownStyleSheet(
-                        // Párrafos normales
+                        // Párrafos
                         p: TextStyle(
                           fontSize: 14 * _fontScale,
                           height: 1.4,
@@ -444,7 +444,7 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
                               ? Colors.red[300]
                               : Colors.white,
                         ),
-                        // Negritas (Strong)
+                        // Negritas
                         strong: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: isUser ? Colors.white : Colors.white,
@@ -453,7 +453,7 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
                         listBullet: TextStyle(
                           color: isUser ? Colors.white : Colors.white,
                         ),
-                        // Código en línea (`codigo`)
+                        // Código en línea
                         code: TextStyle(
                           backgroundColor: Colors.black26,
                           color: Colors.orangeAccent,
@@ -465,7 +465,7 @@ class _FaqAssistantViewState extends ConsumerState<FaqAssistantView> {
                           color: Colors.black38,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        // Tablas (Muy comunes en Gemini)
+                        // Tablas
                         tableBorder: TableBorder.all(
                           color: Colors.grey.withValues(alpha: 0.3),
                         ),

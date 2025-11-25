@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Tema consistente para todos los selectores de fecha de la aplicación
+// Tema para que todos los date pickers se vean iguales y no desentonen
 class AppDatePickerTheme {
   // Color principal verde de la app
   static const Color _primaryGreen = Color(0xFF13BB67);
@@ -29,7 +29,7 @@ class AppDatePickerTheme {
         backgroundColor: _surfaceDark,
         headerBackgroundColor: _primaryGreen,
         headerForegroundColor: Colors.white,
-        // Color del día seleccionado
+        // Color cuando se marca un día
         dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return _primaryGreen;
@@ -42,7 +42,7 @@ class AppDatePickerTheme {
           }
           return Colors.white;
         }),
-        // Color del día actual (hoy)
+        // Color para hoy
         todayBackgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return _primaryGreen;
@@ -59,7 +59,7 @@ class AppDatePickerTheme {
           color: _primaryGreen.withValues(alpha: 0.5),
           width: 1.5,
         ),
-        // Estilos del año
+        // Colores para el selector de año
         yearBackgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return _primaryGreen;

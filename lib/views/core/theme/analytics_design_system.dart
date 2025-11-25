@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-// constantes de estilos y colores para reportes
+// Colores y textos que usamos en los reportes para que tod se vea parejo
 class AnalyticsDesignSystem {
   static const Color primary = Color(0xFF13BB67);
   static const Color danger = Color(0xFFFF5252);

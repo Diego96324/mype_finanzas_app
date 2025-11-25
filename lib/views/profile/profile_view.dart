@@ -10,8 +10,6 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:async';
 import 'edit_profile_view.dart';
-
-// Asegúrate de que estas importaciones sean correctas según tu estructura de carpetas
 import '../../core/providers/providers.dart';
 import '../../core/utils/currency_formatter.dart';
 import '../../controllers/transactions/transactions_controller.dart';
@@ -196,28 +194,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
   }
 
   Future<void> _logout() async {
-    // Capturar dependencias ANTES de operaciones asíncronas que puedan desmontar el widget.
+    // Guardo estas refs antes del await por si el widget se desmonta
     final authNotifier = ref.read(authStateProvider.notifier);
     final userId = ref.read(currentUserIdProvider);
-    final ctx = context; // Capturar context
+    final ctx = context; // Mejor guardarlo una vez
 
     // Realizar la operación de logout
     await authNotifier.logout();
 
-    // Después de un 'await', el widget podría estar desmontado.
-    // No usar 'ref' ni 'context' sin verificar si el widget sigue montado.
+    // Después del await el widget pudo morir, así que reviso
     if (!ctx.mounted) return;
 
     if (userId != null) {
-      // Esta es otra operación asíncrona, pero no afecta al estado de autenticación.
-      // Es seguro llamarla después de la verificación.
+      // Otro await, pero no toca auth, así que tranqui
       await LastCategoryStorage().clearAllForUser(userId);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Nota: isDark se usa aquí para los widgets hijos que no extrajimos
+    // isDark también lo usan los widgets internos
     final isDark = ref.watch(isDarkModeProvider);
 
     return Scaffold(
@@ -244,12 +240,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ✅ WIDGET EXTRAÍDO: Evita reconstrucción masiva
+                // Widget separado para que no se redibuje tod
                 UserCardSection(onAvatarTap: _onAvatarTap),
 
                 const SizedBox(height: 20),
 
-                // ✅ WIDGET EXTRAÍDO: Aísla los cambios de transacciones
+                // Otro widget aparte para aislar las stats
                 const StatsSection(),
 
                 const SizedBox(height: 20),
@@ -275,7 +271,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
     );
   }
 
-  // --- MÉTODOS HELPER PARA TARJETAS SIMPLES (Estos están bien aquí) ---
+  // Helpers sencillos para las tarjetas
 
   Widget _buildSectionTitle(String title) {
     return Text(
@@ -595,7 +591,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
     );
   }
 
-  // --- LÓGICA DE AVATAR ---
+  // Cosas del avatar
 
   Future<void> _onAvatarTap(User? user) async {
     if (user == null || user.id == null) return;
@@ -771,9 +767,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> with SingleTicker
   }
 }
 
-// =================================================================
-// WIDGETS EXTRAÍDOS (SOLUCIÓN DEL BUCLE)
-// =================================================================
+// Widgets que movimos afuera para que no entren en bucles raros
 
 class UserCardSection extends ConsumerWidget {
   final Function(User?) onAvatarTap;
@@ -782,7 +776,7 @@ class UserCardSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ⚠️ MOVIMOS ESTE WATCH AQUÍ. Solo repinta esta tarjeta si cambia el usuario.
+    // Watch aquí para que solo se redibuje esta tarjeta cuando cambia el usuario
     final user = ref.watch(currentUserProvider);
 
     final dateFormat = DateFormat('dd/MM/yyyy');
@@ -830,7 +824,7 @@ class UserCardSection extends ConsumerWidget {
                     if (avatarPath != null && avatarPath.isNotEmpty) {
                       return Image.file(
                         File(avatarPath),
-                        // 🔑 KEY AÑADIDA: Evita que Flutter redibuje si el path es el mismo
+                        // Key para que Flutter no se ponga a redibujar sin motivo
                         key: ValueKey('avatar-$avatarPath'),
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stack) {
@@ -915,8 +909,7 @@ class StatsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // ⚠️ MOVIMOS EL WATCH DE TRANSACCIONES AQUÍ.
-    // Ahora, si se actualizan los $$$$, solo se repinta este widget, NO el avatar.
+    // Watch de transacciones aquí para que solo se refresque este widget y no el avatar
     final transactionsState = ref.watch(transactionsControllerProvider);
     final stats = transactionsState.stats ?? {};
 

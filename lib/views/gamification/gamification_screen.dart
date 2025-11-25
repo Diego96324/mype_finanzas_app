@@ -60,12 +60,12 @@ class GamificationScreen extends ConsumerWidget {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
-                // Header
+                // Encabezado simple
                 SliverToBoxAdapter(
                   child: _buildHeader(context, profile),
                 ),
 
-                // Título "Logros"
+                // Título de logros
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -77,7 +77,7 @@ class GamificationScreen extends ConsumerWidget {
                   ),
                 ),
 
-                // LISTA de logros (ya no grid)
+                // Lista de logros
                 if (achievements.isEmpty)
                   _buildEmptyAchievementsState(context, ref, userId)
                 else
@@ -105,7 +105,7 @@ class GamificationScreen extends ConsumerWidget {
                     ),
                   ),
 
-                // Título "Historial de Puntos"
+                // Título del historial de puntos
                 SliverToBoxAdapter(
                   child: Padding(
                     padding:
@@ -117,7 +117,7 @@ class GamificationScreen extends ConsumerWidget {
                   ),
                 ),
 
-                // Lista de eventos (sliver)
+                // Lista de eventos en sliver
                 _buildEventsList(context, ref, userId),
 
                 const SliverToBoxAdapter(child: SizedBox(height: 48)),
@@ -132,9 +132,7 @@ class GamificationScreen extends ConsumerWidget {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // WIDGETS AUXILIARES
-  // ---------------------------------------------------------------------------
+  // Widgets auxiliares
 
   Widget _buildEventsList(
       BuildContext context, WidgetRef ref, int userId) {
@@ -296,7 +294,7 @@ class GamificationScreen extends ConsumerWidget {
     final percent =
     (target > 0) ? (progressVal / target).clamp(0.0, 1.0) : 0.0;
 
-    // 🎨 COLORES MEJORADOS PARA CONTRASTE
+    // Colores con más contraste
     final backgroundColor = isUnlocked
         ? Colors.green[600]
         : Theme.of(context).cardColor;
@@ -405,7 +403,7 @@ class GamificationScreen extends ConsumerWidget {
     );
   }
 
-  /// Convierte el nombre del icono guardado en BD a un IconData de Material
+  /// Pasa el nombre del icono guardado en la BD a un IconData de Material
   IconData _getIconFromName(String iconName) {
     switch (iconName) {
       case 'login':

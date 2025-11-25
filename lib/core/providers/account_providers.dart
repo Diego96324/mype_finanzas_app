@@ -6,13 +6,13 @@ import '../../controllers/transactions/transactions_controller.dart';
 
 part 'account_providers.g.dart';
 
-// Repository provider
+// Repositorio de cuentas
 @riverpod
 AccountRepository accountRepository(Ref ref) {
   return AccountRepository();
 }
 
-// Estado de las cuentas del usuario
+// Estado de las cuentas que ve el usuario
 @riverpod
 class AccountsState extends _$AccountsState {
   @override
@@ -29,7 +29,7 @@ class AccountsState extends _$AccountsState {
     }
   }
 
-  // Crear nueva cuenta
+  // Crear nueva cuenta más para la lista
   Future<bool> createAccount({
     required String nombre,
     required String tipo,
@@ -63,7 +63,7 @@ class AccountsState extends _$AccountsState {
     }
   }
 
-  // Actualizar cuenta
+  // Actualizar cuenta sin drama
   Future<bool> updateAccount({
     required int accountId,
     String? nombre,
@@ -100,7 +100,7 @@ class AccountsState extends _$AccountsState {
     }
   }
 
-  // Eliminar cuenta
+  // Borrar la cuenta
   Future<bool> deleteAccount(int accountId) async {
     try {
       final repo = ref.read(accountRepositoryProvider);
@@ -108,8 +108,7 @@ class AccountsState extends _$AccountsState {
 
       if (success) {
         await refresh();
-        // Forzar recarga de transacciones para que cualquier transacción de apertura
-        // eliminada deje de mostrarse inmediatamente en la lista.
+        // Recargar transacciones para que no quede basura fantasma en la lista
         try {
           ref.invalidate(transactionsControllerProvider);
         } catch (_) {}
@@ -120,7 +119,7 @@ class AccountsState extends _$AccountsState {
     }
   }
 
-  // Transferir entre cuentas
+  // Pasar plata entre cuentas
   Future<bool> transfer({
     required int fromAccountId,
     required int toAccountId,
@@ -145,7 +144,7 @@ class AccountsState extends _$AccountsState {
     }
   }
 
-  // Reordenar cuentas
+  // Cambiar el orden pq si
   Future<bool> reorderAccounts(List<int> accountIds) async {
     try {
       final repo = ref.read(accountRepositoryProvider);
@@ -160,42 +159,42 @@ class AccountsState extends _$AccountsState {
     }
   }
 
-  // Refrescar lista de cuentas
+  // Refrescar la lista de cuentas
   Future<void> refresh() async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() => _loadAccounts());
   }
 }
 
-// Provider para obtener resumen de cuentas
+// Resumen rápido de cuentas
 @riverpod
 Future<Map<String, dynamic>> accountsSummary(Ref ref) async {
-  // Refrescar cuando cambian las cuentas
+  // Si cambias las cuentas esto se mueve.
   ref.watch(accountsStateProvider);
 
   final repo = ref.read(accountRepositoryProvider);
   return await repo.getAccountsSummary();
 }
 
-// Provider para obtener una cuenta específica
+// Buscar una cuenta por id
 @riverpod
 Future<Account?> accountById(Ref ref, int accountId) async {
   final accounts = await ref.watch(accountsStateProvider.future);
   for (final account in accounts) {
     if (account.id == accountId) return account;
   }
-  // Si no la encontramos, devolvemos null en lugar de lanzar excepción.
+  // Si no aparece, devolver null y ya
   return null;
 }
 
-// Provider para obtener el total de saldos
+// Total de saldos
 @riverpod
 Future<double> totalBalance(Ref ref) async {
   final summary = await ref.watch(accountsSummaryProvider.future);
   return summary['total'] as double? ?? 0.0;
 }
 
-// Provider para obtener cuentas por tipo
+// Filtrar cuentas por tipo
 @riverpod
 Future<List<Account>> accountsByType(Ref ref, String tipo) async {
   final accounts = await ref.watch(accountsStateProvider.future);
