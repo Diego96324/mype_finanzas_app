@@ -157,7 +157,6 @@ class TransactionFormController extends StateNotifier<TransactionFormState> {
     if (catId == null) return false;
     final cat = _findInCache(catId);
     if (cat == null) return false;
-    // Regla adicional: si es egreso y el nombre sugiere requerir notas
     final nombreLower = (cat.nombre).toLowerCase();
     const requiringKeywords = ['servicio', 'servicios', 'salud', 'med', 'educ', 'impuesto', 'tax'];
     if (args.tipo == 'egreso' && requiringKeywords.any((k) => nombreLower.contains(k))) {
